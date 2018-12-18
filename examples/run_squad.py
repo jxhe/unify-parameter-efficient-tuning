@@ -742,6 +742,10 @@ def main():
                         default=False,
                         action='store_true',
                         help="Whether to use 16-bit float precision instead of 32-bit")
+    parser.add_argument('--predict_fp16',
+                        default=False,
+                        action='store_true',
+                        help="Whether to use 16-bit float precision instead of 32-bit for prediction")
     parser.add_argument('--loss_scale',
                         type=float, default=0,
                         help="Loss scaling to improve fp16 numeric stability. Only used when fp16 set to True.\n"
@@ -926,6 +930,8 @@ def main():
     model_state_dict = torch.load(output_model_file)
     model = BertForQuestionAnswering.from_pretrained(args.bert_model, state_dict=model_state_dict)
     model.to(device)
+    if args.predict_fp16:
+        model.half()
 
     if (args.do_predict or args.do_benchmark) and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
         eval_examples = read_squad_examples(
