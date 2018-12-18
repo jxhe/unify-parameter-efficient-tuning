@@ -700,6 +700,7 @@ def main():
                              "be truncated to this length.")
     parser.add_argument("--do_train", default=False, action='store_true', help="Whether to run training.")
     parser.add_argument("--do_predict", default=False, action='store_true', help="Whether to run eval on the dev set.")
+    parser.add_argument("--do_benchmark", default=False, action='store_true', help="Whether to benchmark prediction speed on the dev set.")
     parser.add_argument("--train_batch_size", default=32, type=int, help="Total batch size for training.")
     parser.add_argument("--predict_batch_size", default=8, type=int, help="Total batch size for predictions.")
     parser.add_argument("--learning_rate", default=5e-5, type=float, help="The initial learning rate for Adam.")
@@ -926,7 +927,7 @@ def main():
     model = BertForQuestionAnswering.from_pretrained(args.bert_model, state_dict=model_state_dict)
     model.to(device)
 
-    if args.do_predict and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
+    if (args.do_predict or args.do_benchmark) and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
         eval_examples = read_squad_examples(
             input_file=args.predict_file, is_training=False)
         eval_features = convert_examples_to_features(
@@ -961,25 +962,30 @@ def main():
             input_ids = input_ids.to(device)
             input_mask = input_mask.to(device)
             segment_ids = segment_ids.to(device)
-            with torch.no_grad():
-                batch_start_logits, batch_end_logits = model(input_ids, segment_ids, input_mask)
-            for i, example_index in enumerate(example_indices):
-                start_logits = batch_start_logits[i].detach().cpu().tolist()
-                end_logits = batch_end_logits[i].detach().cpu().tolist()
-                eval_feature = eval_features[example_index.item()]
-                unique_id = int(eval_feature.unique_id)
-                all_results.append(RawResult(unique_id=unique_id,
-                                             start_logits=start_logits,
-                                             end_logits=end_logits))
+            if args.do_benchmark:
+                with torch.no_grad():
+                    model(input_ids, segment_ids, input_mask)
+            else:
+                with torch.no_grad():
+                    batch_start_logits, batch_end_logits = model(input_ids, segment_ids, input_mask)
+                for i, example_index in enumerate(example_indices):
+                    start_logits = batch_start_logits[i].detach().cpu().tolist()
+                    end_logits = batch_end_logits[i].detach().cpu().tolist()
+                    eval_feature = eval_features[example_index.item()]
+                    unique_id = int(eval_feature.unique_id)
+                    all_results.append(RawResult(unique_id=unique_id,
+                                                start_logits=start_logits,
+                                                end_logits=end_logits))
         total_time = datetime.now() - start_time
         logger.info("Total time: %d seconds — Number of examples: %d — Examples/second: %f" % (
             total_time.total_seconds(), len(eval_data), len(eval_data)/total_time.total_seconds()))
-        output_prediction_file = os.path.join(args.output_dir, "predictions.json")
-        output_nbest_file = os.path.join(args.output_dir, "nbest_predictions.json")
-        write_predictions(eval_examples, eval_features, all_results,
-                          args.n_best_size, args.max_answer_length,
-                          args.do_lower_case, output_prediction_file,
-                          output_nbest_file, args.verbose_logging)
+        if not args.do_benchmark:
+            output_prediction_file = os.path.join(args.output_dir, "predictions.json")
+            output_nbest_file = os.path.join(args.output_dir, "nbest_predictions.json")
+            write_predictions(eval_examples, eval_features, all_results,
+                            args.n_best_size, args.max_answer_length,
+                            args.do_lower_case, output_prediction_file,
+                            output_nbest_file, args.verbose_logging)
 
 
 if __name__ == "__main__":
