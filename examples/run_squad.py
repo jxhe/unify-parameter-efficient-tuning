@@ -27,6 +27,7 @@ import math
 import os
 import random
 import pickle
+from datetime import datetime
 from tqdm import tqdm, trange
 
 import numpy as np
@@ -953,6 +954,7 @@ def main():
         model.eval()
         all_results = []
         logger.info("Start evaluating")
+        start_time = datetime.now()
         for input_ids, input_mask, segment_ids, example_indices in tqdm(eval_dataloader, desc="Evaluating"):
             if len(all_results) % 1000 == 0:
                 logger.info("Processing example: %d" % (len(all_results)))
@@ -969,6 +971,9 @@ def main():
                 all_results.append(RawResult(unique_id=unique_id,
                                              start_logits=start_logits,
                                              end_logits=end_logits))
+        total_time = datetime.now() - start_time
+        logger.info("Total time: %d seconds — Number of examples: %d — Examples/second: %f" % (
+            total_time.total_seconds(), len(eval_data), len(eval_data)/total_time.total_seconds()))
         output_prediction_file = os.path.join(args.output_dir, "predictions.json")
         output_nbest_file = os.path.join(args.output_dir, "nbest_predictions.json")
         write_predictions(eval_examples, eval_features, all_results,

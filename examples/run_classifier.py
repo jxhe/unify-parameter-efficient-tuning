@@ -24,6 +24,7 @@ import os
 import logging
 import argparse
 import random
+from datetime import datetime
 from tqdm import tqdm, trange
 
 import numpy as np
@@ -580,6 +581,7 @@ def main():
         model.eval()
         eval_loss, eval_accuracy = 0, 0
         nb_eval_steps, nb_eval_examples = 0, 0
+        start_time = datetime.now()
         for input_ids, input_mask, segment_ids, label_ids in eval_dataloader:
             input_ids = input_ids.to(device)
             input_mask = input_mask.to(device)
@@ -599,6 +601,10 @@ def main():
 
             nb_eval_examples += input_ids.size(0)
             nb_eval_steps += 1
+
+        total_time = datetime.now() - start_time
+        logger.info("Total time: %d seconds — Number of examples: %d — Examples/second: %f" % (
+            total_time.total_seconds(), len(eval_data), len(eval_data)/total_time.total_seconds()))
 
         eval_loss = eval_loss / nb_eval_steps
         eval_accuracy = eval_accuracy / nb_eval_examples
