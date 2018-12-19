@@ -922,9 +922,10 @@ def main():
                     optimizer.zero_grad()
                     global_step += 1
 
-        # Save a trained model
-        model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
-        torch.save(model_to_save.state_dict(), output_model_file)
+        if args.local_rank == -1 or torch.distributed.get_rank() == 0:
+            # Save a trained model
+            model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
+            torch.save(model_to_save.state_dict(), output_model_file)
 
     if (args.do_predict or args.do_benchmark) and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
         # Load a trained model that you have fine-tuned
