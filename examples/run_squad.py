@@ -684,9 +684,11 @@ def main():
                         help="Bert pre-trained model selected in the list: bert-base-uncased, "
                              "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.")
     parser.add_argument("--output_dir", default=None, type=str, required=True,
-                        help="The output directory where the model checkpoints and predictions will be written.")
+                        help="The output directory where the predictions will be written.")
 
     ## Other parameters
+    parser.add_argument("--model_save_dir", default=None, type=str,
+                        help="The directory where the model checkpoints will be saved and loaded from.")
     parser.add_argument("--train_file", default=None, type=str, help="SQuAD json for training. E.g., train-v1.1.json")
     parser.add_argument("--predict_file", default=None, type=str,
                         help="SQuAD json for predictions. E.g., dev-v1.1.json or test-v1.1.json")
@@ -793,7 +795,9 @@ def main():
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
         raise ValueError("Output directory () already exists and is not empty.")
     os.makedirs(args.output_dir, exist_ok=True)
-    output_model_file = os.path.join(args.output_dir, "pytorch_model.bin")
+    if not args.model_save_dir:
+        args.model_save_dir = args.output_dir
+    output_model_file = os.path.join(args.model_save_dir, "pytorch_model.bin")
 
     tokenizer = BertTokenizer.from_pretrained(args.bert_model)
 
