@@ -36,15 +36,26 @@ from .file_utils import cached_path
 
 logger = logging.getLogger(__name__)
 
-PRETRAINED_MODEL_ARCHIVE_MAP = {
-    'bert-base-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased.tar.gz",
-    'bert-large-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased.tar.gz",
-    'bert-base-cased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-cased.tar.gz",
-    'bert-large-cased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased.tar.gz",
-    'bert-base-multilingual-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-multilingual-uncased.tar.gz",
-    'bert-base-multilingual-cased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-multilingual-cased.tar.gz",
-    'bert-base-chinese': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-chinese.tar.gz",
+PRETRAINED_WEIGHTS_ARCHIVE_MAP = {
+    'bert-base-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased-pytorch-model.bin",
+    'bert-large-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased-pytorch-model.bin",
+    'bert-base-cased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-cased-pytorch-model.bin",
+    'bert-large-cased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-pytorch-model.bin",
+    'bert-base-multilingual-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-multilingual-uncased-pytorch-model.bin",
+    'bert-base-multilingual-cased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-multilingual-cased-pytorch-model.bin",
+    'bert-base-chinese': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-chinese-pytorch-model.bin",
 }
+
+PRETRAINED_CONFIG_ARCHIVE_MAP = {
+    'bert-base-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased-config.json",
+    'bert-large-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-uncased-config.json",
+    'bert-base-cased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-cased-config.json",
+    'bert-large-cased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-large-cased-config.json",
+    'bert-base-multilingual-uncased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-multilingual-uncased-config.json",
+    'bert-base-multilingual-cased': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-multilingual-cased-config.json",
+    'bert-base-chinese': "https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-chinese-config.json",
+}
+
 CONFIG_NAME = 'bert_config.json'
 WEIGHTS_NAME = 'pytorch_model.bin'
 
@@ -466,47 +477,51 @@ class PreTrainedBertModel(nn.Module):
             *inputs, **kwargs: additional input for the specific Bert class
                 (ex: num_labels for BertForSequenceClassification)
         """
-        if pretrained_model_name in PRETRAINED_MODEL_ARCHIVE_MAP:
-            archive_file = PRETRAINED_MODEL_ARCHIVE_MAP[pretrained_model_name]
-        else:
-            archive_file = pretrained_model_name
+        # Load config
+        config_file = PRETRAINED_CONFIG_ARCHIVE_MAP.get(pretrained_model_name, pretrained_model_name)
+        if os.path.isdir(config_file):
+            config_file = os.path.join(config_file, CONFIG_NAME)
         # redirect to the cache, if necessary
         try:
-            resolved_archive_file = cached_path(archive_file, cache_dir=cache_dir)
+            resolved_config_file = cached_path(config_file, cache_dir=cache_dir)
         except FileNotFoundError:
             logger.error(
                 "Model name '{}' was not found in model name list ({}). "
                 "We assumed '{}' was a path or url but couldn't find any file "
                 "associated to this path or url.".format(
                     pretrained_model_name,
-                    ', '.join(PRETRAINED_MODEL_ARCHIVE_MAP.keys()),
-                    archive_file))
+                    ', '.join(PRETRAINED_CONFIG_ARCHIVE_MAP.keys()),
+                    config_file))
             return None
-        if resolved_archive_file == archive_file:
-            logger.info("loading archive file {}".format(archive_file))
-        else:
-            logger.info("loading archive file {} from cache at {}".format(
-                archive_file, resolved_archive_file))
-        tempdir = None
-        if os.path.isdir(resolved_archive_file):
-            serialization_dir = resolved_archive_file
-        else:
-            # Extract archive to temp dir
-            tempdir = tempfile.mkdtemp()
-            logger.info("extracting archive file {} to temp dir {}".format(
-                resolved_archive_file, tempdir))
-            with tarfile.open(resolved_archive_file, 'r:gz') as archive:
-                archive.extractall(tempdir)
-            serialization_dir = tempdir
-        # Load config
-        config_file = os.path.join(serialization_dir, CONFIG_NAME)
+        logger.info("loading config file {}{}".format(
+            "from cache " if resolved_config_file != config_file else " ", resolved_config_file
+        ))
         config = BertConfig.from_json_file(config_file)
         logger.info("Model config {}".format(config))
+
         # Instantiate model.
         model = cls(config, *inputs, **kwargs)
         if state_dict is None:
-            weights_path = os.path.join(serialization_dir, WEIGHTS_NAME)
-            state_dict = torch.load(weights_path)
+            weights_file = PRETRAINED_WEIGHTS_ARCHIVE_MAP.get(pretrained_model_name, pretrained_model_name)
+            if os.path.isdir(weights_file):
+                weights_file = os.path.join(weights_file, WEIGHTS_NAME)
+            try:
+                resolved_weights_file = cached_path(weights_file, cache_dir=cache_dir)
+            except FileNotFoundError:
+                logger.error(
+                    "Model name '{}' was not found in model name list ({}). "
+                    "We assumed '{}' was a path or url but couldn't find any file "
+                    "associated to this path or url.".format(
+                        pretrained_model_name,
+                        ', '.join(PRETRAINED_WEIGHTS_ARCHIVE_MAP.keys()),
+                        weights_file))
+                return None
+            logger.info("loading pretrained weights {}{}".format(
+                "from cache " if resolved_weights_file != weights_file else " ", resolved_weights_file
+            ))
+            if os.path.isdir(weights_file):
+                weights_file = os.path.join(weights_file, WEIGHTS_NAME)
+            state_dict = torch.load(weights_file)
 
         old_keys = []
         new_keys = []
@@ -545,9 +560,6 @@ class PreTrainedBertModel(nn.Module):
         if len(unexpected_keys) > 0:
             logger.info("Weights from pretrained model not used in {}: {}".format(
                 model.__class__.__name__, unexpected_keys))
-        if tempdir:
-            # Clean up temp dir
-            shutil.rmtree(tempdir)
         return model
 
 
