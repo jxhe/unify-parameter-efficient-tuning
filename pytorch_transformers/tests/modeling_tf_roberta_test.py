@@ -28,7 +28,9 @@ from pytorch_transformers import RobertaConfig, is_tf_available
 
 try:
     import tensorflow as tf
-    from pytorch_transformers.modeling_tf_roberta import (TFRobertaModel, TF_ROBERTA_PRETRAINED_MODEL_ARCHIVE_MAP)
+    from pytorch_transformers.modeling_tf_roberta import (TFRobertaModel, TFRobertaForMaskedLM,
+                                                          TFRobertaForSequenceClassification,
+                                                          TF_ROBERTA_PRETRAINED_MODEL_ARCHIVE_MAP)
 except ImportError:
     pytestmark = pytest.mark.skip("Require TensorFlow")
 
@@ -142,33 +144,33 @@ class TFRobertaModelTest(TFCommonTestCases.TFCommonModelTester):
             self.parent.assertListEqual(list(result["pooled_output"].shape), [self.batch_size, self.hidden_size])
 
 
-        # def create_and_check_bert_for_masked_lm(self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels):
-        #     model = TFBertForMaskedLM(config=config)
-        #     inputs = {'input_ids': input_ids,
-        #               'attention_mask': input_mask,
-        #               'token_type_ids': token_type_ids}
-        #     prediction_scores, = model(inputs)
-        #     result = {
-        #         "prediction_scores": prediction_scores.numpy(),
-        #     }
-        #     self.parent.assertListEqual(
-        #         list(result["prediction_scores"].shape),
-        #         [self.batch_size, self.seq_length, self.vocab_size])
-        #
-        # def create_and_check_bert_for_sequence_classification(self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels):
-        #     config.num_labels = self.num_labels
-        #     model = TFBertForSequenceClassification(config=config)
-        #     inputs = {'input_ids': input_ids,
-        #               'attention_mask': input_mask,
-        #               'token_type_ids': token_type_ids}
-        #     logits, = model(inputs)
-        #     result = {
-        #         "logits": logits.numpy(),
-        #     }
-        #     self.parent.assertListEqual(
-        #         list(result["logits"].shape),
-        #         [self.batch_size, self.num_labels])
-        #
+        def create_and_check_roberta_for_masked_lm(self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels):
+            model = TFRobertaForMaskedLM(config=config)
+            inputs = {'input_ids': input_ids,
+                      'attention_mask': input_mask,
+                      'token_type_ids': token_type_ids}
+            prediction_scores, = model(inputs)
+            result = {
+                "prediction_scores": prediction_scores.numpy(),
+            }
+            self.parent.assertListEqual(
+                list(result["prediction_scores"].shape),
+                [self.batch_size, self.seq_length, self.vocab_size])
+
+        def create_and_check_roberta_for_sequence_classification(self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels):
+            config.num_labels = self.num_labels
+            model = TFRobertaForSequenceClassification(config=config)
+            inputs = {'input_ids': input_ids,
+                      'attention_mask': input_mask,
+                      'token_type_ids': token_type_ids}
+            logits, = model(inputs)
+            result = {
+                "logits": logits.numpy(),
+            }
+            self.parent.assertListEqual(
+                list(result["logits"].shape),
+                [self.batch_size, self.num_labels])
+
         # def create_and_check_bert_for_question_answering(self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels):
         #     model = TFBertForQuestionAnswering(config=config)
         #     inputs = {'input_ids': input_ids,
@@ -204,6 +206,14 @@ class TFRobertaModelTest(TFCommonTestCases.TFCommonModelTester):
     def test_roberta_model(self):
         config_and_inputs = self.model_tester.prepare_config_and_inputs()
         self.model_tester.create_and_check_roberta_model(*config_and_inputs)
+
+    def test_for_masked_lm(self):
+        config_and_inputs = self.model_tester.prepare_config_and_inputs()
+        self.model_tester.create_and_check_roberta_for_masked_lm(*config_and_inputs)
+
+    def test_for_sequence_classification(self):
+        config_and_inputs = self.model_tester.prepare_config_and_inputs()
+        self.model_tester.create_and_check_roberta_for_sequence_classification(*config_and_inputs)
 
     # @pytest.mark.slow
     # def test_model_from_pretrained(self):
