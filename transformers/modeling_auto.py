@@ -22,8 +22,8 @@ from .modeling_bert import BertModel, BertForMaskedLM, BertForSequenceClassifica
 from .modeling_openai import OpenAIGPTModel, OpenAIGPTLMHeadModel
 from .modeling_gpt2 import GPT2Model, GPT2LMHeadModel
 from .modeling_transfo_xl import TransfoXLModel, TransfoXLLMHeadModel
-from .modeling_xlnet import XLNetModel, XLNetLMHeadModel, XLNetForSequenceClassification, XLNetForQuestionAnswering
-from .modeling_xlm import XLMModel, XLMWithLMHeadModel, XLMForSequenceClassification, XLMForQuestionAnswering
+from .modeling_xlnet import XLNetModel, XLNetLMHeadModel, XLNetForSequenceClassification, XLNetForQuestionAnswering, XLNetForQuestionAnsweringSimple
+from .modeling_xlm import XLMModel, XLMWithLMHeadModel, XLMForSequenceClassification, XLMForQuestionAnswering, XLMForQuestionAnsweringSimple
 from .modeling_roberta import RobertaModel, RobertaForMaskedLM, RobertaForSequenceClassification
 from .modeling_distilbert import DistilBertModel, DistilBertForQuestionAnswering, DistilBertForMaskedLM, DistilBertForSequenceClassification
 
@@ -489,9 +489,9 @@ class AutoModelForQuestionAnswering(object):
         elif 'bert' in pretrained_model_name_or_path:
             return BertForQuestionAnswering.from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
         elif 'xlnet' in pretrained_model_name_or_path:
-            return XLNetForQuestionAnswering.from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
+            return XLNetForQuestionAnsweringSimple.from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
         elif 'xlm' in pretrained_model_name_or_path:
-            return XLMForQuestionAnswering.from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
+            return XLMForQuestionAnsweringSimple.from_pretrained(pretrained_model_name_or_path, *model_args, **kwargs)
 
         raise ValueError("Unrecognized model identifier in {}. Should contains one of "
                          "'bert', 'xlnet', 'xlm'".format(pretrained_model_name_or_path))
