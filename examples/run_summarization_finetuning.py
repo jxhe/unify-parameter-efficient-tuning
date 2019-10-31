@@ -335,7 +335,7 @@ def save_model_checkpoints(args, model, tokenizer):
     model_to_save = (
         model.module if hasattr(model, "module") else model
     )  # Take care of distributed/parallel training
-    model_to_save.save_pretrained(args.output_dir)
+    model_to_save.save_pretrained(args.output_dir, model_type='bert')
     tokenizer.save_pretrained(args.output_dir)
     torch.save(args, os.path.join(args.output_dir, "training_arguments.bin"))
 
@@ -477,20 +477,19 @@ def main():
         logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
         save_model_checkpoints(args, model, tokenizer)
 
-
     # Evaluate the model
     results = {}
     if args.do_evaluate:
-        checkpoints = []
+        checkpoints = [args.output_dir]
         logger.info("Evaluate the following checkpoints: %s", checkpoints)
         for checkpoint in checkpoints:
-            encoder_checkpoint = os.path.join(checkpoint, "encoder")
-            decoder_checkpoint = os.path.join(checkpoint, "decoder")
+            encoder_checkpoint = os.path.join(checkpoint, "bert_encoder")
+            decoder_checkpoint = os.path.join(checkpoint, "bert_decoder")
             model = PreTrainedEncoderDecoder.from_pretrained(
                 encoder_checkpoint, decoder_checkpoint
             )
             model.to(args.device)
-            results = "placeholder"
+            print("model loaded")
 
     return results
 
