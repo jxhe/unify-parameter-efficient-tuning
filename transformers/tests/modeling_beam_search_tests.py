@@ -22,7 +22,7 @@ class BeamSearchtest(unittest.TestCase):
         batch_size = 3
         beam_size = 2
         eos_idx = 23
-        model = StubTransformer('encoder', 'decoder')
+        model = StubTransformer("encoder", "decoder")
         tokenizer = StubTokenizer(1, eos_idx, 2)
         beam = BeamSearch(model, tokenizer, batch_size, beam_size, min_length, 10, 0, False)
 
@@ -43,15 +43,16 @@ class BeamSearchtest(unittest.TestCase):
                 log_probabilities[beam_idx::beam_size, j] = score
 
             surviving_beams_rows = beam.grow(log_probabilities)
-            print(surviving_beams_rows)
             if step < min_length:
                 np.testing.assert_array_equal(
                     surviving_beams_rows.numpy(), torch.tensor([0, 0, 2, 2, 4, 4])
                 )
-            if step == min_length:
+            elif step == min_length:
                 np.testing.assert_array_equal(
-                    surviving_beams_rows.numpy(), torch.tensor([3, 3, 3])
+                    surviving_beams_rows.numpy(), torch.tensor([])
                 )
+                self.assertTrue(beam.is_done)
+                break
 
 
 if __name__ == "__name__":

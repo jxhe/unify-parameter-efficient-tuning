@@ -98,9 +98,7 @@ class BeamSearch(nn.Module):
         # Find the `beam_size` (previous_beam + token) combinations with
         # the highest score
         topk_log_probabilities, topk_ids = torch.topk(
-            log_probabilities.view(_B, self.beam_size * vocab_size),
-            self.beam_size,
-            dim=1,
+            log_probabilities.view(_B, self.beam_size * vocab_size), self.beam_size, dim=1
         )
 
         # Apply the length penalty. The +1 accounts for the [EOS] token
@@ -116,9 +114,7 @@ class BeamSearch(nn.Module):
 
         # Retrieve the row index of the surviving beams in the original
         # view of the log_probabilities tensor
-        surviving_beams_rows = (topk_beam_ids + self.beam_offset[:_B].view(-1, 1)).view(
-            -1
-        )
+        surviving_beams_rows = (topk_beam_ids + self.beam_offset[:_B].view(-1, 1)).view(-1)
 
         # Append the last predictions
         self.growing_beam = torch.cat(
@@ -134,7 +130,6 @@ class BeamSearch(nn.Module):
         # for one element of the batch.
         is_finished = topk_token_ids.eq(self.end_token_id)
         self.enforce_max_length(is_finished)
-
         if is_finished.any():
             non_finished = self.cut_finished(is_finished, topk_scores)
             self.batch_offset = self.batch_offset.index_select(0, non_finished)
@@ -150,12 +145,10 @@ class BeamSearch(nn.Module):
         """ We save the finish searches and cut the correponding batch element off
         the beam. """
 
-        is_top_beam_finished = is_finished[:, 0].eq(1)
+        is_top_beam_finished = is_finished[:, 0].eq(True)
 
         # Save the finished searches
-        predictions = self.growing_beam.view(
-            -1, self.beam_size, self.growing_beam.size(1)
-        )
+        predictions = self.growing_beam.view(-1, self.beam_size, self.growing_beam.size(1))
         for i in range(is_finished.size(0)):
             if is_top_beam_finished[i]:
                 is_finished[i].fill_(1)
@@ -169,13 +162,11 @@ class BeamSearch(nn.Module):
             # If the batch reached the end, save the best hypotheses
             # in terms of length-penalized score.
             if is_top_beam_finished[i]:
-                best_score, best_prediction = max(
-                    self.hypotheses[b], key=lambda x: x[0]
-                )
+                best_score, best_prediction = max(self.hypotheses[b], key=lambda x: x[0])
                 self.results["scores"][b].append(best_score)
                 self.results["predictions"][b].append(best_prediction)
 
-        non_finished = is_top_beam_finished.eq(0).nonzero().view(-1)
+        non_finished = is_top_beam_finished.eq(False).nonzero().view(-1)
         if len(non_finished) == 0:
             self.is_done = True
 
