@@ -324,6 +324,22 @@ def evaluate(args, model, tokenizer, prefix=""):
     return result
 
 
+def save_model_checkpoints(args, model, tokenizer):
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+
+    logger.info("Saving model checkpoint to %s", args.output_dir)
+
+    # Save a trained model, configuration and tokenizer using `save_pretrained()`.
+    # They can then be reloaded using `from_pretrained()`
+    model_to_save = (
+        model.module if hasattr(model, "module") else model
+    )  # Take care of distributed/parallel training
+    model_to_save.save_pretrained(args.output_dir)
+    tokenizer.save_pretrained(args.output_dir)
+    torch.save(args, os.path.join(args.output_dir, "training_arguments.bin"))
+
+
 def main():
     parser = argparse.ArgumentParser()
 
@@ -450,22 +466,17 @@ def main():
     # Train the model
     model.to(args.device)
     if args.do_train:
-        global_step, tr_loss = train(args, model, tokenizer)
+        try:
+            global_step, tr_loss = train(args, model, tokenizer)
+        except KeyboardInterrupt:
+            response = input("You interrupted the training. Do you want to save the model checkpoints? [Y/n]")
+            if response.lower() in ["", "y", "yes"]:
+                save_model_checkpoints(args, model, tokenizer)
+            sys.exit(0)
+
         logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
+        save_model_checkpoints(args, model, tokenizer)
 
-        if not os.path.exists(args.output_dir):
-            os.makedirs(args.output_dir)
-
-        logger.info("Saving model checkpoint to %s", args.output_dir)
-
-        # Save a trained model, configuration and tokenizer using `save_pretrained()`.
-        # They can then be reloaded using `from_pretrained()`
-        model_to_save = (
-            model.module if hasattr(model, "module") else model
-        )  # Take care of distributed/parallel training
-        model_to_save.save_pretrained(args.output_dir)
-        tokenizer.save_pretrained(args.output_dir)
-        torch.save(args, os.path.join(args.output_dir, "training_arguments.bin"))
 
     # Evaluate the model
     results = {}
