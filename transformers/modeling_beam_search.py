@@ -210,7 +210,17 @@ class BeamSearch(nn.Module):
             (self.batch_size * self.beam_size, 1), self.start_token_id, dtype=torch.long
         )
         for step in range(self.max_length):
-            decoder_input = self.growing_beam[:, -1]
+            # prepare the decoder input
+            decoder_input = fit_to_block_size(
+                self.growing_beam, self.tokenizer.pad_token_id
+            )
+            kwargs_decoder["decoder_lm_labels"] = build_lm_labels(
+                decoder_input, self.tokenizer.pad_token_id
+            )
+            kwargs_decoder["decoder_attention_mask"] = build_mask(
+                decoder_input, self.tokenizer.pad_token_id
+            )
+
             outputs = self.model.decoder(decoder_input, kwargs_decoder)
             log_probabilities = torch.nn.functional.log_softmax(outputs[1])
             surviving_beams_rows = self.grow(log_probabilities)
@@ -219,6 +229,9 @@ class BeamSearch(nn.Module):
 
             kwargs_decoder["encoder_hidden_states"] = kwargs_decoder[
                 "encoder_hidden_states"
+            ].index_select(0, surviving_beams_rows)
+            kwargs_decoder["encoder_attention_mask"] = kwargs_decoder[
+                "encoder_attention_mask"
             ].index_select(0, surviving_beams_rows)
 
         return self.results
@@ -279,3 +292,31 @@ def tile(x, count, dim=0):
     if dim != 0:
         x = x.permute(perm).contiguous()
     return x
+
+
+def fit_to_block_size(sequence, block_size, pad_token_id):
+    """ Adapt the source and target sequences' lengths to the block size.
+    If the sequence is shorter we append padding tokens to the right.
+    """
+    if len(sequence) > block_size:
+        return sequence[:block_size]
+    else:
+        sequence.extend([pad_token_id] * (block_size - len(sequence)))
+        return sequence
+
+
+def build_lm_labels(sequence, pad_token_id):
+    """ Padding token, encoded as 0, are represented by the value -1 so they
+    are not taken into account in the loss computation. """
+    padded = sequence.clone()
+    padded[padded == pad_token_id] = -1
+    return padded
+
+
+def build_mask(sequence, pad_token_id):
+    """ Builds the mask. The attention mechanism will only attend to positions
+    with value 1. """
+    mask = torch.ones_like(sequence)
+    idx_pad_tokens = sequence == pad_token_id
+    mask[idx_pad_tokens] = 0
+    return mask

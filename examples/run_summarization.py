@@ -296,8 +296,6 @@ def evaluate(args, model, tokenizer, rouge):
         model_kwargs = {
             "encoder_token_type_ids": encoder_token_type_ids,
             "encoder_attention_mask": encoder_mask,
-            "decoder_attention_mask": decoder_mask,
-            "decoder_lm_labels": lm_labels,
         }
 
         with torch.no_grad():
