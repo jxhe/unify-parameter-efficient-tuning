@@ -38,7 +38,7 @@ class BeamSearch(nn.Module):
         min_length,
         max_length,
         alpha=0,
-        block_repeating_trigram=True,
+        block_repeating_trigrams=True,
     ):
         """
         Attributes:
@@ -56,7 +56,7 @@ class BeamSearch(nn.Module):
         self.min_length = min_length
         self.max_length = max_length
 
-        self.block_repeating_trigram = block_repeating_trigram
+        self.block_repeating_trigram = block_repeating_trigrams
         self.apply_length_penalty = False if alpha == 0 else True
         self.alpha = alpha
 
@@ -114,7 +114,8 @@ class BeamSearch(nn.Module):
 
         # Retrieve the row index of the surviving beams in the original
         # view of the log_probabilities tensor
-        surviving_beams_rows = (topk_beam_ids + self.beam_offset[:_B].view(-1, 1)).view(-1)
+        surviving_beams_per_batch = topk_beam_ids + self.beam_offset[:_B].view(-1, 1)
+        surviving_beams_rows = surviving_beams_per_batch.view(-1)
 
         # Append the last predictions
         self.growing_beam = torch.cat(
@@ -133,18 +134,21 @@ class BeamSearch(nn.Module):
         if is_finished.any():
             non_finished = self.cut_finished(is_finished, topk_scores)
             self.batch_offset = self.batch_offset.index_select(0, non_finished)
-            self.growing_beam = self.growing_beam.index_select(0, non_finished)
-            surviving_beams_rows = surviving_beams_rows.index_select(0, non_finished)
+            surviving_beams_per_batch = surviving_beams_per_batch.index_select(
+                0, non_finished
+            )
             self.topk_log_probabilities = self.topk_log_probabilities.index_select(
                 0, non_finished
             )
+
+            surviving_beams_rows = surviving_beams_per_batch.view(-1)
+            self.growing_beam = self.growing_beam.index_select(0, surviving_beams_rows)
 
         return surviving_beams_rows
 
     def cut_finished(self, is_finished, topk_scores):
         """ We save the finish searches and cut the correponding batch element off
         the beam. """
-
         is_top_beam_finished = is_finished[:, 0].eq(True)
 
         # Save the finished searches
@@ -237,6 +241,7 @@ class BeamSearch(nn.Module):
             log_probabilities[:, self.end_token_id] = -1e20
 
     def enforce_max_length(self, is_finished):
+        # +1 because we will need to add an [EOS] token
         if self._step + 1 == self.max_length:
             is_finished.fill_(1)
 
