@@ -2,12 +2,15 @@ from collections import namedtuple
 import unittest
 
 import numpy as np
+import pytest
 import torch
 
 from transformers import BeamSearch
 
 
-StubTokenizer = namedtuple("Tokenizer", ["start_token_id", "end_token_id", "pad_token_id"])
+StubTokenizer = namedtuple(
+    "Tokenizer", ["start_token_id", "end_token_id", "pad_token_id"]
+)
 StubTransformer = namedtuple("Transformer", ["encoder", "decoder"])
 
 
@@ -25,7 +28,9 @@ class BeamSearchtest(unittest.TestCase):
 
         beam = BeamSearch(
             model=StubTransformer("encoder", "decoder"),
-            tokenizer=StubTokenizer(start_token_id=0, end_token_id=eos_idx, pad_token_id=2),
+            tokenizer=StubTokenizer(
+                start_token_id=0, end_token_id=eos_idx, pad_token_id=2
+            ),
             batch_size=batch_size,
             beam_size=beam_size,
             min_length=5,
@@ -40,7 +45,9 @@ class BeamSearchtest(unittest.TestCase):
         # Since BeamSearch will reset its probability to 1e-20 as long as
         # min_length has not been reached, we need to reset the value between
         # steps.
-        log_probabilities = torch.full((batch_size * beam_size, vocab_size), float("-inf"))
+        log_probabilities = torch.full(
+            (batch_size * beam_size, vocab_size), float("-inf")
+        )
         non_eos_idxs = [4, 5, 1, 8, 9]
         valid_score_dist = torch.log_softmax(
             torch.tensor([6.0, 5.0, 4.0, 3.0, 2.0, 1.0]), dim=0
@@ -61,7 +68,9 @@ class BeamSearchtest(unittest.TestCase):
                     np.repeat(np.array([[0] + [4] * step]), 2, axis=0),
                 )
             elif step == min_length:  # Now [EOS] is the most probable token
-                np.testing.assert_array_equal(surviving_beams_rows.numpy(), np.array([]))
+                np.testing.assert_array_equal(
+                    surviving_beams_rows.numpy(), np.array([])
+                )
                 self.assertTrue(beam.is_done)
                 break
 
@@ -86,7 +95,9 @@ class BeamSearchtest(unittest.TestCase):
             block_repeating_trigrams=False,
         )
 
-        log_probabilities = torch.full((batch_size * beam_size, vocab_size), float("-inf"))
+        log_probabilities = torch.full(
+            (batch_size * beam_size, vocab_size), float("-inf")
+        )
 
         # To test that beam search enforces the max length constraint we
         # keep giving the highest probability to a token that is not the
@@ -95,7 +106,7 @@ class BeamSearchtest(unittest.TestCase):
         # add the [EOS] token at the end of the returned sequence.
         token_idxs = [3, 4, 5]
         valid_score_dist = torch.log_softmax(torch.tensor([10.0, 6.0, 4.0]), dim=0)
-        for idx, score in zip(token_idxs, valid_score_dist[1:]):
+        for idx, score in zip(token_idxs, valid_score_dist):
             log_probabilities[:, idx] = score
 
         for step in range(1, max_length + 2):
@@ -103,11 +114,65 @@ class BeamSearchtest(unittest.TestCase):
             if step + 1 < max_length:
                 self.assertFalse(beam.is_done)
             elif step + 1 == max_length:  # Now [EOS] is the most probable token
-                np.testing.assert_array_equal(surviving_beams_rows.numpy(), np.array([]))
+                np.testing.assert_array_equal(
+                    surviving_beams_rows.numpy(), np.array([])
+                )
                 self.assertTrue(beam.is_done)
                 break
 
             log_probabilities = log_probabilities.index_select(0, surviving_beams_rows)
+
+    def test_beam_search_block_repeating_trigrams(self):
+        """ We make sure that BeamSearch removes beams that contain repeating trigrams. """
+        beam_size = 2
+        batch_size = 3
+        vocab_size = 10
+        max_length = 10
+
+        beam = BeamSearch(
+            model=StubTransformer("encoder", "decoder"),
+            tokenizer=StubTokenizer(start_token_id=0, end_token_id=1, pad_token_id=2),
+            batch_size=batch_size,
+            beam_size=beam_size,
+            min_length=2,
+            max_length=max_length,
+            alpha=0,
+            block_repeating_trigrams=True,
+        )
+
+        log_probabilities = torch.full(
+            (batch_size * beam_size, vocab_size), float("-inf")
+        )
+
+        # To test that BeamSearch enforces the 3-gram constraint we give
+        # the highest probably to the same tokens in a cyclic fashion
+        # and make sure they disappear once the cycle has completed.
+        token_idxs = [3, 4, 5]
+        valid_score_dist = torch.log_softmax(torch.tensor([10.0, 6.0, 4.0]), dim=0)
+        for idx, score in zip(token_idxs, valid_score_dist):
+            log_probabilities[:, idx] = score
+
+        for step in range(1, max_length + 2):
+            # Rotate the probabilities at each step
+            for idx in token_idxs:
+                score = valid_score_dist[(idx + step) % 3]
+                log_probabilities[::beam_size, idx] = score
+
+            surviving_beams_rows = beam.grow(log_probabilities)
+            log_probabilities = log_probabilities.index_select(0, surviving_beams_rows)
+
+            if step < 7:
+                self.assertFalse(
+                    np.array_equal(
+                        log_probabilities.numpy()[0, :],
+                        np.array([-1e20] * vocab_size, dtype="float32"),
+                    )
+                )
+            if step == 7:
+                np.testing.assert_array_equal(
+                    log_probabilities.numpy()[0, :],
+                    np.array([-1e20] * vocab_size, dtype="float32"),
+                )
 
 
 if __name__ == "__name__":

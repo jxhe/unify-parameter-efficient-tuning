@@ -93,7 +93,7 @@ class BeamSearch(nn.Module):
 
         self.enforce_min_length(log_probabilities)
         if self.block_repeating_trigram:
-            self.remove_repeating_trigrams(log_probabilities, _B)
+            self.remove_beams_with_repeating_trigrams(log_probabilities, _B)
 
         # Find the `beam_size` (previous_beam + token) combinations with
         # the highest score
@@ -223,14 +223,13 @@ class BeamSearch(nn.Module):
 
         return self.results
 
-    def remove_repeating_trigrams(self, log_probabilities, _B):
-        if self._step + 1 > 3:
+    def remove_beams_with_repeating_trigrams(self, log_probabilities, _B):
+        if self._step + 1 > 3:  # [BOS] does not count
             for i in range(_B * self.beam_size):
-                words = self.tokenizer.decoder(self.growing_beam[i])
-                tokens = [t for t in self.growing_beam[i]]
+                tokens = self.growing_beam[i]
                 trigrams = [
-                    (tokens[i - 1], tokens[i], tokens[i + 1])
-                    for i in range(1, len(words) - 1)
+                    (tokens[j - 1], tokens[j], tokens[j + 1])
+                    for j in range(1, len(self) - 1)
                 ]
                 last_trigram = tuple(trigrams[-1])
                 if last_trigram in trigrams[:-1]:
@@ -247,6 +246,10 @@ class BeamSearch(nn.Module):
 
     def length_penalty(self):
         return ((5.0 + (self._step + 1)) / 6.0) ** self.alpha
+
+    def __len__(self):
+        """ Current length of the beams. """
+        return self.growing_beam.size(1)
 
 
 def tile(x, count, dim=0):
