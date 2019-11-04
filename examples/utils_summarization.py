@@ -25,7 +25,7 @@ class CNNDailyMailDataset(Dataset):
     [2] https://github.com/abisee/cnn-dailymail/
     """
 
-    def __init__(self, tokenizer, prefix="train", data_dir=""):
+    def __init__(self, data_dir="", prefix="train"):
         assert os.path.isdir(data_dir)
         self.tokenizer = tokenizer
 

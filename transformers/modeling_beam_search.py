@@ -176,24 +176,24 @@ class BeamSearch(nn.Module):
 
         return non_finished
 
-    def forward(self, encoder_input_ids, **kwargs):
+    def forward(self, encoder_input_ids, **model_kwargs):
         # keyword arguments come in 3 flavors: encoder-specific (prefixed by
         # `encoder_`), decoder-specific (prefixed by `decoder_`) and those
         # that apply to the model as whole.
         # We let the specific kwargs override the common ones in case of conflict.
         kwargs_encoder = {
             argument[len("encoder_") :]: value
-            for argument, value in kwargs.items()
+            for argument, value in model_kwargs.items()
             if argument.startswith("encoder_")
         }
         kwargs_decoder = {
             argument[len("decoder_") :]: value
-            for argument, value in kwargs.items()
+            for argument, value in model_kwargs.items()
             if argument.startswith("decoder_")
         }
         kwargs_common = {
             argument: value
-            for argument, value in kwargs.items()
+            for argument, value in model_kwargs.items()
             if not (argument.startswith("encoder_") or argument.startswith("decoder_"))
         }
         kwargs_decoder = dict(kwargs_common, **kwargs_decoder)

@@ -23,6 +23,7 @@ import random
 import sys
 
 import numpy as np
+from pyrouge import Rouge155
 from tqdm import tqdm, trange
 import torch
 from torch.optim import Adam
@@ -30,6 +31,7 @@ from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 
 from transformers import (
     AutoTokenizer,
+    BeamSearch,
     BertForMaskedLM,
     BertConfig,
     PreTrainedEncoderDecoder,
@@ -61,7 +63,7 @@ def set_seed(args):
 
 
 def load_and_cache_examples(args, tokenizer):
-    dataset = CNNDailyMailDataset(tokenizer, data_dir=args.data_dir)
+    dataset = CNNDailyMailDataset(args.data_dir)
     return dataset
 
 
@@ -69,9 +71,7 @@ def collate(data, tokenizer, block_size):
     """ List of tuple as an input. """
     # remove the files with empty an story/summary, encode and fit to block
     data = filter(lambda x: not (len(x[0]) == 0 or len(x[1]) == 0), data)
-    data = [
-        encode_for_summarization(story, summary, tokenizer) for story, summary in data
-    ]
+    data = [encode_for_summarization(story, summary, tokenizer) for story, summary in data]
     data = [
         (
             fit_to_block_size(story, block_size, tokenizer.pad_token_id),
@@ -197,9 +197,7 @@ def train(args, model, tokenizer):
     logger.info("***** Running training *****")
     logger.info("  Num examples = %d", len(train_dataset))
     logger.info("  Num Epochs = %d", args.num_train_epochs)
-    logger.info(
-        "  Instantaneous batch size per GPU = %d", args.per_gpu_train_batch_size
-    )
+    logger.info("  Instantaneous batch size per GPU = %d", args.per_gpu_train_batch_size)
     logger.info(
         "  Total train batch size (w. parallel, distributed & accumulation) = %d",
         args.train_batch_size * args.gradient_accumulation_steps
@@ -216,7 +214,9 @@ def train(args, model, tokenizer):
     for _ in train_iterator:
         epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=True)
         for step, batch in enumerate(epoch_iterator):
-            source, target, encoder_token_type_ids, encoder_mask, decoder_mask, lm_labels = batch
+            source, target, encoder_token_type_ids, encoder_mask, decoder_mask, lm_labels = (
+                batch
+            )
 
             source = source.to(args.device)
             target = target.to(args.device)
@@ -260,12 +260,12 @@ def train(args, model, tokenizer):
     return global_step, tr_loss / global_step
 
 
-# ------------
-# Train
-# ------------
+# ------------------
+# Evaluate w/ ROUGE
+# ------------------
 
 
-def evaluate(args, model, tokenizer, prefix=""):
+def evaluate(args, model, tokenizer, rouge):
     set_seed(args)
 
     args.eval_batch_size = args.per_gpu_eval_batch_size * max(1, args.n_gpu)
@@ -275,15 +275,16 @@ def evaluate(args, model, tokenizer, prefix=""):
         eval_dataset, sampler=eval_sampler, batch_size=args.eval_batch_size
     )
 
-    logger.info("***** Running evaluation {} *****".format(prefix))
+    logger.info("***** Running evaluation *****")
     logger.info("  Num examples = %d", len(eval_dataset))
     logger.info("  Batch size = %d", args.eval_batch_size)
-    eval_loss = 0.0
-    nb_eval_steps = 0
     model.eval()
-
+    
+    idx_summary = 0
     for batch in tqdm(eval_dataloader, desc="Evaluating"):
-        source, target, encoder_token_type_ids, encoder_mask, decoder_mask, lm_labels = batch
+        source, target, encoder_token_type_ids, encoder_mask, decoder_mask, lm_labels = (
+            batch
+        )
 
         source = source.to(args.device)
         target = target.to(args.device)
@@ -292,23 +293,34 @@ def evaluate(args, model, tokenizer, prefix=""):
         decoder_mask = decoder_mask.to(args.device)
         lm_labels = lm_labels.to(args.device)
 
+        model_kwargs = {
+            "encoder_token_type_ids": encoder_token_type_ids,
+            "encoder_attention_mask": encoder_mask,
+            "decoder_attention_mask": decoder_mask,
+            "decoder_lm_labels": lm_labels,
+        }
+
         with torch.no_grad():
-            outputs = model(
-                source,
-                target,
-                encoder_token_type_ids=encoder_token_type_ids,
-                encoder_attention_mask=encoder_mask,
-                decoder_attention_mask=decoder_mask,
-                decoder_lm_labels=lm_labels,
+            beam = BeamSearch(
+                model=model,
+                tokenizer=tokenizer,
+                batch_size=args.eval_batch_size,
+                beam_size=5,
+                min_length=50,
+                max_length=100,
+                alpha=0.95,
+                block_repeating_trigrams=True,
             )
-            lm_loss = outputs[0]
-            eval_loss += lm_loss.mean().item()
-        nb_eval_steps += 1
 
-    eval_loss = eval_loss / nb_eval_steps
-    perplexity = torch.exp(torch.tensor(eval_loss))
+            summaries_tokens = beam(source, model_kwargs)
+            for summary_token in summaries_tokens:
+                sentences_ids = summary_token.split(tokenizer.end_token_id)
+                sentences = [tokenizer.decoder(sentence_ids) + "." for sentence_ids in sentences_ids]
+                with open(rouge.path_to_model + "/{}.txt".format(idx_summary), "w") as output:
+                    output.write("\n".join(sentences))
+                idx_summary += 1
 
-    result = {"perplexity": perplexity}
+    result = rouge.output_to_dict(rouge.convert_and_evaluate())
 
     # Save the evaluation's results
     output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
@@ -316,7 +328,7 @@ def evaluate(args, model, tokenizer, prefix=""):
         os.makedirs(args.output_dir)
 
     with open(output_eval_file, "w") as writer:
-        logger.info("***** Eval results {} *****".format(prefix))
+        logger.info("***** ROUGE evaluaiton results *****")
         for key in sorted(result.keys()):
             logger.info("  %s = %s", key, str(result[key]))
             writer.write("%s = %s\n" % (key, str(result[key])))
@@ -335,7 +347,7 @@ def save_model_checkpoints(args, model, tokenizer):
     model_to_save = (
         model.module if hasattr(model, "module") else model
     )  # Take care of distributed/parallel training
-    model_to_save.save_pretrained(args.output_dir, model_type='bert')
+    model_to_save.save_pretrained(args.output_dir, model_type="bert")
     tokenizer.save_pretrained(args.output_dir)
     torch.save(args, os.path.join(args.output_dir, "training_arguments.bin"))
 
@@ -439,8 +451,11 @@ def main():
         args.n_gpu = torch.cuda.device_count()
 
     # Load pretrained model and tokenizer. The decoder's weights are randomly initialized.
+    # The dropout values for the decoder were taken from Liu & Lapata's repository
     tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
     config = BertConfig.from_pretrained(args.model_name_or_path)
+    config.hidden_dropout_prob = 0.2
+    config.attention_probs_dropout_prob = 0.2
     decoder_model = BertForMaskedLM(config)
     model = Model2Model.from_pretrained(
         args.model_name_or_path, decoder_model=decoder_model
@@ -469,7 +484,9 @@ def main():
         try:
             global_step, tr_loss = train(args, model, tokenizer)
         except KeyboardInterrupt:
-            response = input("You interrupted the training. Do you want to save the model checkpoints? [Y/n]")
+            response = input(
+                "You interrupted the training. Do you want to save the model checkpoints? [Y/n]"
+            )
             if response.lower() in ["", "y", "yes"]:
                 save_model_checkpoints(args, model, tokenizer)
             sys.exit(0)
@@ -480,6 +497,16 @@ def main():
     # Evaluate the model
     results = {}
     if args.do_evaluate:
+        path_to_original = os.path.join(args.data_dir, "original")
+        path_to_prediction = os.path.join(args.data_dir, "prediction")
+        if not os.path.exists(path_to_prediction):
+            os.makedir(path_to_prediction)
+        create_evaluation_set(args, path_to_original)
+
+        rouge = Rouge155()
+        rouge.system_dir = path_to_original
+        rouge.model_dir = path_to_prediction
+
         checkpoints = [args.output_dir]
         logger.info("Evaluate the following checkpoints: %s", checkpoints)
         for checkpoint in checkpoints:
@@ -489,9 +516,22 @@ def main():
                 encoder_checkpoint, decoder_checkpoint
             )
             model.to(args.device)
-            print("model loaded")
+
+            result = evaluate(args, model, tokenizer, rouge)
 
     return results
+
+
+def create_evaluation_set(args, path_to_formatted_summaries):
+    """ Create the evaluation. Pyrouge requires that the lines
+    of the summaries should be on separate lines. """
+    if not os.path.exists(path_to_formatted_summaries):
+        os.makedirs(path_to_formatted_summaries)
+
+    dataset = CNNDailyMailDataset(args.data_dir)
+    for i, (_, summary_lines) in enumerate(dataset):
+        with open(path_to_formatted_summaries + "{}.txt".format(i), "wr") as output:
+            output.write("\n".join(summary_lines))
 
 
 if __name__ == "__main__":
