@@ -27,7 +27,6 @@ class CNNDailyMailDataset(Dataset):
 
     def __init__(self, data_dir="", prefix="train"):
         assert os.path.isdir(data_dir)
-        self.tokenizer = tokenizer
 
         # We initialize the class by listing all the files that contain
         # stories and summaries. Files are not read in memory given
@@ -104,7 +103,7 @@ def _add_missing_period(line):
 # --------------------------
 
 
-def fit_to_block_size(sequence, block_size, pad_token):
+def fit_to_block_size(sequence, block_size, pad_token_id):
     """ Adapt the source and target sequences' lengths to the block size.
     If the sequence is shorter than the block size we pad it with -1 ids
     which correspond to padding tokens.
@@ -112,7 +111,7 @@ def fit_to_block_size(sequence, block_size, pad_token):
     if len(sequence) > block_size:
         return sequence[:block_size]
     else:
-        sequence.extend([pad_token] * (block_size - len(sequence)))
+        sequence.extend([pad_token_id] * (block_size - len(sequence)))
         return sequence
 
 
