@@ -100,9 +100,6 @@ if is_torch_available():
     from .optimization import (AdamW, ConstantLRSchedule, WarmupConstantSchedule, WarmupCosineSchedule,
                                WarmupCosineWithHardRestartsSchedule, WarmupLinearSchedule)
 
-    # Sequence generation
-    from .modeling_beam_search import BeamSearch
-
 
 # TensorFlow
 if is_tf_available():

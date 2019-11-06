@@ -4,7 +4,8 @@ import unittest
 import numpy as np
 import torch
 
-from transformers import BeamSearch, PreTrainedEncoderDecoder
+from transformers.generate import BeamSearch
+from transformers import PreTrainedEncoderDecoder
 
 
 StubTokenizer = namedtuple("Tokenizer", ["bos_token_id", "eos_token_id", "pad_token_id"])
