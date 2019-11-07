@@ -16,6 +16,7 @@
 """ Finetuning seq2seq models for sequence generation."""
 
 import argparse
+import copy
 import functools
 import logging
 import os
@@ -471,9 +472,9 @@ def main():
         args.device = torch.device("cuda")
         args.n_gpu = torch.cuda.device_count()
 
-    # Load pretrained model and tokenizer. The decoder's weights are randomly initialized.
+    # Load pretrained model. The decoder's weights are randomly initialized.
     # The dropout values for the decoder were taken from Liu & Lapata's repository
-    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, do_lower_case=True)
     config = BertConfig.from_pretrained(args.model_name_or_path)
     config.hidden_dropout_prob = 0.2
     config.attention_probs_dropout_prob = 0.2
@@ -481,6 +482,10 @@ def main():
     model = Model2Model.from_pretrained(
         args.model_name_or_path, decoder_model=decoder_model
     )
+
+    # Following Lapata & Liu we share the encoder's word embedding weights with the decoder
+    decoder_embeddings = copy.deepcopy(model.encoder.get_input_embeddings())
+    model.decoder.set_input_embeddings(decoder_embeddings)
 
     # Setup logging
     logging.basicConfig(
