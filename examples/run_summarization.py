@@ -31,12 +31,13 @@ from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 
 from transformers import (
     AutoTokenizer,
-    BeamSearch,
     BertForMaskedLM,
     BertConfig,
     PreTrainedEncoderDecoder,
     Model2Model,
 )
+
+from transformers.generate import BeamSearch
 
 from utils_summarization import (
     CNNDailyMailDataset,
@@ -269,10 +270,14 @@ def evaluate(args, model, tokenizer, rouge):
     set_seed(args)
 
     args.eval_batch_size = args.per_gpu_eval_batch_size * max(1, args.n_gpu)
-    eval_dataset = load_and_cache_examples(args, tokenizer, evaluate=True)
+    eval_dataset = load_and_cache_examples(args, tokenizer)
     eval_sampler = SequentialSampler(eval_dataset)
+    eval_collate_fn = functools.partial(collate, tokenizer=tokenizer, block_size=512)
     eval_dataloader = DataLoader(
-        eval_dataset, sampler=eval_sampler, batch_size=args.eval_batch_size
+        eval_dataset,
+        sampler=eval_sampler,
+        batch_size=args.eval_batch_size,
+        collate_fn=eval_collate_fn,
     )
 
     logger.info("***** Running evaluation *****")
@@ -300,25 +305,37 @@ def evaluate(args, model, tokenizer, rouge):
 
         with torch.no_grad():
             beam = BeamSearch(
-                model=model,
-                tokenizer=tokenizer,
+                model,
+                tokenizer.cls_token_id,
+                tokenizer.pad_token_id,
+                tokenizer.sep_token_id,
                 batch_size=args.eval_batch_size,
                 beam_size=5,
-                min_length=50,
-                max_length=100,
-                alpha=0.95,
+                min_length=15,
+                max_length=150,
+                alpha=0.8,
                 block_repeating_trigrams=True,
+                device=args.device,
             )
 
-            summaries_tokens = beam(source, model_kwargs)
-            for summary_token in summaries_tokens:
-                sentences_ids = summary_token.split(tokenizer.end_token_id)
-                sentences = [tokenizer.decoder(sentence_ids) + "." for sentence_ids in sentences_ids]
-                with open(rouge.path_to_model + "/{}.txt".format(idx_summary), "w") as output:
+            results = beam(source, **model_kwargs)
+
+            # keep the best prediction for each sequence
+            # blame the ugliness on python for not having an argmax() function
+            batch_size = args.eval_batch_size
+            best_predictions_idx = [max(enumerate(results["scores"][i]), key=lambda x: x[1])[0] for i in range(batch_size)]
+            summaries_tokens = [results["predictions"][idx] for b, idx in zip(range(batch_size), best_predictions_idx)]
+            for summary_tokens in summaries_tokens:
+                summary_tokens = summary_tokens.to("cpu").numpy()
+                summary = tokenizer.decode(summary_tokens)
+                sentences = summary.split(".")
+                sentences = [s + "." for s in sentences]
+                with open("./data" + "/model_{}.txt".format(idx_summary), "w") as output:
                     output.write("\n".join(sentences))
                 idx_summary += 1
 
-    result = rouge.output_to_dict(rouge.convert_and_evaluate())
+    # result = rouge.output_to_dict(rouge.convert_and_evaluate())
+    result = "ok"
 
     # Save the evaluation's results
     output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
@@ -425,6 +442,12 @@ def main():
         type=int,
         help="Batch size per GPU/CPU for training.",
     )
+    parser.add_argument(
+        "--per_gpu_eval_batch_size",
+        default=4,
+        type=int,
+        help="Batch size per GPU/CPU for evaluation.",
+    )
     parser.add_argument("--seed", default=42, type=int)
     args = parser.parse_args()
 
@@ -495,16 +518,17 @@ def main():
     # Evaluate the model
     results = {}
     if args.do_evaluate:
-        path_to_original = os.path.join(args.data_dir, "original")
-        path_to_prediction = os.path.join(args.data_dir, "prediction")
-        if not os.path.exists(path_to_prediction):
-            os.makedir(path_to_prediction)
-        create_evaluation_set(args, path_to_original)
+        path_to_rouge = os.path.join(args.data_dir, "rouge")
+        if not os.path.exists(path_to_rouge):
+            os.makedirs(path_to_rouge)
+        create_evaluation_set(args, path_to_rouge)
 
-        rouge = Rouge155()
-        rouge.system_dir = path_to_original
-        rouge.model_dir = path_to_prediction
-
+        # rouge = Rouge155()
+        # rouge.system_dir = path_to_rouge
+        # rouge.model_dir = path_to_rouge
+        # rouge.system_filename_pattern = "original_(\d+).txt"
+        # rouge.model_filename_pattern = "model_(\d+).txt"
+        rouge = 0
         checkpoints = [args.output_dir]
         logger.info("Evaluate the following checkpoints: %s", checkpoints)
         for checkpoint in checkpoints:
@@ -528,7 +552,7 @@ def create_evaluation_set(args, path_to_formatted_summaries):
 
     dataset = CNNDailyMailDataset(args.data_dir)
     for i, (_, summary_lines) in enumerate(dataset):
-        with open(path_to_formatted_summaries + "{}.txt".format(i), "wr") as output:
+        with open(path_to_formatted_summaries + "/original_{}.txt".format(i), "w") as output:
             output.write("\n".join(summary_lines))
 
 
