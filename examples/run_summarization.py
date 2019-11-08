@@ -24,7 +24,6 @@ import random
 import sys
 
 import numpy as np
-from pyrouge import Rouge155
 from tqdm import tqdm, trange
 import torch
 from torch.optim import Adam
@@ -238,7 +237,8 @@ def train(args, model, tokenizer):
             )
 
             loss = outputs[0]
-            print(loss)
+            logger.info("Current loss: {:.2f}".format(loss.item()))
+
             if args.gradient_accumulation_steps > 1:
                 loss /= args.gradient_accumulation_steps
 
@@ -267,7 +267,7 @@ def train(args, model, tokenizer):
 # ------------------
 
 
-def evaluate(args, model, tokenizer, rouge):
+def evaluate(args, model, tokenizer, path_to_summaries):
     set_seed(args)
 
     args.eval_batch_size = args.per_gpu_eval_batch_size * max(1, args.n_gpu)
@@ -285,19 +285,14 @@ def evaluate(args, model, tokenizer, rouge):
     logger.info("  Num examples = %d", len(eval_dataset))
     logger.info("  Batch size = %d", args.eval_batch_size)
     model.eval()
-    
+
     idx_summary = 0
     for batch in tqdm(eval_dataloader, desc="Evaluating"):
-        source, target, encoder_token_type_ids, encoder_mask, decoder_mask, lm_labels = (
-            batch
-        )
-
+        source, target, encoder_token_type_ids, encoder_mask, _, _ = batch
         source = source.to(args.device)
         target = target.to(args.device)
         encoder_token_type_ids = encoder_token_type_ids.to(args.device)
         encoder_mask = encoder_mask.to(args.device)
-        decoder_mask = decoder_mask.to(args.device)
-        lm_labels = lm_labels.to(args.device)
 
         model_kwargs = {
             "encoder_token_type_ids": encoder_token_type_ids,
@@ -314,9 +309,8 @@ def evaluate(args, model, tokenizer, rouge):
                 beam_size=5,
                 min_length=15,
                 max_length=150,
-                alpha=0.8,
+                alpha=0.9,
                 block_repeating_trigrams=True,
-                device=args.device,
             )
 
             results = beam(source, **model_kwargs)
@@ -324,32 +318,24 @@ def evaluate(args, model, tokenizer, rouge):
             # keep the best prediction for each sequence
             # blame the ugliness on python for not having an argmax() function
             batch_size = args.eval_batch_size
-            best_predictions_idx = [max(enumerate(results["scores"][i]), key=lambda x: x[1])[0] for i in range(batch_size)]
-            summaries_tokens = [results["predictions"][idx] for b, idx in zip(range(batch_size), best_predictions_idx)]
+            best_predictions_idx = [
+                max(enumerate(results["scores"][i]), key=lambda x: x[1])[0]
+                for i in range(batch_size)
+            ]
+            summaries_tokens = [
+                results["predictions"][idx]
+                for b, idx in zip(range(batch_size), best_predictions_idx)
+            ]
             for summary_tokens in summaries_tokens:
                 summary_tokens = summary_tokens.to("cpu").numpy()
                 summary = tokenizer.decode(summary_tokens)
                 sentences = summary.split(".")
                 sentences = [s + "." for s in sentences]
-                with open("./data" + "/model_{}.txt".format(idx_summary), "w") as output:
+
+                path = os.path.join(path_to_summaries, "/model_{}.txt".format(idx_summary))
+                with open(path, "w") as output:
                     output.write("\n".join(sentences))
                 idx_summary += 1
-
-    # result = rouge.output_to_dict(rouge.convert_and_evaluate())
-    result = "ok"
-
-    # Save the evaluation's results
-    output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
-    if not os.path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
-
-    with open(output_eval_file, "w") as writer:
-        logger.info("***** ROUGE evaluaiton results *****")
-        for key in sorted(result.keys()):
-            logger.info("  %s = %s", key, str(result[key]))
-            writer.write("%s = %s\n" % (key, str(result[key])))
-
-    return result
 
 
 def save_model_checkpoints(args, model, tokenizer):
@@ -521,19 +507,7 @@ def main():
         save_model_checkpoints(args, model, tokenizer)
 
     # Evaluate the model
-    results = {}
     if args.do_evaluate:
-        path_to_rouge = os.path.join(args.data_dir, "rouge")
-        if not os.path.exists(path_to_rouge):
-            os.makedirs(path_to_rouge)
-        create_evaluation_set(args, path_to_rouge)
-
-        # rouge = Rouge155()
-        # rouge.system_dir = path_to_rouge
-        # rouge.model_dir = path_to_rouge
-        # rouge.system_filename_pattern = "original_(\d+).txt"
-        # rouge.model_filename_pattern = "model_(\d+).txt"
-        rouge = 0
         checkpoints = [args.output_dir]
         logger.info("Evaluate the following checkpoints: %s", checkpoints)
         for checkpoint in checkpoints:
@@ -544,9 +518,10 @@ def main():
             )
             model.to(args.device)
 
-            result = evaluate(args, model, tokenizer, rouge)
-
-    return results
+            path_to_generated_summaries = os.path.join(
+                args.output_dir, "generated_summaries"
+            )
+            evaluate(args, model, tokenizer, path_to_generated_summaries)
 
 
 def create_evaluation_set(args, path_to_formatted_summaries):
@@ -557,7 +532,9 @@ def create_evaluation_set(args, path_to_formatted_summaries):
 
     dataset = CNNDailyMailDataset(args.data_dir)
     for i, (_, summary_lines) in enumerate(dataset):
-        with open(path_to_formatted_summaries + "/original_{}.txt".format(i), "w") as output:
+        with open(
+            path_to_formatted_summaries + "/original_{}.txt".format(i), "w"
+        ) as output:
             output.write("\n".join(summary_lines))
 
 
