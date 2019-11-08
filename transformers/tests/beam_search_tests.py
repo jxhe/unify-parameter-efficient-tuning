@@ -8,7 +8,6 @@ from transformers.generate import BeamSearch
 from transformers import PreTrainedEncoderDecoder
 
 
-StubTokenizer = namedtuple("Tokenizer", ["bos_token_id", "eos_token_id", "pad_token_id"])
 StubTransformer = namedtuple("Transformer", ["encoder", "decoder"])
 
 
@@ -23,7 +22,9 @@ class BeamSearchtest(unittest.TestCase):
         try:
             _ = BeamSearch(
                 model=model,
-                tokenizer=tokenizer,
+                bos_token_id=0,
+                eos_token_id=1,
+                pad_token_id=2,
                 batch_size=1,
                 beam_size=1,
                 min_length=1,
@@ -47,7 +48,9 @@ class BeamSearchtest(unittest.TestCase):
 
         beam = BeamSearch(
             model=StubTransformer("encoder", "decoder"),
-            tokenizer=StubTokenizer(bos_token_id=0, eos_token_id=eos_idx, pad_token_id=2),
+            bos_token_id=0,
+            eos_token_id=1,
+            pad_token_id=2,
             batch_size=batch_size,
             beam_size=beam_size,
             min_length=5,
@@ -100,7 +103,9 @@ class BeamSearchtest(unittest.TestCase):
 
         beam = BeamSearch(
             model=StubTransformer("encoder", "decoder"),
-            tokenizer=StubTokenizer(bos_token_id=0, eos_token_id=1, pad_token_id=2),
+            bos_token_id=0,
+            eos_token_id=1,
+            pad_token_id=2,
             batch_size=batch_size,
             beam_size=beam_size,
             min_length=2,
@@ -141,7 +146,9 @@ class BeamSearchtest(unittest.TestCase):
 
         beam = BeamSearch(
             model=StubTransformer("encoder", "decoder"),
-            tokenizer=StubTokenizer(bos_token_id=0, eos_token_id=1, pad_token_id=2),
+            bos_token_id=0,
+            eos_token_id=1,
+            pad_token_id=2,
             batch_size=batch_size,
             beam_size=beam_size,
             min_length=2,
@@ -191,7 +198,9 @@ class BeamSearchtest(unittest.TestCase):
 
         beam = BeamSearch(
             model=StubTransformer("encoder", "decoder"),
-            tokenizer=StubTokenizer(bos_token_id=0, eos_token_id=1, pad_token_id=2),
+            bos_token_id=0,
+            eos_token_id=1,
+            pad_token_id=2,
             batch_size=batch_size,
             beam_size=beam_size,
             min_length=2,
