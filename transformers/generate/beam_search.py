@@ -45,7 +45,6 @@ class BeamSearch(nn.Module):
         max_length,
         alpha=0,
         block_repeating_trigrams=True,
-        device=torch.device("cpu"),
     ):
         r"""
         Inputs:
@@ -74,7 +73,7 @@ class BeamSearch(nn.Module):
         """
         super(BeamSearch, self).__init__()
         self.model = model
-        self.device = device
+        self.device = next(model.parameters()).device  # only works if all parameters of the model are stored on a single GPU
 
         self.bos_token_id = bos_token_id
         self.eos_token_id = eos_token_id
