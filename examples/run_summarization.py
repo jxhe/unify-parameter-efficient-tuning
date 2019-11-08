@@ -323,7 +323,7 @@ def evaluate(args, model, tokenizer, path_to_summaries):
                 for i in range(batch_size)
             ]
             summaries_tokens = [
-                results["predictions"][idx]
+                results["predictions"][b][idx]
                 for b, idx in zip(range(batch_size), best_predictions_idx)
             ]
             for summary_tokens in summaries_tokens:
@@ -332,7 +332,7 @@ def evaluate(args, model, tokenizer, path_to_summaries):
                 sentences = summary.split(".")
                 sentences = [s + "." for s in sentences]
 
-                path = os.path.join(path_to_summaries, "/model_{}.txt".format(idx_summary))
+                path = os.path.join(path_to_summaries, "model_{}.txt".format(idx_summary))
                 with open(path, "w") as output:
                     output.write("\n".join(sentences))
                 idx_summary += 1
@@ -521,6 +521,9 @@ def main():
             path_to_generated_summaries = os.path.join(
                 args.output_dir, "generated_summaries"
             )
+            if not os.path.exists(path_to_generated_summaries):
+                os.makedirs(path_to_generated_summaries)
+
             evaluate(args, model, tokenizer, path_to_generated_summaries)
 
 
