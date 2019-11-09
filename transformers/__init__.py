@@ -97,7 +97,7 @@ if is_torch_available():
     from .modeling_encoder_decoder import PreTrainedEncoderDecoder, Model2Model
 
     # Optimization
-    from .optimization import (AdamW, ConstantLRSchedule, WarmupConstantSchedule, WarmupCosineSchedule,
+    from .optimization import (AdamW, constant_lr_schedule, ConstantLRSchedule, WarmupConstantSchedule, WarmupCosineSchedule,
                                WarmupCosineWithHardRestartsSchedule, WarmupLinearSchedule)
 
 

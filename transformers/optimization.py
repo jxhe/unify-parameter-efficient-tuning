@@ -23,6 +23,10 @@ from torch.optim.lr_scheduler import LambdaLR
 
 logger = logging.getLogger(__name__)
 
+
+def constant_lr_schedule(optimizer):
+    return LambdaLR(optimizer=optimizer, lr_lambda=lambda _: 1.0)
+
 class ConstantLRSchedule(LambdaLR):
     """ Constant learning rate schedule.
     """
