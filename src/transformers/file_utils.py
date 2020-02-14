@@ -214,6 +214,7 @@ def cached_path(
     user_agent=None,
     extract_compressed_file=False,
     force_extract=False,
+    extract_dir=None,
 ) -> Optional[str]:
     """
     Given something that might be a URL (or might be a local path),
@@ -229,6 +230,7 @@ def cached_path(
             file in a folder along the archive.
         force_extract: if True when extract_compressed_file is True and the archive was already extracted,
             re-extract the archive and overide the folder where it was extracted.
+        extract_dir: specify a directory to extract the archive to (overwrite the default created directory).
 
     Return:
         None in case of non-recoverable file (non-existent or inaccessible url + no cache on disk).
@@ -266,10 +268,13 @@ def cached_path(
             return output_path
 
         # Path where we extract compressed archives
-        # We avoid '.' in dir name and add "-extracted" at the end: "./model.zip" => "./model-zip-extracted/"
-        output_dir, output_file = os.path.split(output_path)
-        output_extract_dir_name = output_file.replace(".", "-") + "-extracted"
-        output_path_extracted = os.path.join(output_dir, output_extract_dir_name)
+        if extract_dir is None:
+            # We avoid '.' in dir name and add "-extracted" at the end: "./model.zip" => "./model-zip-extracted/"
+            output_dir, output_file = os.path.split(output_path)
+            output_extract_dir_name = output_file.replace(".", "-") + "-extracted"
+            output_path_extracted = os.path.join(output_dir, output_extract_dir_name)
+        else:
+            output_path_extracted = extract_dir
 
         if os.path.isdir(output_path_extracted) and os.listdir(output_path_extracted) and not force_extract:
             return output_path_extracted
