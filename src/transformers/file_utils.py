@@ -268,32 +268,27 @@ def cached_path(
             return output_path
 
         # Path where we extract compressed archives
-        if extract_dir is None:
-            # We avoid '.' in dir name and add "-extracted" at the end: "./model.zip" => "./model-zip-extracted/"
-            output_dir, output_file = os.path.split(output_path)
-            output_extract_dir_name = output_file.replace(".", "-") + "-extracted"
-            output_path_extracted = os.path.join(output_dir, output_extract_dir_name)
-        else:
-            output_path_extracted = extract_dir
+        # We avoid '.' in dir name and add "-extracted" at the end: "./model.zip" => "./model-zip-extracted/"
+        output_dir, output_file = os.path.split(output_path)
+        output_extract_dir_name = output_file.replace(".", "-") + "-extracted"
+        output_path_extracted = os.path.join(output_dir, output_extract_dir_name)
 
-        if os.path.isdir(output_path_extracted) and os.listdir(output_path_extracted) and not force_extract:
-            return output_path_extracted
-
-        # Prevent parallel extractions
-        lock_path = output_path + ".lock"
-        with FileLock(lock_path):
-            shutil.rmtree(output_path_extracted, ignore_errors=True)
-            os.makedirs(output_path_extracted)
-            if is_zipfile(output_path):
-                with ZipFile(output_path, "r") as zip_file:
-                    zip_file.extractall(output_path_extracted)
-                    zip_file.close()
-            elif tarfile.is_tarfile(output_path):
-                tar_file = tarfile.open(output_path)
-                tar_file.extractall(output_path_extracted)
-                tar_file.close()
-            else:
-                raise EnvironmentError("Archive format of {} could not be identified".format(output_path))
+        if not os.path.isdir(output_path_extracted) or force_extract:
+            # Extract file with a lock to prevent parallel extractions
+            lock_path = output_path + ".lock"
+            with FileLock(lock_path):
+                shutil.rmtree(output_path_extracted, ignore_errors=True)
+                os.makedirs(output_path_extracted)
+                if is_zipfile(output_path):
+                    with ZipFile(output_path, "r") as zip_file:
+                        zip_file.extractall(output_path_extracted)
+                        zip_file.close()
+                elif tarfile.is_tarfile(output_path):
+                    tar_file = tarfile.open(output_path)
+                    tar_file.extractall(output_path_extracted)
+                    tar_file.close()
+                else:
+                    raise EnvironmentError("Archive format of {} could not be identified".format(output_path))
 
         return output_path_extracted
 
