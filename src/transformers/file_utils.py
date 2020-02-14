@@ -263,7 +263,7 @@ def cached_path(
         # Something unknown
         raise ValueError("unable to parse {} as a URL or as a local path".format(url_or_filename))
 
-    if extract_compressed_file:
+    if extract_compressed_file and os.path.isfile(output_path):
         if not is_zipfile(output_path) and not tarfile.is_tarfile(output_path):
             return output_path
 
