@@ -130,6 +130,7 @@ class BertJapaneseTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
         assert encoded_pair == [2] + text + [3] + text_2 + [3]
 
 
+@custom_tokenizers
 class BertJapaneseCharacterTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
 
     tokenizer_class = BertJapaneseTokenizer
