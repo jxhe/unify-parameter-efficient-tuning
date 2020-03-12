@@ -60,10 +60,7 @@ class ModelTester:
         self.hidden_act = "gelu"
         self.hidden_dropout_prob = 0.1
         self.attention_probs_dropout_prob = 0.1
-        self.max_position_embeddings = 20
-        self.eos_token_id = 2
-        self.pad_token_id = 1
-        self.bos_token_id = 0
+        self.max_position_embeddings = 12
         torch.manual_seed(0)
 
     def prepare_config_and_inputs_for_common(self):
@@ -82,9 +79,6 @@ class ModelTester:
             dropout=self.hidden_dropout_prob,
             attention_dropout=self.attention_probs_dropout_prob,
             max_position_embeddings=self.max_position_embeddings,
-            eos_token_ids=[self.eos_token_id],
-            bos_token_id=self.bos_token_id,
-            pad_token_id=self.pad_token_id,
         )
         inputs_dict = prepare_bart_inputs_dict(config, input_ids)
         return config, inputs_dict
@@ -107,7 +101,6 @@ class BARTModelTest(ModelTesterMixin, unittest.TestCase):
     all_model_classes = (
         (BartModel, BartForConditionalGeneration, BartForSequenceClassification) if is_torch_available() else ()
     )
-    all_generative_model_classes = (BartForConditionalGeneration,) if is_torch_available() else ()
     is_encoder_decoder = True
     # TODO(SS): fix the below in a separate PR
     test_pruning = False
@@ -214,9 +207,6 @@ class BartHeadTests(unittest.TestCase):
             decoder_ffn_dim=32,
             max_position_embeddings=48,
             output_past=output_past,
-            eos_token_ids=[2],
-            pad_token_id=1,
-            bos_token_id=0,
         )
         return config, input_ids, batch_size
 
@@ -276,18 +266,14 @@ class BartHeadTests(unittest.TestCase):
             decoder_ffn_dim=32,
             max_position_embeddings=48,
             output_past=True,
-            eos_token_ids=[2],
-            pad_token_id=1,
-            bos_token_id=0,
         )
         lm_model = BartForConditionalGeneration(config).to(torch_device)
         lm_model.eval()
 
-        max_length = 5
         new_input_ids = lm_model.generate(
-            input_ids.clone(), num_return_sequences=1, num_beams=2, no_repeat_ngram_size=3, max_length=max_length
+            input_ids.clone(), num_return_sequences=1, num_beams=2, no_repeat_ngram_size=3, max_length=5
         )
-        self.assertEqual(new_input_ids.shape, (input_ids.shape[0], max_length - 1))
+        self.assertEqual(new_input_ids.shape, (input_ids.shape[0], 5))
         # TODO(SS): uneven length batches, empty inputs
 
     def test_shift_tokens_right(self):
@@ -314,10 +300,9 @@ class BartHeadTests(unittest.TestCase):
     @unittest.skipIf(torch_device == "cpu", "Cant do half precision")
     def test_generate_fp16(self):
         config, input_ids, batch_size = self._get_config_and_data(output_past=True)
-        input_ids = input_ids
-        attention_mask = input_ids.ne(1).to(torch_device)
+        attention_mask = input_ids.ne(1)
         lm_model = BartForConditionalGeneration(config).eval().to(torch_device).half()
-        lm_model.generate(input_ids, attention_mask=attention_mask)
+        lm_model.generate(input_ids, attention_mask)
 
     def test_prepare_bart_decoder_inputs(self):
         config, *_ = self._get_config_and_data(output_past=False)
@@ -425,24 +410,18 @@ class BartModelIntegrationTest(unittest.TestCase):
             self.assertIsNotNone(model)
 
     @slow
-    def test_cnn_summarization_same_as_fairseq_easy(self):
+    def test_cnn_summarization_same_as_fairseq(self):
         hf = BartForConditionalGeneration.from_pretrained("bart-large-cnn", output_past=True,).to(torch_device)
         tok = BartTokenizer.from_pretrained("bart-large")
         text = " (CNN)The Palestinian Authority officially became the 123rd member of the International Criminal Court on Wednesday, a step that gives the court jurisdiction over alleged crimes in Palestinian"
         tokens = tok.encode(text, return_tensors="pt").to(torch_device)
         extra_len = 20
-        gen_tokens = hf.generate(
-            tokens, num_beams=4, max_length=extra_len + 2, do_sample=False
-        )  # repetition_penalty=10.,
+        gen_tokens = hf.generate(tokens, num_beams=4, max_length=extra_len,)  # repetition_penalty=10.,
         expected_result = "<s>The Palestinian Authority officially became the 123rd member of the International Criminal Court on Wednesday."
         generated = [tok.decode(g,) for g in gen_tokens]
         self.assertEqual(expected_result, generated[0])
 
-    @slow
-    def test_cnn_summarization_same_as_fairseq_hard(self):
-        hf = BartForConditionalGeneration.from_pretrained("bart-large-cnn", output_past=True,).to(torch_device)
-        tok = BartTokenizer.from_pretrained("bart-large")
-
+        # Harder cases with batching
         FRANCE_ARTICLE = ' Marseille, France (CNN)The French prosecutor leading an investigation into the crash of Germanwings Flight 9525 insisted Wednesday that he was not aware of any video footage from on board the plane. Marseille prosecutor Brice Robin told CNN that "so far no videos were used in the crash investigation." He added, "A person who has such a video needs to immediately give it to the investigators." Robin\'s comments follow claims by two magazines, German daily Bild and French Paris Match, of a cell phone video showing the harrowing final seconds from on board Germanwings Flight 9525 as it crashed into the French Alps. All 150 on board were killed. Paris Match and Bild reported that the video was recovered from a phone at the wreckage site. The two publications described the supposed video, but did not post it on their websites. The publications said that they watched the video, which was found by a source close to the investigation. "One can hear cries of \'My God\' in several languages," Paris Match reported. "Metallic banging can also be heard more than three times, perhaps of the pilot trying to open the cockpit door with a heavy object.  Towards the end, after a heavy shake, stronger than the others, the screaming intensifies. Then nothing." "It is a very disturbing scene," said Julian Reichelt, editor-in-chief of Bild online. An official with France\'s accident investigation agency, the BEA, said the agency is not aware of any such video. Lt. Col. Jean-Marc Menichini, a French Gendarmerie spokesman in charge of communications on rescue efforts around the Germanwings crash site, told CNN that the reports were "completely wrong" and "unwarranted." Cell phones have been collected at the site, he said, but that they "hadn\'t been exploited yet." Menichini said he believed the cell phones would need to be sent to the Criminal Research Institute in Rosny sous-Bois, near Paris, in order to be analyzed by specialized technicians working hand-in-hand with investigators. But none of the cell phones found so far have been sent to the institute, Menichini said. Asked whether staff involved in the search could have leaked a memory card to the media, Menichini answered with a categorical "no." Reichelt told "Erin Burnett: Outfront" that he had watched the video and stood by the report, saying Bild and Paris Match are "very confident" that the clip is real. He noted that investigators only revealed they\'d recovered cell phones from the crash site after Bild and Paris Match published their reports. "That is something we did not know before. ... Overall we can say many things of the investigation weren\'t revealed by the investigation at the beginning," he said. What was mental state of Germanwings co-pilot? German airline Lufthansa confirmed Tuesday that co-pilot Andreas Lubitz had battled depression years before he took the controls of Germanwings Flight 9525, which he\'s accused of deliberately crashing last week in the French Alps. Lubitz told his Lufthansa flight training school in 2009 that he had a "previous episode of severe depression," the airline said Tuesday. Email correspondence between Lubitz and the school discovered in an internal investigation, Lufthansa said, included medical documents he submitted in connection with resuming his flight training. The announcement indicates that Lufthansa, the parent company of Germanwings, knew of Lubitz\'s battle with depression, allowed him to continue training and ultimately put him in the cockpit. Lufthansa, whose CEO Carsten Spohr previously said Lubitz was 100% fit to fly, described its statement Tuesday as a "swift and seamless clarification" and said it was sharing the information and documents -- including training and medical records -- with public prosecutors. Spohr traveled to the crash site Wednesday, where recovery teams have been working for the past week to recover human remains and plane debris scattered across a steep mountainside. He saw the crisis center set up in Seyne-les-Alpes, laid a wreath in the village of Le Vernet, closer to the crash site, where grieving families have left flowers at a simple stone memorial. Menichini told CNN late Tuesday that no visible human remains were left at the site but recovery teams would keep searching. French President Francois Hollande, speaking Tuesday, said that it should be possible to identify all the victims using DNA analysis by the end of the week, sooner than authorities had previously suggested. In the meantime, the recovery of the victims\' personal belongings will start Wednesday, Menichini said. Among those personal belongings could be more cell phones belonging to the 144 passengers and six crew on board. Check out the latest from our correspondents . The details about Lubitz\'s correspondence with the flight school during his training were among several developments as investigators continued to delve into what caused the crash and Lubitz\'s possible motive for downing the jet. A Lufthansa spokesperson told CNN on Tuesday that Lubitz had a valid medical certificate, had passed all his examinations and "held all the licenses required." Earlier, a spokesman for the prosecutor\'s office in Dusseldorf, Christoph Kumpa, said medical records reveal Lubitz suffered from suicidal tendencies at some point before his aviation career and underwent psychotherapy before he got his pilot\'s license. Kumpa emphasized there\'s no evidence suggesting Lubitz was suicidal or acting aggressively before the crash. Investigators are looking into whether Lubitz feared his medical condition would cause him to lose his pilot\'s license, a European government official briefed on the investigation told CNN on Tuesday. While flying was "a big part of his life," the source said, it\'s only one theory being considered. Another source, a law enforcement official briefed on the investigation, also told CNN that authorities believe the primary motive for Lubitz to bring down the plane was that he feared he would not be allowed to fly because of his medical problems. Lubitz\'s girlfriend told investigators he had seen an eye doctor and a neuropsychologist, both of whom deemed him unfit to work recently and concluded he had psychological issues, the European government official said. But no matter what details emerge about his previous mental health struggles, there\'s more to the story, said Brian Russell, a forensic psychologist. "Psychology can explain why somebody would turn rage inward on themselves about the fact that maybe they weren\'t going to keep doing their job and they\'re upset about that and so they\'re suicidal," he said. "But there is no mental illness that explains why somebody then feels entitled to also take that rage and turn it outward on 149 other people who had nothing to do with the person\'s problems." Germanwings crash compensation: What we know . Who was the captain of Germanwings Flight 9525? CNN\'s Margot Haddad reported from Marseille and Pamela Brown from Dusseldorf, while Laura Smith-Spark wrote from London. CNN\'s Frederik Pleitgen, Pamela Boykoff, Antonia Mortensen, Sandrine Amiel and Anna-Maja Rappard contributed to this report.'  # @noqa
         EXPECTED_SUMMARY_FRANCE = 'French prosecutor says he\'s not aware of any video footage from on board the plane. German daily Bild and French Paris Match claim to have found a cell phone video of the crash. A French Gendarmerie spokesman calls the reports "completely wrong" and "unwarranted" German airline Lufthansa confirms co-pilot Andreas Lubitz had battled depression.'
 
@@ -462,9 +441,33 @@ class BartModelIntegrationTest(unittest.TestCase):
             pad_to_max_length=True,
             return_tensors="pt",
         )
+        self.assertEqual(1024, dct["input_ids"].shape[1])
+        hypotheses_batch = hf.generate(
+            input_ids=dct["input_ids"].to(torch_device),
+            attention_mask=dct["attention_mask"].to(torch_device),
+            num_beams=4,
+            length_penalty=2.0,
+            max_length=140,
+            min_len=55,
+            no_repeat_ngram_size=3,
+        )
+        decoded = [
+            tok.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=False) for g in hypotheses_batch
+        ]
+        self.assertListEqual(
+            [EXPECTED_SUMMARY_FRANCE, EXPECTED_SUMMARY_SHORTER, EXPECTED_SUMMARY_IRAN, EXPECTED_SUMMARY_SUBWAY],
+            decoded,
+        )
+        # TODO(SS): run fairseq again with num_beams=2, min_len=20.
+        # TODO(SS): add test case that hits max_length
 
-        max_length = 140
-        min_length = 55
+    @slow
+    def test_cnn_rouge_regression(self):
+        ARTICLE_9 = ' (CNN)If you\'ve been following the news lately, there are certain things you doubtless know about Mohammad Javad Zarif. He is, of course, the Iranian foreign minister. He has been U.S. Secretary of State John Kerry\'s opposite number in securing a breakthrough in nuclear discussions that could lead to an end to sanctions against Iran -- if the details can be worked out in the coming weeks. And he received a hero\'s welcome as he arrived in Iran on a sunny Friday morning. "Long live Zarif," crowds chanted as his car rolled slowly down the packed street. You may well have read that he is "polished" and, unusually for one burdened with such weighty issues, "jovial." An Internet search for "Mohammad Javad Zarif" and "jovial" yields thousands of results. He certainly has gone a long way to bring Iran in from the cold and allow it to rejoin the international community. But there are some facts about Zarif that are less well-known. Here are six: . In September 2013, Zarif tweeted "Happy Rosh Hashanah," referring to the Jewish New Year. That prompted Christine Pelosi, the daughter of House Minority Leader Nancy Pelosi, to respond with a tweet of her own: "Thanks. The New Year would be even sweeter if you would end Iran\'s Holocaust denial, sir." And, perhaps to her surprise, Pelosi got a response. "Iran never denied it," Zarif tweeted back. "The man who was perceived to be denying it is now gone. Happy New Year." The reference was likely to former Iranian President Mahmoud Ahmadinejad, who had left office the previous month. Zarif was nominated to be foreign minister by Ahmadinejad\'s successor, Hassan Rouhami. His foreign ministry notes, perhaps defensively, that "due to the political and security conditions of the time, he decided to continue his education in the United States." That is another way of saying that he was outside the country during the demonstrations against the Shah of Iran, which began in 1977, and during the Iranian Revolution, which drove the shah from power in 1979. Zarif left the country in 1977, received his undergraduate degree from San Francisco State University in 1981, his master\'s in international relations from the University of Denver in 1984 and his doctorate from the University of Denver in 1988. Both of his children were born in the United States. The website of the Iranian Foreign Ministry, which Zarif runs, cannot even agree with itself on when he was born. The first sentence of his official biography, perhaps in a nod to the powers that be in Tehran, says Zarif was "born to a religious traditional family in Tehran in 1959." Later on the same page, however, his date of birth is listed as January 8, 1960. And the Iranian Diplomacy website says he was born in in 1961 . So he is 54, 55 or maybe even 56. Whichever, he is still considerably younger than his opposite number, Kerry, who is 71. The feds investigated him over his alleged role in controlling the Alavi Foundation, a charitable organization. The U.S. Justice Department said the organization was secretly run on behalf of the Iranian government to launder money and get around U.S. sanctions. But last year, a settlement in the case, under which the foundation agreed to give a 36-story building in Manhattan along with other properties to the U.S. government, did not mention Zarif\'s name. Early in the Iranian Revolution, Zarif was among the students who took over the Iranian Consulate in San Francisco. The aim, says the website Iranian.com -- which cites Zarif\'s memoirs, titled "Mr. Ambassador" -- was to expel from the consulate people who were not sufficiently Islamic. Later, the website says, Zarif went to make a similar protest at the Iranian mission to the United Nations. In response, the Iranian ambassador to the United Nations offered him a job. In fact, he has now spent more time with Kerry than any other foreign minister in the world. And that amount of quality time will only increase as the two men, with help from other foreign ministers as well, try to meet a June 30 deadline for nailing down the details of the agreement they managed to outline this week in Switzerland.'
+        EXPECTED_SUMMARY_9 = """Mohammad Javad Zarif is the Iranian foreign minister. He has been John Kerry's opposite number in securing a breakthrough in nuclear discussions. He received a hero's welcome as he arrived in Iran on a sunny Friday morning. But there are some facts about Zarif that are less well-known."""
+        hf = BartForConditionalGeneration.from_pretrained("bart-large-cnn", output_past=True,).to(torch_device)
+        tok = BartTokenizer.from_pretrained("bart-large")
+        dct = tok.batch_encode_plus([ARTICLE_9], max_length=1024, pad_to_max_length=True, return_tensors="pt",)
 
         self.assertEqual(1024, dct["input_ids"].shape[1])
         hypotheses_batch = hf.generate(
@@ -472,20 +475,15 @@ class BartModelIntegrationTest(unittest.TestCase):
             attention_mask=dct["attention_mask"].to(torch_device),
             num_beams=4,
             length_penalty=2.0,
-            max_length=max_length + 2,
-            min_length=min_length + 1,
+            max_length=140,
+            min_len=55,
             no_repeat_ngram_size=3,
-            do_sample=False,
-            early_stopping=True,
+            # do_sample=False,
+            # early_stopping=True,
         )
 
         decoded = [
             tok.decode(g, skip_special_tokens=True, clean_up_tokenization_spaces=False) for g in hypotheses_batch
         ]
 
-        self.assertListEqual(
-            [EXPECTED_SUMMARY_FRANCE, EXPECTED_SUMMARY_SHORTER, EXPECTED_SUMMARY_IRAN, EXPECTED_SUMMARY_SUBWAY],
-            decoded,
-        )
-        # TODO(SS): run fairseq again with num_beams=2, min_len=20.
-        # TODO(SS): add test case that hits max_length
+        self.assertEqual(decoded[0], EXPECTED_SUMMARY_9)

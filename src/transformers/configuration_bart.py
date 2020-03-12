@@ -82,6 +82,7 @@ class BartConfig(PretrainedConfig):
         self.encoder_ffn_dim = encoder_ffn_dim
         self.encoder_layers = self.num_hidden_layers = encoder_layers
         self.encoder_attention_heads = encoder_attention_heads
+        self.eos_token_id = self.eos_token_ids[0]
         self.encoder_layerdrop = encoder_layerdrop
         self.decoder_layerdrop = decoder_layerdrop
         self.decoder_ffn_dim = decoder_ffn_dim
