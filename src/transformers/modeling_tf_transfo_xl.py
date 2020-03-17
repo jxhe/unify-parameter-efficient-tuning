@@ -764,6 +764,8 @@ class TFTransfoXLLMHeadModel(TFTransfoXLPreTrainedModel):
         self.sample_softmax = config.sample_softmax
         # use sampled softmax
         if config.sample_softmax > 0:
+            raise NotImplementedError
+            # see PT code for implementation
             self.out_layer = TFTransfoXLLMHead(config, self.transformer.word_emb.weight, name="out_layer")
             self.sampler = TFLogUniformSampler(config.vocab_size, config.sample_softmax)
         # use adaptive softmax (including standard softmax)
@@ -852,6 +854,8 @@ class TFTransfoXLLMHeadModel(TFTransfoXLPreTrainedModel):
         outputs = transformer_outputs[1:]
 
         if self.sample_softmax > 0 and training:
+            raise NotImplementedError
+            # see PT code for implementation
             assert self.config.tie_weight
             logit = sample_logits(self.transformer.word_emb, self.out_layer.bias, labels, pred_hid, self.sampler)
             softmax_output = -tf.nn.log_softmax(logit, -1)[:, :, 0]

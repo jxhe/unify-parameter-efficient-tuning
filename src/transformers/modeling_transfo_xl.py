@@ -810,7 +810,8 @@ class TransfoXLLMHeadModel(TransfoXLPreTrainedModel):
         self.transformer = TransfoXLModel(config)
         self.sample_softmax = config.sample_softmax
         # use sampled softmax
-        if config.sample_softmax > 0:
+        if self.sample_softmax > 0:
+            raise NotImplementedError
             self.out_layer = nn.Linear(config.d_model, config.vocab_size)
             self.sampler = LogUniformSampler(config.vocab_size, config.sample_softmax)
         # use adaptive softmax (including standard softmax)
@@ -827,7 +828,8 @@ class TransfoXLLMHeadModel(TransfoXLPreTrainedModel):
         # sampled softmax
         if self.sample_softmax > 0:
             if self.config.tie_weight:
-                # TODO: this does not make sense -> transformer.word_emb.weight does not exist
+                # Here the self.out_layer.weight variable has to be correctly set -> read paper and discuss for this
+                raise NotImplementedError
                 self.out_layer.weight = self.transformer.word_emb.weight
         # adaptive softmax (including standard softmax)
         else:
@@ -910,12 +912,13 @@ class TransfoXLLMHeadModel(TransfoXLPreTrainedModel):
         pred_hid = last_hidden[:, -tgt_len:]
         outputs = transformer_outputs[1:]
         if self.sample_softmax > 0 and self.training:
+            raise NotImplementedError
+            # TODO: code below should work
             assert self.config.tie_weight
             logit = sample_logits(self.transformer.word_emb, self.out_layer.bias, labels, pred_hid, self.sampler)
             softmax_output = -F.log_softmax(logit, -1)[:, :, 0]
             outputs = [softmax_output] + outputs
             if labels is not None:
-                # TODO: This is not implemented
                 raise NotImplementedError
         else:
             softmax_output = self.crit(pred_hid.view(-1, pred_hid.size(-1)), labels)
