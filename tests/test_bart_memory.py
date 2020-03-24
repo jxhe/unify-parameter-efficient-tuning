@@ -5,6 +5,7 @@ import os
 from tests.utils import require_torch, slow
 from transformers import BartTokenizer, BartModel, BartForConditionalGeneration
 from transformers.modeling_bart import shift_tokens_right
+from py3nvml.py3nvml import *
 
 DEFAULT_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 DATA_PATH = "small_test.source"
@@ -27,12 +28,12 @@ class Memtest(unittest.TestCase):
         self.model.log_mem('start')
         torch.cuda.empty_cache()
         if torch.cuda.is_available():
-            py3nvml.nvmlInit()
+            nvmlInit()
 
 
     def tearDown(self) -> None:
         try:
-            py3nvml.nvmlShutdown()
+            nvmlShutdown()
         except Exception:
             pass
 
@@ -77,6 +78,11 @@ class TestHface(Memtest):
         save_logs_print_mem(self.model, 'hf_generate')
 
 
+try:
+    import fairseq
+    HAS_FAIRSEQ = True
+except ImportError:
+    HAS_FAIRSEQ = False
 class TestFairseq(Memtest):
 
     @classmethod
