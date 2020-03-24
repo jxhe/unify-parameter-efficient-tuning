@@ -920,6 +920,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin):
             encoder = self.get_encoder()
 
             encoder_outputs = encoder(input_ids, attention_mask=attention_mask)
+            self.log_mem(f'done encoder, outputs shaped {encoder_outputs[0].shape}')
 
             # create empty decoder_input_ids
             input_ids = torch.full(

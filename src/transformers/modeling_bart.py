@@ -769,7 +769,9 @@ class BartModel(PretrainedBartModel):
         assert decoder_input_ids is not None
         if encoder_outputs is None:
             encoder_outputs = self.encoder(input_ids=input_ids, attention_mask=attention_mask)
+
         assert isinstance(encoder_outputs, tuple)
+
         # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
         decoder_outputs = self.decoder(
             decoder_input_ids,

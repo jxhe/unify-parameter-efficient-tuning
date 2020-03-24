@@ -15,18 +15,17 @@ from durbango import patch_module_with_memory_mixin
 def save_logs_print_mem(bart, save_path):
     pth = SAVE_PREFIX + save_path
     print(f'*** {pth} ***')
-    try:
-        bart.save_logs(pth+'.txt')
-        bart.save_log_csv(pth+'.csv')
-        print(bart.summary)
-    except AttributeError as e:
-        r2 = collect_log_data(verbose=True)
+    bart.save_logs(pth+'.txt')
+    bart.save_log_csv(pth+'.csv')
+    print(bart.summary)
     print(f'*** DONE ***')
+
 class Memtest(unittest.TestCase):
     def setUp(self):
         if hasattr(self.model, 'reset_logs'): self.model.reset_logs()
         self.model.log_mem('start')
         torch.cuda.empty_cache()
+
 class TestHface(Memtest):
 
 
