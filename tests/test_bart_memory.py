@@ -19,16 +19,24 @@ def save_logs_print_mem(bart, save_path):
     bart.save_log_csv(pth+'.csv')
     print(bart.summary)
     print(f'*** DONE ***')
+import py3nvml
 
 class Memtest(unittest.TestCase):
     def setUp(self):
         if hasattr(self.model, 'reset_logs'): self.model.reset_logs()
         self.model.log_mem('start')
         torch.cuda.empty_cache()
+        if torch.cuda.is_available():
+            py3nvml.nvmlInit()
+
+
+    def tearDown(self) -> None:
+        try:
+            py3nvml.nvmlShutdown()
+        except Exception:
+            pass
 
 class TestHface(Memtest):
-
-
 
     @classmethod
     def setUpClass(cls):
