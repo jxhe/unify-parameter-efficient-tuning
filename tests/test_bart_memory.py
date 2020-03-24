@@ -55,6 +55,7 @@ class TestHface(Memtest):
         bart = self.model
         with torch.no_grad():
             self.model(self.ids, attention_mask=self.enc_mask, generation_mode=False)
+            self.log_mem('done')
         save_logs_print_mem(self.model, 'hf_fwd')
 
 
@@ -65,6 +66,7 @@ class TestHface(Memtest):
                             early_stopping=True,
                             decoder_start_token_id=2,
                             )
+        self.model.log_mem('done')
         save_logs_print_mem(self.model, 'hf_short_generate')
 
 
@@ -75,6 +77,7 @@ class TestHface(Memtest):
                             early_stopping=True,
                             decoder_start_token_id=2,
                             )
+        self.model.log_mem('done')
         save_logs_print_mem(self.model, 'hf_generate')
 
 
