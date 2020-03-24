@@ -279,7 +279,10 @@ class BartHeadTests(unittest.TestCase):
             bos_token_id=0,
         )
         lm_model = BartForConditionalGeneration(config).to(torch_device)
+        lm_model.apply(patch_module_with_memory_mixin)
         lm_model.eval()
+        lm_model.log_mem()
+        lm_model.model.decoder.log_mem()
 
         max_length = 5
         new_input_ids = lm_model.generate(
@@ -392,7 +395,7 @@ def _long_tensor(tok_lst):
 
 
 TOLERANCE = 1e-4
-
+from durbango.logging_utils import patch_module_with_memory_mixin
 
 @require_torch
 class BartModelIntegrationTests(unittest.TestCase):
