@@ -43,7 +43,7 @@ class TestHface(Memtest):
     def setUpClass(cls):
         cls.lns = [" " + x.rstrip() for x in open(DATA_PATH).readlines()][:6]
         tokenizer = BartTokenizer.from_pretrained('bart-large')
-        dct = tokenizer.batch_encode_plus(cls.lns, max_length=12, return_tensors="pt", pad_to_max_length=True)
+        dct = tokenizer.batch_encode_plus(cls.lns, max_length=1024, return_tensors="pt", pad_to_max_length=True)
         cls.ids = dct['input_ids'].to(DEFAULT_DEVICE)
         cls.enc_mask = dct['attention_mask'].to(DEFAULT_DEVICE)
         cls.prev_output_tokens = shift_tokens_right(cls.ids, 1).to(DEFAULT_DEVICE)
