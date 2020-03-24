@@ -814,9 +814,10 @@ class T5Model(T5PreTrainedModel):
 
         return decoder_outputs + encoder_outputs
 
+from durbango.logging_utils import LoggingMixin
 
 @add_start_docstrings("""T5 Model with a `language modeling` head on top. """, T5_START_DOCSTRING, T5_INPUTS_DOCSTRING)
-class T5ForConditionalGeneration(T5PreTrainedModel):
+class T5ForConditionalGeneration(T5PreTrainedModel, LoggingMixin):
     r"""
         **lm_labels**: (`optional`) ``torch.LongTensor`` of shape ``(batch_size, sequence_length)``:
             Labels for computing the masked language modeling loss.
