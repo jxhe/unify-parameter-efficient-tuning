@@ -22,12 +22,14 @@ def save_logs_print_mem(bart, save_path):
     except AttributeError as e:
         r2 = collect_log_data(verbose=True)
     print(f'*** DONE ***')
-class TestHface(unittest.TestCase):
-
+class Memtest(unittest.TestCase):
     def setUp(self):
         if hasattr(self.model, 'reset_logs'): self.model.reset_logs()
-        #r1 = LoggingMixin.collect_log_data(verbose=True)
+        self.model.log_mem('start')
         torch.cuda.empty_cache()
+class TestHface(Memtest):
+
+
 
     @classmethod
     def setUpClass(cls):
@@ -66,3 +68,35 @@ class TestHface(unittest.TestCase):
                             decoder_start_token_id=2,
                             )
         save_logs_print_mem(self.model, 'hf_generate')
+
+
+class TestFairseq(Memtest):
+
+    @classmethod
+    def setUpClass(cls):
+        import fairseq
+        source_path = "test.source"
+        cls.lns = [" " + x.rstrip() for x in open(source_path).readlines()][:6]
+        tokenizer = BartTokenizer.from_pretrained('bart-large')
+        dct = tokenizer.batch_encode_plus(cls.lns, max_length=1024, return_tensors="pt", pad_to_max_length=True)
+        cls.ids = dct['input_ids'].to(DEFAULT_DEVICE)
+        cls.prev_output_tokens = shift_tokens_right(cls.ids, 1).to(DEFAULT_DEVICE)
+        cls.model = torch.hub.load('pytorch/fairseq', 'bart.large.cnn').eval().to(DEFAULT_DEVICE)
+        patch_module_with_memory_mixin(cls.model)
+        return cls
+
+    def test_fs_fwd(self):
+        bart = self.model
+        with torch.no_grad():
+            bart.model(self.ids, None, self.prev_output_tokens)
+        save_logs_print_mem(bart, 'fs_fwd')
+
+    def test_fs_short_gen(self):
+        bart = self.model
+        bart.sample(self.lns, beam=4, lenpen=2.0, max_len_b=7, min_len=5, no_repeat_ngram_size=3)
+        save_logs_print_mem(bart, 'fs_short_generate')
+
+    def test_fs_gen(self):
+        bart = self.model
+        bart.sample(self.lns, beam=4, lenpen=2.0, max_len_b=140, min_len=55, no_repeat_ngram_size=3)
+        save_logs_print_mem(bart, 'fs_generate')
