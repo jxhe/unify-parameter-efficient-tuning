@@ -102,14 +102,18 @@ class TestFairseq(Memtest):
         bart = self.model
         with torch.no_grad():
             bart.model(self.ids, None, self.prev_output_tokens)
+            bart.log_mem('done')
         save_logs_print_mem(bart, 'fs_fwd')
 
     def test_fs_short_gen(self):
         bart = self.model
         bart.sample(self.lns, beam=4, lenpen=2.0, max_len_b=7, min_len=5, no_repeat_ngram_size=3)
+        bart.log_mem('done')
         save_logs_print_mem(bart, 'fs_short_generate')
 
+    @slow
     def test_fs_gen(self):
         bart = self.model
         bart.sample(self.lns, beam=4, lenpen=2.0, max_len_b=140, min_len=55, no_repeat_ngram_size=3)
+        bart.log_mem('done')
         save_logs_print_mem(bart, 'fs_generate')
