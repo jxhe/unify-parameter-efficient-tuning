@@ -46,7 +46,7 @@ def generate_summaries(lns, out_file, batch_size=8, device=DEFAULT_DEVICE):
 def _run_generate():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "source_path", type=str, help="like cnn_dm/test.source",
+        "DATA_PATH", type=str, help="like cnn_dm/test.source",
     )
     parser.add_argument(
         "output_path", type=str, help="where to save summaries",
