@@ -22,11 +22,9 @@ import logging
 # Benchmarking
 from .benchmark_utils import (
     Frame,
-    Memory,
     MemoryState,
     MemorySummary,
     MemoryTrace,
-    UsedMemoryState,
     bytes_to_human_readable,
     start_memory_tracing,
     stop_memory_tracing,

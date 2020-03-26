@@ -375,24 +375,31 @@ def print_summary_statistics(summary: MemorySummary):
         "\nLines by line memory consumption:\n"
         + "\n".join(
             f"{state.frame.filename}:{state.frame.line_number}: mem {state.cpu_gpu}: {state.frame.line_text}"
-            for state in summary.sequential
+            for state in summary.relative_mem_list
         )
     )
     print(
-        "\nLines with top memory consumption:\n"
+        "\nLines with top memory increase:\n"
         + "\n".join(
-            f"=> {state.frame.filename}:{state.frame.line_number}: mem {state.cpu_gpu}: {state.frame.line_text}"
-            for state in summary.cumulative[:6]
+            f"=> {state.frame.filename}:{state.frame.line_number}: mem {state.cpu_gpu_with_units}: {state.frame.line_text}"
+            for state in summary.relative_mem_sorted[:6]
         )
     )
     print(
-        "\nLines with lowest memory consumption:\n"
+        "\nLines with lowest memory increase:\n"
         + "\n".join(
-            f"=> {state.frame.filename}:{state.frame.line_number}: mem {state.cpu_gpu}: {state.frame.line_text}"
-            for state in summary.cumulative[-6:]
+            f"=> {state.frame.filename}:{state.frame.line_number}: mem {state.cpu_gpu_with_units}: {state.frame.line_text}"
+            for state in summary.relative_mem_sorted[-6:]
         )
     )
-    print(f"\nTotal memory increase: {summary.total}")
+    print(
+        "\nLines with peak memory used:\n"
+        + "\n".join(
+            f"=> {state.frame.filename}:{state.frame.line_number}: mem {state.cpu_gpu_with_units}: {state.frame.line_text}"
+            for state in summary.absolute_mem_sorted[:6]
+        )
+    )
+    print(f"\nTotal memory increase: {summary.relative_mem_total.cpu_gpu_with_units}")
 
 
 def _compute_pytorch(
@@ -453,7 +460,7 @@ def _compute_pytorch(
                             if verbose:
                                 print_summary_statistics(summary)
 
-                            dictionary[model_name]["memory"][batch_size][slice_size] = str(summary.total)
+                            dictionary[model_name]["memory"][batch_size][slice_size] = summary.relative_mem_total.cpu_gpu_with_units
                         else:
                             dictionary[model_name]["memory"][batch_size][slice_size] = "N/A"
 

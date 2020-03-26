@@ -9,7 +9,8 @@ import logging
 import os
 import sys
 from collections import defaultdict
-from typing import Iterable, List, NamedTuple, Optional, Union
+from dataclasses import dataclass
+from typing import Iterable, List, Optional, Union
 
 from .file_utils import is_tf_available, is_torch_available
 
@@ -31,14 +32,14 @@ def is_memory_tracing_enabled():
     return _is_memory_tracing_enabled
 
 
-class Frame(NamedTuple):
-    """ `Frame` is a NamedTuple used to gather the current frame state.
-            `Frame` has the following fields:
-            - 'filename' (string): Name of the file currently executed
-            - 'module' (string): Name of the module currently executed
-            - 'line_number' (int): Number of the line currently executed
-            - 'event' (string): Event that triggered the tracing (default will be "line")
-            - 'line_text' (string): Text of the line in the python script
+@dataclass(frozen=True)
+class Frame:
+    """ `Frame` is used to gather the current frame state:
+        - 'filename' (string): Name of the file currently executed
+        - 'module' (string): Name of the module currently executed
+        - 'line_number' (int): Number of the line currently executed
+        - 'event' (string): Event that triggered the tracing (default will be "line")
+        - 'line_text' (string): Text of the line in the python script
     """
 
     filename: str
@@ -48,61 +49,67 @@ class Frame(NamedTuple):
     line_text: str
 
 
-class UsedMemoryState(NamedTuple):
-    """ `UsedMemoryState` are named tuples with the following fields:
-        - 'frame': a `Frame` namedtuple (see below) storing information on the current tracing frame (current file, location in current file)
-        - 'cpu_memory': CPU RSS memory state *before* executing the line
-        - 'gpu_memory': GPU used memory *before* executing the line (sum for all GPUs or for only `gpus_to_trace` if provided)
+@dataclass
+class MemoryState:
+    """ `MemoryState` lists frame + CPU/GPU memory:
+        - `cpu`: CPU memory at or before the current frame as a `Memory` named tuple
+        - `gpu`: GPU memory at or before during the current frame as a `Memory` named tuple
+        - `frame` (`Frame`): the current frame
+        Also provide a few properties:
+            `cpu_gpu`: sum of the CPU + GPU memory at or before during the current frame as a `Memory` named tuple
+            `cpu_with_units`: CPU memory as a human readable string
+            `gpu_with_units`: GPU memory as a human readable string
+            `cpu_gpu_with_units`: CPU+GPU memory as a human readable string
     """
 
-    frame: Frame
-    cpu_memory: int
-    gpu_memory: int
+    cpu: int
+    gpu: int
+    frame: Optional[Frame] = None
+
+    @property
+    def cpu_gpu(self) -> int:
+        return self.cpu + self.gpu
+
+    @property
+    def cpu_with_units(self) -> str:
+        return bytes_to_human_readable(self.cpu)
+
+    @property
+    def gpu_with_units(self) -> str:
+        return bytes_to_human_readable(self.gpu)
+
+    @property
+    def cpu_gpu_with_units(self) -> str:
+        return bytes_to_human_readable(self.cpu + self.gpu)
 
 
-class Memory(NamedTuple):
-    """ `Memory` NamedTuple have a single field `bytes` and
-        you can get a human readable string of the number of bytes by calling `__repr__`
-            - `byte` (integer): number of bytes,
-    """
-
-    bytes: int
-
-    def __repr__(self) -> str:
-        return bytes_to_human_readable(self.bytes)
-
-
-class MemoryState(NamedTuple):
-    """ `MemoryState` are namedtuples listing frame + CPU/GPU memory with the following fields:
-        - `frame` (`Frame`): the current frame (see above)
-        - `cpu`: CPU memory consumed at during the current frame as a `Memory` named tuple
-        - `gpu`: GPU memory consumed at during the current frame as a `Memory` named tuple
-        - `cpu_gpu`: CPU + GPU memory consumed at during the current frame as a `Memory` named tuple
-    """
-
-    frame: Frame
-    cpu: Memory
-    gpu: Memory
-    cpu_gpu: Memory
-
-
-class MemorySummary(NamedTuple):
+@dataclass
+class MemorySummary:
     """ `MemorySummary` namedtuple otherwise with the fields:
-        - `sequential`: a list of `MemoryState` namedtuple (see below) computed from the provided `memory_trace`
+        - `absolute_mem_list`: total CPU/GPU memory used at each line
+            a list of `MemoryState` namedtuple (see below)
+        - `relative_mem_list`: relative difference in CPU/GPU memory at each line
+            a list of `MemoryState` namedtuple (see below) computed from the provided `memory_trace`
             by substracting the memory after executing each line from the memory before executing said line.
-        - `cumulative`: a list of `MemoryState` namedtuple (see below) with cumulative increase in memory for each line
+        - `absolute_mem_sorted`: total CPU/GPU memory used at each line sorted by lines (max among all the times a line is executed)
+            a list of `MemoryState` namedtuple (see below)
+            The list is sorted from the frame with the largest memory consumption to the frame with the smallest (can be negative if memory is released)
+        - `relative_mem_sorted`: relative difference in CPU/GPU memory sorted by lines (cumulative increase among all the times a line is executed)
+            a list of `MemoryState` namedtuple (see below) with cumulative increase in memory for each line
             obtained by summing repeted memory increase for a line if it's executed several times.
             The list is sorted from the frame with the largest memory consumption to the frame with the smallest (can be negative if memory is released)
         - `total`: total memory increase during the full tracing as a `Memory` named tuple (see below).
             Line with memory release (negative consumption) are ignored if `ignore_released_memory` is `True` (default).
     """
 
-    sequential: List[MemoryState]
-    cumulative: List[MemoryState]
-    total: Memory
+    absolute_mem_list: List[MemoryState]
+    relative_mem_list: List[MemoryState]
+    absolute_mem_sorted: List[MemoryState]
+    relative_mem_sorted: List[MemoryState]
+    relative_mem_total: MemoryState
 
 
-MemoryTrace = List[UsedMemoryState]
+MemoryTrace = List[MemoryState]
 
 
 def start_memory_tracing(
@@ -129,13 +136,14 @@ def start_memory_tracing(
             - `gpus_to_trace`: (optional list, default None) list of GPUs to trace. Default to tracing all GPUs
 
         Return:
-            - `memory_trace` is a list of `UsedMemoryState` for each event (default each line of the traced script).
-                - `UsedMemoryState` are named tuples with the following fields:
+            - `memory_trace` is a list of `MemoryState` for each event (default each line of the traced script).
+                - `MemoryState` are simple classes with the following attributes:
                     - 'frame': a `Frame` namedtuple (see below) storing information on the current tracing frame (current file, location in current file)
-                    - 'cpu_memory': CPU RSS memory state *before* executing the line
-                    - 'gpu_memory': GPU used memory *before* executing the line (sum for all GPUs or for only `gpus_to_trace` if provided)
+                    - 'cpu': CPU RSS memory state *before* executing the line
+                    - 'gpu': GPU used memory *before* executing the line (sum for all GPUs or for only `gpus_to_trace` if provided)
+                    - `cpu_gpu`: CPU + GPU memory *before* executing the line
 
-        `Frame` is a namedtuple used by `UsedMemoryState` to list the current frame state.
+        `Frame` is a namedtuple used by `MemoryState` to list the current frame state.
             `Frame` has the following fields:
             - 'filename' (string): Name of the file currently executed
             - 'module' (string): Name of the module currently executed
@@ -240,7 +248,7 @@ def start_memory_tracing(
                 gpu_mem += meminfo.used
             py3nvml.nvmlShutdown()
 
-        mem_state = UsedMemoryState(traced_state, cpu_mem, gpu_mem)
+        mem_state = MemoryState(cpu_mem, gpu_mem, traced_state)
         memory_trace.append(mem_state)
 
         return traceit
@@ -294,39 +302,38 @@ def stop_memory_tracing(
     _is_memory_tracing_enabled = False
 
     if memory_trace is not None and len(memory_trace) > 1:
-        memory_diff_trace = []
-        cumulative_memory_dict = defaultdict(lambda: [0, 0, 0])
-        for (frame, cpu_mem, gpu_mem), (next_frame, next_cpu_mem, next_gpu_mem) in zip(
-            memory_trace[:-1], memory_trace[1:]
-        ):
-            cpu_mem_inc = next_cpu_mem - cpu_mem
-            gpu_mem_inc = next_gpu_mem - gpu_mem
-            cpu_gpu_mem_inc = cpu_mem_inc + gpu_mem_inc
-            memory_diff_trace.append(
-                MemoryState(
-                    frame=frame, cpu=Memory(cpu_mem_inc), gpu=Memory(gpu_mem_inc), cpu_gpu=Memory(cpu_gpu_mem_inc),
-                )
-            )
-            cumulative_memory_dict[frame][0] += cpu_mem_inc
-            cumulative_memory_dict[frame][1] += gpu_mem_inc
-            cumulative_memory_dict[frame][2] += cpu_gpu_mem_inc
+        init_mem = memory_trace[0]
+        absolute_mem_list = []
+        relative_mem_list = []
+        absolute_mem_dict = defaultdict(lambda: [])
+        relative_mem_dict = defaultdict(lambda: [])
+        for line, next_line in zip(memory_trace[:-1], memory_trace[1:]):
+            absolute_mem = MemoryState(line.cpu - init_mem.cpu, line.gpu - init_mem.gpu, line.frame)
+            relative_mem = MemoryState(next_line.cpu - line.cpu, next_line.gpu - line.gpu, line.frame)
+            absolute_mem_list.append(absolute_mem)
+            relative_mem_list.append(relative_mem)
+            absolute_mem_dict[line.frame].append(absolute_mem)
+            relative_mem_dict[line.frame].append(relative_mem)
 
-        cumulative_memory = sorted(
-            list(cumulative_memory_dict.items()), key=lambda x: x[1][2], reverse=True
-        )  # order by the total CPU + GPU memory increase
-        cumulative_memory = list(
-            MemoryState(
-                frame=frame, cpu=Memory(cpu_mem_inc), gpu=Memory(gpu_mem_inc), cpu_gpu=Memory(cpu_gpu_mem_inc),
-            )
-            for frame, (cpu_mem_inc, gpu_mem_inc, cpu_gpu_mem_inc) in cumulative_memory
+        relative_mem_sorted = list(MemoryState(sum(v.cpu for v in l), sum(v.gpu for v in l), k) for k, l in relative_mem_dict.items())
+        absolute_mem_sorted = list(MemoryState(max(v.cpu for v in l), max(v.gpu for v in l), k) for k, l in absolute_mem_dict.items())
+
+        relative_mem_sorted = sorted(relative_mem_sorted, key=lambda x: x.cpu_gpu, reverse=True)
+        absolute_mem_sorted = sorted(absolute_mem_sorted, key=lambda x: x.cpu_gpu, reverse=True)
+
+        to_sum = (
+            filter(lambda m: m.cpu_gpu > 0, relative_mem_list)
+            if ignore_released_memory
+            else relative_mem_list
         )
-
-        if ignore_released_memory:
-            total_memory = sum(max(0, step_trace.cpu_gpu.bytes) for step_trace in memory_diff_trace)
-        else:
-            total_memory = sum(step_trace.cpu_gpu.bytes for step_trace in memory_diff_trace)
-        total_memory = Memory(total_memory)
-        return MemorySummary(sequential=memory_diff_trace, cumulative=cumulative_memory, total=total_memory)
+        relative_mem_total = MemoryState(sum(v.cpu for v in to_sum), sum(v.gpu for v in to_sum))
+        return MemorySummary(
+            absolute_mem_list=absolute_mem_list,
+            relative_mem_list=relative_mem_list,
+            relative_mem_sorted=relative_mem_sorted,
+            absolute_mem_sorted=absolute_mem_sorted,
+            relative_mem_total=relative_mem_total,
+        )
 
     return None
 
