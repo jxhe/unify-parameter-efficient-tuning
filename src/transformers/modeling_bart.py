@@ -438,7 +438,7 @@ class BartDecoder(nn.Module):
         # embed positions
         positions = self.embed_positions(input_ids, generation_mode=generation_mode)
 
-        if generation_mode:
+        if generation_mode and decoder_cached_states is not None:
             input_ids = input_ids[:, -1:]
             positions = positions[:, -1:]  # happens after we embed them
             assert input_ids.ne(self.padding_idx).any()
@@ -470,7 +470,7 @@ class BartDecoder(nn.Module):
                 causal_mask=decoder_causal_mask,
             )
 
-            if self.output_past:
+            if generation_mode:
                 next_decoder_cache.append(layer_past.copy())
             if self.output_hidden_states:
                 all_hidden_states += (x,)
@@ -481,7 +481,7 @@ class BartDecoder(nn.Module):
         all_hidden_states = [hidden_state.transpose(0, 1) for hidden_state in all_hidden_states]
         x = x.transpose(0, 1)
 
-        if self.output_past:
+        if generation_mode:
             next_cache = ((encoder_hidden_states, encoder_padding_mask), next_decoder_cache)
         else:
             next_cache = None
@@ -900,23 +900,18 @@ class BartForConditionalGeneration(PretrainedBartModel):
     def prepare_inputs_for_generation(self, decoder_input_ids, past, attention_mask, **kwargs):
         assert past is not None, "past has to be defined for encoder_outputs"
 
-        # first step, decoder_cached_states are empty
-        if not past[1]:
-            encoder_outputs, decoder_cached_states = past, None
-        else:
-            encoder_outputs, decoder_cached_states = past
+        # first step, decoder_cached_states are empty (None)
+        (encoder_outputs, encoder_attention_mask), decoder_cached_states = past
         return {
             "input_ids": None,  # encoder_outputs is defined. input_ids not needed
             "encoder_outputs": encoder_outputs,
+            "attention_mask": encoder_attention_mask,
             "decoder_cached_states": decoder_cached_states,
             "decoder_input_ids": decoder_input_ids,
-            "attention_mask": attention_mask,
             "generation_mode": True,
         }
 
     def prepare_scores_for_generation(self, scores, cur_len, max_length):
-        if cur_len == 1:
-            self._force_token_ids_generation(scores, self.config.bos_token_id)
         if cur_len == max_length - 1 and self.config.eos_token_id is not None:
             self._force_token_ids_generation(scores, self.config.eos_token_id)
         return scores
@@ -924,16 +919,19 @@ class BartForConditionalGeneration(PretrainedBartModel):
     @staticmethod
     def _reorder_cache(past, beam_idx):
         ((enc_out, enc_mask), decoder_cached_states) = past
-        reordered_past = []
-        for layer_past in decoder_cached_states:
-            # get the correct batch idx from decoder layer's batch dim for cross and self-attn
-            layer_past_new = {
-                attn_key: _reorder_buffer(attn_cache, beam_idx) for attn_key, attn_cache in layer_past.items()
-            }
-            # reordered_layer_past = [layer_past[:, i].unsqueeze(1).clone().detach() for i in beam_idx]
-            # reordered_layer_past = torch.cat(reordered_layer_past, dim=1)
-            reordered_past.append(layer_past_new)
-        new_enc_out = enc_out if enc_out is None else enc_out.index_select(1, beam_idx)
+        if decoder_cached_states is not None:
+            reordered_past = []
+            for layer_past in decoder_cached_states:
+                # get the correct batch idx from decoder layer's batch dim for cross and self-attn
+                layer_past_new = {
+                    attn_key: _reorder_buffer(attn_cache, beam_idx) for attn_key, attn_cache in layer_past.items()
+                }
+                # reordered_layer_past = [layer_past[:, i].unsqueeze(1).clone().detach() for i in beam_idx]
+                # reordered_layer_past = torch.cat(reordered_layer_past, dim=1)
+                reordered_past.append(layer_past_new)
+        else:
+            reordered_past = None
+        new_enc_out = enc_out if enc_out is None else (enc_out[0].index_select(1, beam_idx), *enc_out[1:])
         new_enc_mask = enc_mask if enc_mask is None else enc_mask.index_select(0, beam_idx)
 
         past = ((new_enc_out, new_enc_mask), reordered_past)
