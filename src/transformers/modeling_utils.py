@@ -957,10 +957,13 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin):
             encoder = self.get_encoder()
             encoder_outputs = encoder(encoder_ids, attention_mask=enc_attention_mask)
             batch_idx = self.encoder_outputs_batch_dim_idx
+
             assert (
-                batch_size == encoder_outputs[0].shape[batch_idx]
-            ), f"expected encoder_outputs[0] to have 1st dimension bs={batch_size}, got {encoder_outputs[0].shape[1]} "
-            expanded_idx = (
+                batch_size == encoder_outputs[0].shape[0]
+            ), f"expected encoder_outputs[0] to have 1st dimension bs={batch_size}, got {encoder_outputs[0].shape[0]} "
+
+            # expand batch_idx to assign correct encoder output for expanded input_ids (due to num_beams > 1 and num_return_sequences > 1)
+            expanded_batch_idxs = (
                 torch.arange(batch_size)
                 .view(-1, 1)
                 .repeat(1, num_beams * effective_batch_mult)
@@ -970,6 +973,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin):
             encoder_outputs = (encoder_outputs[0].index_select(batch_idx, expanded_idx), *encoder_outputs[1:]) # (x, encoder_states, all_attentions)
             enc_attention_mask = enc_attention_mask.index_select(0, expanded_idx)
             # TODO (Yacine): attention_mask was prepared for the encoder, not the decoder
+
         else:
             encoder_outputs = None
             dec_attention_mask = dec_attention_mask.unsqueeze(1).expand(
