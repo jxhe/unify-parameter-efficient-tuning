@@ -956,7 +956,6 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin):
         if self.config.is_encoder_decoder:
             encoder = self.get_encoder()
             encoder_outputs = encoder(encoder_ids, attention_mask=enc_attention_mask)
-            batch_idx = self.encoder_outputs_batch_dim_idx
 
             assert (
                 batch_size == encoder_outputs[0].shape[0]
@@ -970,8 +969,8 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin):
                 .view(-1)
                 .to(decoder_ids.device)
             )
-            encoder_outputs = (encoder_outputs[0].index_select(batch_idx, expanded_idx), *encoder_outputs[1:]) # (x, encoder_states, all_attentions)
-            enc_attention_mask = enc_attention_mask.index_select(0, expanded_idx)
+            encoder_outputs = (encoder_outputs[0].index_select(0, expanded_batch_idxs), *encoder_outputs[1:]) # (x, encoder_states, all_attentions)
+            enc_attention_mask = enc_attention_mask.index_select(0, expanded_batch_idxs)
             # TODO (Yacine): attention_mask was prepared for the encoder, not the decoder
 
         else:
