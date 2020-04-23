@@ -179,7 +179,7 @@ MODEL_MAPPING = OrderedDict(
         (XLMConfig, XLMModel),
         (CTRLConfig, CTRLModel),
         (ElectraConfig, ElectraModel),
-        (ReformerConfig, ReformerModel)
+        (ReformerConfig, ReformerModel),
     ]
 )
 
