@@ -43,7 +43,6 @@ else:
     except ImportError:
         gelu_new = torch.jit.script(gelu_new)
 
-
 ACT2FN = {
     "relu": F.relu,
     "swish": swish,
