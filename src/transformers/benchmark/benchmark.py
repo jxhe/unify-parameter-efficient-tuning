@@ -94,7 +94,8 @@ class PyTorchBenchmark(Benchmark):
                 runtimes = timeit.repeat(lambda: compute_loss_and_backprob(), repeat=self.args.repeat, number=10,)
                 return min(runtimes) / 10.0
         except RuntimeError as e:
-            self.print_fn("Doesn't fit on GPU. {}".format(e))
+            self.print_fn("{} with batch size {} and sequence length {} doesn't fit on GPU for training.".format(model_name, batch_size, sequence_length))
+            logger.info(e)
             return "N/A"
 
     def inference(self, model_name, batch_size, sequence_length, trace_memory=False):
@@ -142,5 +143,6 @@ class PyTorchBenchmark(Benchmark):
                 return min(runtimes) / 10.0
 
         except RuntimeError as e:
-            self.print_fn("Doesn't fit on GPU. {}".format(e))
+            self.print_fn("{} with batch size {} and sequence length {} doesn't fit on GPU for inference.".format(model_name, batch_size, sequence_length))
+            logger.info(e)
             return "N/A"
