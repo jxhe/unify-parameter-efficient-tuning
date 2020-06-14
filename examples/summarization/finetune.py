@@ -145,6 +145,7 @@ class SummarizationTrainer(BaseTransformer):
         self.hparams.git_sha = get_git_info()["repo_sha"]
         self.num_workers = 4 if self.hparams.gpus <= 1 else None
 
+
     def freeze_embeds(self):
         if self.model.config.model_type == "bart":
             freeze_params(self.model.model.shared)
