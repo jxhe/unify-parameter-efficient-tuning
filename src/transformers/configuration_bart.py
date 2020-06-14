@@ -67,6 +67,8 @@ class BartConfig(PretrainedConfig):
         normalize_embedding=True,
         static_position_embeddings=False,
         add_bias_logits=False,
+        student_decoder_layers=None,
+        student_encoder_layers=None,
         **common_kwargs
     ):
         r"""
@@ -116,6 +118,8 @@ class BartConfig(PretrainedConfig):
 
         # Classifier stuff
         self.classif_dropout = classifier_dropout
+        self.student_encoder_layers = student_encoder_layers
+        self.student_decoder_layers = student_decoder_layers
 
     @property
     def num_attention_heads(self) -> int:

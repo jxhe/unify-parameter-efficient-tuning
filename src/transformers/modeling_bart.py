@@ -169,7 +169,7 @@ def shift_tokens_right(input_ids, pad_token_id):
     prev_output_tokens[:, 0] = input_ids.gather(1, index_of_eos).squeeze()
     prev_output_tokens[:, 1:] = input_ids[:, :-1]
     return prev_output_tokens
-
+from torch.distributions.bernoulli import Bernoulli
 
 def make_padding_mask(input_ids, padding_idx=1):
     """True for pad tokens"""
@@ -265,9 +265,36 @@ class BartEncoder(nn.Module):
                 config.max_position_embeddings, embed_dim, self.padding_idx,
             )
         self.layers = nn.ModuleList([EncoderLayer(config) for _ in range(config.encoder_layers)])
+        if config.student_encoder_layers is not None:
+            self.scc_layers = nn.ModuleList([EncoderLayer(config) for _ in range(config.student_encoder_layers)])
+        else:
+            self.scc_layers = None
         self.layernorm_embedding = LayerNorm(embed_dim) if config.normalize_embedding else nn.Identity()
         # mbart has one extra layer_norm
         self.layer_norm = LayerNorm(config.d_model) if config.normalize_before else None
+
+
+    def set_replacing_rate(self, replacing_rate):
+        if not 0 < replacing_rate <= 1:
+            raise Exception('Replace rate must be in the range (0, 1]!')
+        self.bernoulli = Bernoulli(torch.tensor([replacing_rate]))
+
+    def determine_inference_layers(self) -> nn.ModuleList:
+        if self.scc_layers is None:
+            return self.layers
+        if self.training:
+            inference_layers = []
+            for i in range(self.scc_n_layer):
+                if self.bernoulli.sample() == 1:  # REPLACE
+                    inference_layers.append(self.scc_layers[i])
+                else:  # KEEP the original
+                    for offset in range(self.compress_ratio):
+                        inference_layers.append(self.layers[i * self.compress_ratio + offset])
+
+        else:  # inference with compressed model
+            inference_layers = self.scc_layers
+
+        return inference_layers
 
     def forward(self, input_ids, attention_mask=None, output_attentions=False):
         """
@@ -294,12 +321,13 @@ class BartEncoder(nn.Module):
         x = inputs_embeds + embed_pos
         x = self.layernorm_embedding(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
+        inference_layers = self.determine_inference_layers()
 
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
 
         encoder_states, all_attentions = [], []
-        for encoder_layer in self.layers:
+        for encoder_layer in inference_layers:
             if self.output_hidden_states:
                 encoder_states.append(x)
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
