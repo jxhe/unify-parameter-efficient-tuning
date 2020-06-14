@@ -14,6 +14,7 @@ from transformers import (
     AutoModel,
     AutoModelForPreTraining,
     AutoModelForQuestionAnswering,
+    AutoModelForSeq2SeqLM,
     AutoModelForSequenceClassification,
     AutoModelForTokenClassification,
     AutoModelWithLMHead,
@@ -34,6 +35,8 @@ MODEL_MODES = {
     "pretraining": AutoModelForPreTraining,
     "token-classification": AutoModelForTokenClassification,
     "language-modeling": AutoModelWithLMHead,
+    "summarization": AutoModelForSeq2SeqLM,
+    "translation": AutoModelForSeq2SeqLM,
 }
 
 
@@ -43,12 +46,6 @@ def set_seed(args: argparse.Namespace):
     torch.manual_seed(args.seed)
     if args.gpus > 0:
         torch.cuda.manual_seed_all(args.seed)
-
-
-def count_trainable_parameters(model):
-    model_parameters = filter(lambda p: p.requires_grad, model.parameters())
-    params = sum([np.prod(p.size()) for p in model_parameters])
-    return params
 
 
 class BaseTransformer(pl.LightningModule):
@@ -94,7 +91,7 @@ class BaseTransformer(pl.LightningModule):
                 cache_dir=cache_dir,
             )
         else:
-            self.model_type = type(model)
+            self.model_type = None
             self.model = model
 
     def load_hf_checkpoint(self, *args, **kwargs):
@@ -186,7 +183,7 @@ class BaseTransformer(pl.LightningModule):
         )
         parser.add_argument(
             "--tokenizer_name",
-            default="facebook/bart-large",
+            default=None,
             type=str,
             help="Pretrained tokenizer name or path if not the same as model_name",
         )
@@ -233,8 +230,8 @@ class LoggingCallback(pl.Callback):
                         writer.write("{} = {}\n".format(key, str(metrics[key])))
 
 
-def add_generic_args(parser, root_dir):
-    parser = pl.Trainer.add_argparse_args(parser)
+def add_generic_args(parser, root_dir) -> None:
+    #  TODO(SS): allow all pl args? parser = pl.Trainer.add_argparse_args(parser)
     parser.add_argument(
         "--output_dir",
         default=None,
@@ -271,13 +268,14 @@ def add_generic_args(parser, root_dir):
 
     parser.add_argument("--seed", type=int, default=42, help="random seed for initialization")
     parser.add_argument("--resume_from_checkpoint", type=str, default=None)
+    parser.add_argument("--val_check_interval", default=1.0, type=float)
 
 
 def generic_train(
     model: BaseTransformer,
     args: argparse.Namespace,
     early_stopping_callback=False,
-    logger=True,
+    logger=True,  # can pass WandbLogger() here
     extra_callbacks=[],
     checkpoint_callback=None,
     logging_callback=None,
@@ -302,6 +300,8 @@ def generic_train(
 
     if args.n_tpu_cores > 0:
         global xm
+        import torch_xla.core.xla_model as xm
+
         train_params["num_tpu_cores"] = args.n_tpu_cores
         train_params["gpus"] = 0
 
@@ -309,7 +309,7 @@ def generic_train(
         train_params["distributed_backend"] = "ddp"
 
     trainer = pl.Trainer(
-        logger=True,
+        logger=logger,
         accumulate_grad_batches=args.gradient_accumulation_steps,
         gpus=args.gpus,
         max_epochs=args.num_train_epochs,
@@ -321,7 +321,6 @@ def generic_train(
         val_check_interval=args.val_check_interval,
         weights_summary=None,
         resume_from_checkpoint=args.resume_from_checkpoint,
-        auto_scale_batch_size=args.auto_scale_batch_size,
         **train_params,
     )
 

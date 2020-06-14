@@ -7,15 +7,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 
 from transformers import BartTokenizer
 
 from .distillation import distill_main, evaluate_checkpoint
-from .evaluate_cnn import generate_summaries, run_generate
 from .finetune import main
+from .run_eval import generate_summaries, run_generate
 from .utils import SummarizationDataset, lmap, pickle_load
 
 
@@ -24,6 +23,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
 FP16_EVER = False
 CHEAP_ARGS = {
+    "logger": "default",
     "alpha_hid": 0,
     "freeze_embeds": True,
     "enc_only": False,
@@ -244,6 +244,8 @@ class TestSummarizationDistiller(unittest.TestCase):
         # self.assertEqual(len(contents), 15)
 
         metrics = pickle_load(Path(output_dir) / "metrics.pkl")
+        import pandas as pd
+
         val_df = pd.DataFrame(metrics["val"])
         train_df = pd.DataFrame(metrics["train"])
         test_df = pd.DataFrame(metrics["test"])
@@ -267,7 +269,7 @@ class TestBartExamples(unittest.TestCase):
         output_file_name = Path(tempfile.gettempdir()) / "utest_output_bart_sum.hypo"
         articles = [" New York (CNN)When Liana Barrientos was 23 years old, she got married in Westchester County."]
         _dump_articles(tmp, articles)
-        testargs = ["evaluate_cnn.py", str(tmp), str(output_file_name), "sshleifer/bart-tiny-random"]
+        testargs = ["run_eval.py", str(tmp), str(output_file_name), "sshleifer/bart-tiny-random"]
         with patch.object(sys, "argv", testargs):
             run_generate()
             self.assertTrue(Path(output_file_name).exists())

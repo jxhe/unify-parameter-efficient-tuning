@@ -1,47 +1,64 @@
-### Get CNN Data
-To be able to reproduce the authors' results on the CNN/Daily Mail dataset you first need to download both CNN and Daily Mail datasets [from Kyunghyun Cho's website](https://cs.nyu.edu/~kcho/DMQA/) (the links next to "Stories") in the same folder. Then uncompress the archives by running:
+### Data
 
+CNN/DailyMail data
 ```bash
+cd examples/summarization
 wget https://s3.amazonaws.com/datasets.huggingface.co/summarization/cnn_dm.tgz
 tar -xzvf cnn_dm.tgz
+export CNN_DIR=${PWD}/cnn_dm
 ```
 
 this should make a directory called cnn_dm/ with files like `test.source`.
 To use your own data, copy that files format. Each article to be summarized is on its own line.
 
+XSUM Data:
+```bash
+cd examples/summarization
+wget https://s3.amazonaws.com/datasets.huggingface.co/summarization/xsum.tar.gz
+tar -xzvf xsum.tar.gz
+export XSUM_DIR=${PWD}/xsum
+```
+
+
 ### Evaluation
 
 To create summaries for each article in dataset, run:
 ```bash
-python evaluate_cnn.py <path_to_test.source> test_generations.txt <model-name>  --score_path rouge_scores.txt
+python run_eval.py <path_to_test.source> test_generations.txt <model-name>  --score_path rouge_scores.txt
 ```
-The default batch size, 8, fits in 16GB GPU memory, but may need to be adjusted to fit your system.
+The default batch size, 4, fits in 16GB GPU memory, but may need to be adjusted to fit your system.
+
 
 ### Training
-Run/modify `finetune_bart.sh` or `finetune_t5.sh`
+Run/modify `finetune.sh`
 
-### Stanford CoreNLP Setup
+The following command should work on a 16GB GPU:
+```bash
+export me=`git config user.name`
+./finetune.sh \
+    --data_dir $XSUM_DIR \
+    --train_batch_size=1 \
+    --eval_batch_size=1 \
+    --output_dir="$me"_xsum_results \
+    --num_train_epochs 1
 ```
-ptb_tokenize () {
-    cat $1 | java edu.stanford.nlp.process.PTBTokenizer -ioFileList -preserveLines > $2
-}
 
-sudo apt install openjdk-8-jre-headless
-sudo apt-get install ant
-wget http://nlp.stanford.edu/software/stanford-corenlp-full-2018-10-05.zip
-unzip stanford-corenlp-full-2018-10-05.zip
-cd stanford-corenlp-full-2018-10-05
-export CLASSPATH=stanford-corenlp-3.9.2.jar:stanford-corenlp-3.9.2-models.jar
-```
-Then run `ptb_tokenize` on `test.target` and your generated hypotheses.
-### Rouge Setup
-Install `files2rouge` following the instructions at [here](https://github.com/pltrdy/files2rouge).
-I also needed to run `sudo apt-get install libxml-parser-perl`
+Tips:
+- 1 epoch at batch size 1 for bart-large takes 24 hours, requires 13GB GPU RAM with fp16.
+- try --freeze_encoder or --freeze_embeds for faster training/larger batch size.  (3hr/epoch with bs=8, see below)
+- fp16 opt level O1 is best
 
-```python
-from files2rouge import files2rouge
-from files2rouge import settings
-files2rouge.run(<path_to_tokenized_hypo>,
-                <path_to_tokenized_target>,
-               saveto='rouge_output.txt')
+### Shared Task
+Compare XSUM results with others by using `--logger wandb_shared`. This requires `wandb` registration.
+Here is an example command
+```bash
+export me=`git config user.name`
+./finetune.sh \
+    --data_dir $XSUM_DIR \
+    --output_dir "$me"_xsum_frozen_embs \
+    --logger wandb_shared \
+    --train_batch_size 16 --eval_batch_size 16 --freeze_embeds --freeze_encoder \
+    --num_train_epochs 6
 ```
+
+Results can be viewed [here](https://app.wandb.ai/sshleifer/hf_summarization/table?workspace=user-)
