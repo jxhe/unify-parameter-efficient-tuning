@@ -161,30 +161,6 @@ class SummarizationDistiller(SummarizationTrainer):
             s_logits_slct = student_outputs
         return F.mse_loss(s_logits_slct, t_logits_slct)
 
-    def calc_ce_loss(self, mask, s_logits, t_logits):
-        if mask is not None:
-            # mask has False at padding_idx
-            sel_mask = mask[:, :, None].expand_as(s_logits)
-            s_logits_slct = torch.masked_select(
-                s_logits, sel_mask
-            )  # (bs * seq_length * voc_size) modulo the 1s in mask
-            t_logits_slct = torch.masked_select(
-                t_logits, sel_mask
-            )  # (bs * seq_length * voc_size) modulo the 1s in mask
-        else:
-            t_logits_slct = t_logits
-            s_logits_slct = s_logits  # (bs * seq_length * voc_size) modulo the 1s in mask
-        s_logits_slct = s_logits_slct.view(-1, s_logits.size(-1))  # (bs * seq_length, voc_size) modulo the 1s in mask
-        t_logits_slct = t_logits_slct.view(-1, s_logits.size(-1))  # (bs * seq_length, voc_size) modulo the 1s in mask
-        assert t_logits_slct.size() == s_logits_slct.size()
-        loss_ce = (
-            self.ce_loss_fct(
-                F.log_softmax(s_logits_slct / self.temperature, dim=-1),
-                F.softmax(t_logits_slct / self.temperature, dim=-1),
-            )
-            * (self.temperature) ** 2
-        )
-        return loss_ce, s_logits_slct, t_logits_slct
 
     def configure_optimizers(self):
         "Prepare optimizer and schedule (linear warmup and decay)"
@@ -208,16 +184,12 @@ class SummarizationDistiller(SummarizationTrainer):
     @staticmethod
     def add_model_specific_args(parser, root_dir):
         SummarizationTrainer.add_model_specific_args(parser, root_dir)
-        parser.add_argument(
-            "--teacher", default="facebook/bart-large-cnn", type=str,
-        )
+        parser.add_argument("--teacher", default="facebook/bart-large-cnn", type=str,)
         parser.add_argument("--alpha_ce", default=0.8, type=float)
         parser.add_argument("--alpha_mlm", default=0.2, type=float)
         # parser.add_argument("--alpha_cos", default=0.0, type=float)
         parser.add_argument("--alpha_encoder_loss", default=0.0, type=float)
-        parser.add_argument(
-            "--alpha_hid", default=0.0, type=float, required=False,
-        )
+        parser.add_argument("--alpha_hid", default=0.0, type=float, required=False,)
         parser.add_argument(
             "--student_decoder_layers", default=12, type=int, required=False,
         )
@@ -278,7 +250,7 @@ class SummarizationDistiller(SummarizationTrainer):
                 lm_labels=labels,
                 output_hidden_states=True,
             )
-        dec_mask = decoder_input_ids.eq(self.tokenizer.pad_token_id)
+        dec_mask = decoder_input_ids.ne(pad_token_id)
         loss_ce, s_logits_slct, t_logits_slct = self.calc_ce_loss(dec_mask, slogits, tlogits)
         if self.alpha_hid > 0:
             hid_loss_dec = self.calc_hidden_loss(dec_mask, dec_hidden, tdec_hidden, self.hparams.d_layer_to_copy)
@@ -306,6 +278,31 @@ class SummarizationDistiller(SummarizationTrainer):
             for i, j in enumerate(matches)
         ]
         return sum(hidden_losses)
+
+    def calc_ce_loss(self, mask, s_logits, t_logits):
+        if mask is not None:
+            # mask has False at padding_idx
+            sel_mask = mask[:, :, None].expand_as(s_logits)
+            s_logits_slct = torch.masked_select(
+                s_logits, sel_mask
+            )  # (bs * seq_length * voc_size) modulo the 1s in mask
+            t_logits_slct = torch.masked_select(
+                t_logits, sel_mask
+            )  # (bs * seq_length * voc_size) modulo the 1s in mask
+        else:
+            t_logits_slct = t_logits
+            s_logits_slct = s_logits  # (bs * seq_length * voc_size) modulo the 1s in mask
+        s_logits_slct = s_logits_slct.view(-1, s_logits.size(-1))  # (bs * seq_length, voc_size) modulo the 1s in mask
+        t_logits_slct = t_logits_slct.view(-1, s_logits.size(-1))  # (bs * seq_length, voc_size) modulo the 1s in mask
+        assert t_logits_slct.size() == s_logits_slct.size()
+        loss_ce = (
+            self.ce_loss_fct(
+                F.log_softmax(s_logits_slct / self.temperature, dim=-1),
+                F.softmax(t_logits_slct / self.temperature, dim=-1),
+            )
+            * (self.temperature) ** 2
+        )
+        return loss_ce, s_logits_slct, t_logits_slct
 
 
 class T5SummarizationDistiller(SummarizationDistiller):
@@ -359,7 +356,7 @@ class T5SummarizationDistiller(SummarizationDistiller):
         labels = y[:, 1:].clone()
         labels[y[:, 1:] == pad_token_id] = -100
         # noinspection PyCallingNonCallable
-        dec_mask = decoder_input_ids.eq(self.tokenizer.pad_token_id)
+        dec_mask = decoder_input_ids.ne(pad_token_id)
 
         sloss, slogits, dec_hidden, enc_outputs, enc_hidden_state = self(
             source_ids,
