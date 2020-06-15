@@ -32,7 +32,7 @@ try:
     )
     from .callbacks import Seq2SeqLoggingCallback, get_rouge2_checkpoint_callback
 except ImportError:
-    from .utils import (
+    from utils import (
         use_task_specific_params,
         SummarizationDataset,
         lmap,
