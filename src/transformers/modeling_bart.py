@@ -187,8 +187,6 @@ def shift_tokens_right(input_ids, pad_token_id):
     return prev_output_tokens
 
 
-
-
 def make_padding_mask(input_ids, padding_idx=1):
     """True for pad tokens"""
     padding_mask = input_ids.eq(padding_idx)
@@ -318,8 +316,9 @@ class BartEncoder(nn.Module, TheseusMixin):
         # mbart has one extra layer_norm
         self.layer_norm = LayerNorm(config.d_model) if config.normalize_before else None
         self.scc_layers = None
-        if config.student_encoder_layers is not None:
+        if config.student_encoder_layers is not None and config.student_encoder_layers < config.encoder_layers:
             self.scc_layers = nn.ModuleList([EncoderLayer(config) for _ in range(config.student_encoder_layers)])
+            self.compress_ratio = len(self.scc_layers) / len(self.layers)
         self.init_successor_layers(config.replacing_rate)
 
     def forward(self, input_ids, attention_mask=None, output_hidden_states=False, output_attentions=False):
@@ -498,8 +497,9 @@ class BartDecoder(nn.Module, TheseusMixin):
         self.layernorm_embedding = LayerNorm(config.d_model) if config.normalize_embedding else nn.Identity()
         self.layer_norm = LayerNorm(config.d_model) if config.add_final_layer_norm else None
         self.scc_layers = None
-        if config.student_encoder_layers is not None:
-            self.scc_layers = nn.ModuleList([DecoderLayer(config) for _ in range(config.student_encoder_layers)])
+        if config.student_decoder_layers is not None and config.student_decoder_layers < config.decoder_layers:
+            self.scc_layers = nn.ModuleList([DecoderLayer(config) for _ in range(config.student_decoder_layers)])
+            self.compress_ratio = len(self.scc_layers) / len(self.layers)
         self.init_successor_layers(config.replacing_rate)
 
     def forward(

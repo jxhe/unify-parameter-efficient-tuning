@@ -23,6 +23,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
 FP16_EVER = False
 CHEAP_ARGS = {
+    "theseus_init_copy": False,
     "theseus_replace_rate": 0,
     "logger": "default",
     "alpha_hid": 0,
@@ -186,8 +187,18 @@ class TestSummarizationDistiller(unittest.TestCase):
         evaluate_checkpoint(ckpts[0], dest_dir=Path(tempfile.mkdtemp()))
 
     def test_bdc_theseus(self):
-        updates = dict(theseus_replace_rate=0.5, student_encoder_layers=1, student_decoder_layers=1,
-                       no_teacher=True)
+        updates = dict(theseus_replace_rate=0.5, student_encoder_layers=1, student_decoder_layers=1, no_teacher=True)
+        self._bart_distiller_cli(updates)
+
+    def test_bdc_frozen_theseus(self):
+        updates = dict(
+            theseus_replace_rate=0.5,
+            student_encoder_layers=2,
+            student_decoder_layers=1,
+            no_teacher=True,
+            freeze_encoder=True,
+            theseus_init_copy=True,
+        )
         self._bart_distiller_cli(updates)
 
     def test_bdc_t5(self):

@@ -86,7 +86,7 @@ class SummarizationTrainer(BaseTransformer):
         if self.hparams.freeze_embeds:
             self.freeze_embeds()
         if self.hparams.freeze_encoder:
-            freeze_params(self.model.model.encoder)
+            freeze_params(self.model.model.encoder)  # will break t5
         self.hparams.git_sha = get_git_info()["repo_sha"]
         self.num_workers = 4 if self.hparams.gpus <= 1 else None
 

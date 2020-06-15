@@ -61,6 +61,26 @@ class TheseusDistiller(SummarizationTrainer):
             replacing_rate=hparams.theseus_replace_rate,
         )
         super().__init__(hparams, model=model)
+        self.different_encoder: bool = hparams.student_encoder_layers != self.model.config.encoder_layers
+        self.different_decoder: bool = hparams.student_decoder_layers != self.model.config.decoder_layers
+        if hparams.theseus_init_copy:
+            hparams.d_layers_to_copy = get_layers_to_copy(
+                hparams.student_decoder_layers, self.model.config.decoder_layers
+            )
+            hparams.e_layers_to_copy: List = get_layers_to_copy(
+                hparams.student_encoder_layers, self.model.config.encoder_layers
+            )
+            if self.different_decoder:
+                copy_layers(
+                    self.model.model.decoder.layers, self.model.model.decoder.scc_layers, hparams.d_layers_to_copy
+                )
+            if self.different_encoder:
+                copy_layers(
+                    self.model.model.encoder.layers, self.model.model.encoder.scc_layers, hparams.e_layers_to_copy
+                )
+        else:
+            hparams.e_layers_to_copy, hparams.d_layers_to_copy = None, None
+
         self.replace_scheduler_encoder = LinearReplacementScheduler(self.model.model.encoder, 0.6)
         self.replace_scheduler_decoder = LinearReplacementScheduler(self.model.model.decoder, 0.6)
 
@@ -69,6 +89,16 @@ class TheseusDistiller(SummarizationTrainer):
         replace_rate = self.replace_scheduler_decoder.step()
         self.logger.log_metrics({"replace_rate": replace_rate})
         super().optimizer_step(*args, **kwargs)
+
+    def copy_to_student(self, d_layers_to_copy, e_layers_to_copy, hparams, student, teacher):
+        if teacher.config.model_type == "t5":
+            return self.copy_t5_to_student(d_layers_to_copy, e_layers_to_copy, hparams, student, teacher)
+        self.different_encoder: bool = hparams.student_encoder_layers != teacher.config.encoder_layers
+        self.different_decoder = hparams.student_decoder_layers != teacher.config.decoder_layers
+        if self.different_decoder:
+            copy_layers(teacher.model.decoder.layers, student.model.decoder.layers, d_layers_to_copy)
+        if self.different_encoder:
+            copy_layers(teacher.model.encoder.layers, student.model.encoder.layers, e_layers_to_copy)
 
 
 class SummarizationDistiller(SummarizationTrainer):
@@ -161,7 +191,6 @@ class SummarizationDistiller(SummarizationTrainer):
             s_logits_slct = student_outputs
         return F.mse_loss(s_logits_slct, t_logits_slct)
 
-
     def configure_optimizers(self):
         "Prepare optimizer and schedule (linear warmup and decay)"
 
@@ -184,12 +213,16 @@ class SummarizationDistiller(SummarizationTrainer):
     @staticmethod
     def add_model_specific_args(parser, root_dir):
         SummarizationTrainer.add_model_specific_args(parser, root_dir)
-        parser.add_argument("--teacher", default="facebook/bart-large-cnn", type=str,)
+        parser.add_argument(
+            "--teacher", default="facebook/bart-large-cnn", type=str,
+        )
         parser.add_argument("--alpha_ce", default=0.8, type=float)
         parser.add_argument("--alpha_mlm", default=0.2, type=float)
         # parser.add_argument("--alpha_cos", default=0.0, type=float)
         parser.add_argument("--alpha_encoder_loss", default=0.0, type=float)
-        parser.add_argument("--alpha_hid", default=0.0, type=float, required=False,)
+        parser.add_argument(
+            "--alpha_hid", default=0.0, type=float, required=False,
+        )
         parser.add_argument(
             "--student_decoder_layers", default=12, type=int, required=False,
         )
@@ -203,6 +236,7 @@ class SummarizationDistiller(SummarizationTrainer):
             "--enc_only", action="store_true", default=False,
         )
         parser.add_argument("--theseus_replace_rate", type=float, default=0.0)
+        parser.add_argument("--theseus_init_copy", action="store_true")
         return parser
 
     def _step(self, batch):
