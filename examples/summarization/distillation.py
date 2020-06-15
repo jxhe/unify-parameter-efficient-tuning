@@ -83,6 +83,8 @@ class TheseusDistiller(SummarizationTrainer):
 
         self.replace_scheduler_encoder = LinearReplacementScheduler(self.model.model.encoder, 0.6)
         self.replace_scheduler_decoder = LinearReplacementScheduler(self.model.model.decoder, 0.6)
+        freeze_params(self.model.model.encoder.layers)  # Test 
+        freeze_params(self.model.model.decoder.layers)
 
     def optimizer_step(self, *args, **kwargs) -> None:
         self.replace_scheduler_encoder.step()
