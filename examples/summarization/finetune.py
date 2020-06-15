@@ -15,7 +15,8 @@ from torch.utils.data import DataLoader
 from lightning_base import BaseTransformer, add_generic_args, generic_train
 from transformers import get_linear_schedule_with_warmup
 
-WANDB_PROJ_NAME = 'transformers_fork-examples_summarization_bart'
+
+WANDB_PROJ_NAME = "transformers_fork-examples_summarization_bart"
 try:
     from .utils import (
         use_task_specific_params,
@@ -53,6 +54,7 @@ class SummarizationTrainer(BaseTransformer):
     loss_names = ["loss"]
 
     def __init__(self, hparams, **kwargs):
+        assert Path(hparams.data_dir).exists()
         super().__init__(hparams, num_labels=None, mode=self.mode, **kwargs)
         use_task_specific_params(self.model, "summarization")
         save_git_info(self.hparams.output_dir)
@@ -296,7 +298,12 @@ def main(args, model=None):
         raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
     if model is None:
         model: BaseTransformer = SummarizationTrainer(args)
-    if args.logger == "default" or args.fast_dev_run or str(args.output_dir).startswith('/tmp') or str(args.output_dir).startswith('/var'):
+    if (
+        args.logger == "default"
+        or args.fast_dev_run
+        or str(args.output_dir).startswith("/tmp")
+        or str(args.output_dir).startswith("/var")
+    ):
         logger = True
     elif args.logger == "wandb":
         logger = WandbLogger(name=args.output_dir, project=WANDB_PROJ_NAME)

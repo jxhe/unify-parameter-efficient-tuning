@@ -10,7 +10,14 @@ from torch import nn
 from torch.nn import functional as F
 
 from lightning_base import generic_train
-from transformers import AdamW, BartConfig, BartForConditionalGeneration, T5Config, T5ForConditionalGeneration
+from transformers import (
+    AdamW,
+    AutoConfig,
+    BartConfig,
+    BartForConditionalGeneration,
+    T5Config,
+    T5ForConditionalGeneration,
+)
 
 
 try:
@@ -25,6 +32,7 @@ try:
         any_requires_grad,
     )
     from .finetune import main as ft_main
+    from .replacement_scheduler import LinearReplacementScheduler
 except ImportError:
     from finetune import SummarizationTrainer
     from finetune import main as ft_main
@@ -40,16 +48,31 @@ except ImportError:
 
 
 class TheseusDistiller(SummarizationTrainer):
-    def __init__(self):
-        pass
+    def __init__(self, hparams):
+
+        assert Path(hparams.data_dir).exists()
+        # config = BartConfig.from_pretrained(hparams.model_name_or_path, student_encoder_layers=hparams.student_encoder_layers, student_decoder_layers=hparams.student_decoder_layers, replacing_rate=hparams.theseus_replace_rate)
+        model = BartForConditionalGeneration.from_pretrained(
+            hparams.model_name_or_path,
+            student_encoder_layers=hparams.student_encoder_layers,
+            student_decoder_layers=hparams.student_decoder_layers,
+            replacing_rate=hparams.theseus_replace_rate,
+        )
+        super().__init__(hparams, model=model)
+        self.replace_scheduler_encoder = LinearReplacementScheduler(self.model.model.encoder, 0.6)
+        self.replace_scheduler_decoder = LinearReplacementScheduler(self.model.model.decoder, 0.6)
+
     def optimizer_step(self):
-        pass
+        self.replace_scheduler_encoder.step()
+        replace_rate = self.replace_scheduler_decoder.step()
+        self.logger.log({"replace_rate": replace_rate})
+        self.optimizer.step()
+
 
 class SummarizationDistiller(SummarizationTrainer):
     loss_names = ["loss", "ce_loss", "mlm_loss", "enc_mse_loss", "hid_loss_enc", "hid_loss_dec"]
 
     def __init__(self, hparams):
-        assert Path(hparams.data_dir).exists()
 
         d_layers_to_copy, student, student_cfg, teacher = self.pre_init(hparams)
 
@@ -202,7 +225,7 @@ class SummarizationDistiller(SummarizationTrainer):
         parser.add_argument(  # TODO: remove
             "--enc_only", action="store_true", default=False,
         )
-        parser.add_argument('--theseus_replace_rate', type=float, default=0.)
+        parser.add_argument("--theseus_replace_rate", type=float, default=0.0)
         return parser
 
     def _step(self, batch):
@@ -374,7 +397,7 @@ class T5SummarizationDistiller(SummarizationDistiller):
             )
 
         loss_ce, s_logits_slct, t_logits_slct = self.calc_ce_loss(dec_mask, slogits, tlogits)
-        if  self.alpha_hid > 0:
+        if self.alpha_hid > 0:
             hid_loss_dec = self.calc_hidden_loss(dec_mask, dec_hidden, tdec_hidden, self.hparams.d_layer_to_copy)
 
         blended_loss = (
@@ -391,7 +414,7 @@ def create_module(args):
     if args.no_teacher and args.theseus_replace_rate == 0:
         assert not args.enc_only
         module_cls = SummarizationTrainer
-    elif args.no_teacher and args.theseus_replace_rate >0:
+    elif args.no_teacher and args.theseus_replace_rate > 0:
         module_cls = TheseusDistiller
     elif t5:
         module_cls = T5SummarizationDistiller

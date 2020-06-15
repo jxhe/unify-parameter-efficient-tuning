@@ -23,6 +23,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import Tensor, nn
+from torch.distributions.bernoulli import Bernoulli
 from torch.nn import CrossEntropyLoss
 
 from .activations import ACT2FN
@@ -42,6 +43,7 @@ BART_PRETRAINED_MODEL_ARCHIVE_LIST = [
     "facebook/mbart-large-en-ro",
     # See all BART models at https://huggingface.co/models?filter=bart
 ]
+
 
 def get_layers_to_copy(n_to_get, tot):
     all_layers = list(range(tot))
@@ -183,7 +185,9 @@ def shift_tokens_right(input_ids, pad_token_id):
     prev_output_tokens[:, 0] = input_ids.gather(1, index_of_eos).squeeze()
     prev_output_tokens[:, 1:] = input_ids[:, :-1]
     return prev_output_tokens
-from torch.distributions.bernoulli import Bernoulli
+
+
+
 
 def make_padding_mask(input_ids, padding_idx=1):
     """True for pad tokens"""
@@ -247,11 +251,13 @@ class EncoderLayer(nn.Module):
             x = self.final_layer_norm(x)
         return x, attn_weights
 
+
 class TheseusMixin:
     compress_ratio = 2
+
     def set_replacing_rate(self, replacing_rate):
         if not 0 < replacing_rate <= 1:
-            raise Exception('Replace rate must be in the range (0, 1]!')
+            raise Exception("Replace rate must be in the range (0, 1]!")
         self.bernoulli = Bernoulli(torch.tensor([replacing_rate]))
 
     def determine_inference_layers(self) -> nn.ModuleList:
@@ -274,7 +280,7 @@ class TheseusMixin:
     def init_successor_layers(self, replacing_rate):
         if replacing_rate > 0 and replacing_rate < 1:
             self.set_replacing_rate(replacing_rate)
-        
+
 
 class BartEncoder(nn.Module, TheseusMixin):
     """

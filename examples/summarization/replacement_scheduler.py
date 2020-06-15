@@ -18,7 +18,7 @@ class ConstantReplacementScheduler:
 
 
 class LinearReplacementScheduler:
-    def __init__(self, module: BertEncoder, base_replacing_rate, k):
+    def __init__(self, module, base_replacing_rate, k=1e-4):
         self.module = module
         self.base_replacing_rate = base_replacing_rate
         self.step_counter = 0
