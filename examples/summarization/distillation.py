@@ -62,11 +62,11 @@ class TheseusDistiller(SummarizationTrainer):
         self.replace_scheduler_encoder = LinearReplacementScheduler(self.model.model.encoder, 0.6)
         self.replace_scheduler_decoder = LinearReplacementScheduler(self.model.model.decoder, 0.6)
 
-    def optimizer_step(self):
+    def optimizer_step(self, *args, **kwargs) -> None:
         self.replace_scheduler_encoder.step()
         replace_rate = self.replace_scheduler_decoder.step()
-        self.logger.log({"replace_rate": replace_rate})
-        self.optimizer.step()
+        self.logger.log_metrics({"replace_rate": replace_rate})
+        super().optimizer_step(*args, **kwargs)
 
 
 class SummarizationDistiller(SummarizationTrainer):

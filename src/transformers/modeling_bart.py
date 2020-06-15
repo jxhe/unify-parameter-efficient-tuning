@@ -499,7 +499,7 @@ class BartDecoder(nn.Module, TheseusMixin):
         self.layer_norm = LayerNorm(config.d_model) if config.add_final_layer_norm else None
         self.scc_layers = None
         if config.student_encoder_layers is not None:
-            self.scc_layers = nn.ModuleList([EncoderLayer(config) for _ in range(config.student_encoder_layers)])
+            self.scc_layers = nn.ModuleList([DecoderLayer(config) for _ in range(config.student_encoder_layers)])
         self.init_successor_layers(config.replacing_rate)
 
     def forward(
