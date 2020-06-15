@@ -187,7 +187,7 @@ class TestSummarizationDistiller(unittest.TestCase):
         evaluate_checkpoint(ckpts[0], dest_dir=Path(tempfile.mkdtemp()))
 
     def test_bdc_theseus(self):
-        updates = dict(theseus_replace_rate=0.5, student_encoder_layers=1, student_decoder_layers=1, no_teacher=True)
+        updates = dict(theseus_replace_rate=0.5, student_encoder_layers=1, student_decoder_layers=1, no_teacher=True, theseus_init_copy=True)
         self._bart_distiller_cli(updates)
 
     def test_bdc_frozen_theseus(self):
