@@ -80,6 +80,9 @@ class SummarizationDistiller(SummarizationTrainer):
 
         super().__init__(hparams, model=student, config=student_cfg)
         self.teacher = teacher
+        if isinstance(self.teacher, BartForConditionalGeneration):
+            assert teacher.model.encoder.scc_layers is None
+            assert self.model.model.encoder.scc_layers is None
         use_task_specific_params(self.teacher, "summarization")
         freeze_params(self.teacher)
         self.sanity_check_gradients()

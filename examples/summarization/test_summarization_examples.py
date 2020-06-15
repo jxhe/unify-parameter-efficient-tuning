@@ -159,7 +159,8 @@ class TestSummarizationDistiller(unittest.TestCase):
 
     def test_bdc_yes_teacher(self):
         updates = dict(student_encoder_layers=2, student_decoder_layers=1,)
-        self._bart_distiller_cli(updates)
+        model = self._bart_distiller_cli(updates)
+        self.assertEqual(model.model_type, None)
 
     def test_bdc_checkpointing(self):
 
@@ -182,7 +183,6 @@ class TestSummarizationDistiller(unittest.TestCase):
         out_path = tempfile.mktemp()
         generate_summaries(examples, out_path, model_name=str(new_transformer_ckpts[0].parent))
         self.assertTrue(Path(out_path).exists())
-
         evaluate_checkpoint(ckpts[0], dest_dir=Path(tempfile.mkdtemp()))
 
     def test_bdc_theseus(self):
