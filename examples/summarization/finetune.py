@@ -306,9 +306,9 @@ def main(args, model=None):
     ):
         logger = True
     elif args.logger == "wandb":
-        logger = WandbLogger(name=args.output_dir, project=WANDB_PROJ_NAME)
+        logger = WandbLogger(name=model.output_dir.name, project=WANDB_PROJ_NAME)
     elif args.logger == "wandb_shared":
-        logger = WandbLogger(name=args.output_dir, project="hf_summarization")
+        logger = WandbLogger(name=args.output_dir.name, project="hf_summarization")
     pickle_save(model.hparams, model.hparams_save_path)
     trainer: pl.Trainer = generic_train(
         model,
