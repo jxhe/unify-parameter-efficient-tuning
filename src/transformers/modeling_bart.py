@@ -248,6 +248,7 @@ class EncoderLayer(nn.Module):
         return x, attn_weights
 
 class TheseusMixin:
+    compress_ratio = 2
     def set_replacing_rate(self, replacing_rate):
         if not 0 < replacing_rate <= 1:
             raise Exception('Replace rate must be in the range (0, 1]!')
@@ -258,7 +259,7 @@ class TheseusMixin:
             return self.layers
         if self.training:
             inference_layers = []
-            for i in range(self.scc_n_layer):
+            for i in range(len(self.scc_layers)):
                 if self.bernoulli.sample() == 1:  # REPLACE
                     inference_layers.append(self.scc_layers[i])
                 else:  # KEEP the original
@@ -270,8 +271,10 @@ class TheseusMixin:
 
         return inference_layers
 
-    def init_successor_layers(self):
-        pass
+    def init_successor_layers(self, replacing_rate):
+        if replacing_rate > 0 and replacing_rate < 1:
+            self.set_replacing_rate(replacing_rate)
+        
 
 class BartEncoder(nn.Module, TheseusMixin):
     """
@@ -311,7 +314,7 @@ class BartEncoder(nn.Module, TheseusMixin):
         self.scc_layers = None
         if config.student_encoder_layers is not None:
             self.scc_layers = nn.ModuleList([EncoderLayer(config) for _ in range(config.student_encoder_layers)])
-        self.init_successor_layers()
+        self.init_successor_layers(config.replacing_rate)
 
     def forward(self, input_ids, attention_mask=None, output_hidden_states=False, output_attentions=False):
         """
@@ -491,7 +494,7 @@ class BartDecoder(nn.Module, TheseusMixin):
         self.scc_layers = None
         if config.student_encoder_layers is not None:
             self.scc_layers = nn.ModuleList([EncoderLayer(config) for _ in range(config.student_encoder_layers)])
-        self.init_successor_layers()
+        self.init_successor_layers(config.replacing_rate)
 
     def forward(
         self,
@@ -560,7 +563,7 @@ class BartDecoder(nn.Module, TheseusMixin):
                 continue
 
             layer_state = decoder_cached_states[idx] if decoder_cached_states is not None else None
-
+            # DecoderLayer.forward()
             x, layer_self_attn, layer_past = decoder_layer(
                 x,
                 encoder_hidden_states,

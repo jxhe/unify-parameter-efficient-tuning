@@ -93,6 +93,7 @@ class ModelTester:
             eos_token_id=self.eos_token_id,
             bos_token_id=self.bos_token_id,
             pad_token_id=self.pad_token_id,
+
         )
         inputs_dict = prepare_bart_inputs_dict(config, input_ids)
         return config, inputs_dict
@@ -274,6 +275,30 @@ class MBartIntegrationTests(unittest.TestCase):
                     e.args += (name, k)
                     raise
 
+    def test_theseus(self):
+        config = BartConfig(
+            vocab_size=99,
+            d_model=24,
+            encoder_layers=2,
+            decoder_layers=2,
+            encoder_attention_heads=2,
+            decoder_attention_heads=2,
+            encoder_ffn_dim=32,
+            decoder_ffn_dim=32,
+            max_position_embeddings=48,
+            student_encoder_layers=1,
+            student_decoder_layers=1,
+
+            replacing_rate=0.5,
+
+        )
+        lm_model = BartForConditionalGeneration(config).to(torch_device)
+        context = torch.Tensor([[71, 82, 18, 33, 46, 91, 2], [68, 34, 26, 58, 30, 2, 1]]).long().to(torch_device)
+        summary = torch.Tensor([[82, 71, 82, 18, 2], [58, 68, 2, 1, 1]]).long().to(torch_device)
+        loss, logits, enc_features = lm_model(input_ids=context, decoder_input_ids=summary, labels=summary)
+        expected_shape = (*summary.shape, config.vocab_size)
+        self.assertEqual(logits.shape, expected_shape)
+
     def test_mbart_fast_forward(self):
         config = BartConfig(
             vocab_size=99,
@@ -286,6 +311,7 @@ class MBartIntegrationTests(unittest.TestCase):
             decoder_ffn_dim=32,
             max_position_embeddings=48,
             add_final_layer_norm=True,
+
         )
         lm_model = BartForConditionalGeneration(config).to(torch_device)
         context = torch.Tensor([[71, 82, 18, 33, 46, 91, 2], [68, 34, 26, 58, 30, 2, 1]]).long().to(torch_device)

@@ -69,6 +69,7 @@ class BartConfig(PretrainedConfig):
         add_bias_logits=False,
         student_decoder_layers=None,
         student_encoder_layers=None,
+        replacing_rate=0,
         **common_kwargs
     ):
         r"""
@@ -87,6 +88,7 @@ class BartConfig(PretrainedConfig):
             is_encoder_decoder=is_encoder_decoder,
             **common_kwargs,
         )
+        self.replacing_rate =replacing_rate
         self.vocab_size = vocab_size
         self.d_model = d_model  # encoder_embed_dim and decoder_embed_dim
         self.encoder_ffn_dim = encoder_ffn_dim
