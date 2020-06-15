@@ -78,7 +78,6 @@ class BaseTransformer(pl.LightningModule):
         else:
             self.config: PretrainedConfig = config
         if tokenizer is None:
-            import ipdb; ipdb.set_trace()
             self.tokenizer = AutoTokenizer.from_pretrained(
                 self.hparams.tokenizer_name if self.hparams.tokenizer_name else self.hparams.model_name_or_path,
                 cache_dir=cache_dir,
