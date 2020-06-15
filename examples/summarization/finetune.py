@@ -83,7 +83,8 @@ class SummarizationTrainer(BaseTransformer):
         assert self.target_lens["train"] <= self.target_lens["val"], f"target_lens: {self.target_lens}"
         assert self.target_lens["train"] <= self.target_lens["test"], f"target_lens: {self.target_lens}"
         self.n_obs = {k: v if v >= 0 else None for k, v in base_nobs.items()}
-        if self.hparams.freeze_embeds:
+        if not self.hparams.unfreeze_embeds:
+
             self.freeze_embeds()
         if self.hparams.freeze_encoder:
             freeze_params(self.model.model.encoder)  # will break t5
@@ -280,7 +281,7 @@ class SummarizationTrainer(BaseTransformer):
             "--freeze_encoder", action="store_true",
         )
         parser.add_argument(
-            "--freeze_embeds", action="store_true",
+            "--unfreeze_embeds", action="store_true",
         )
         parser.add_argument("--sortish_sampler", action="store_true", default=False)
         parser.add_argument("--logger", type=str, choices=["default", "wandb", "wandb_shared"], default="wandb")

@@ -318,7 +318,7 @@ def generic_train(
 
     if args.gpus > 1:
         train_params["distributed_backend"] = "ddp"
-    print(f'WILL TRAIN FOR {args.num_train_epochs} epochs')
+    print(f"WILL TRAIN FOR {args.num_train_epochs} epochs")
     trainer = pl.Trainer(
         logger=logger,
         accumulate_grad_batches=args.gradient_accumulation_steps,
