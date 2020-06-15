@@ -313,7 +313,7 @@ def main(args, model=None):
     trainer: pl.Trainer = generic_train(
         model,
         args,
-        early_stopping_callback=True,
+        early_stopping_callback=False,
         logging_callback=Seq2SeqLoggingCallback(),
         checkpoint_callback=get_rouge2_checkpoint_callback(args.output_dir),
         logger=logger,
