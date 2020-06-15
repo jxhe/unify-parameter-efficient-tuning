@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytorch_lightning as pl
 import torch
+from typing import Dict, Any
 
 from transformers import (
     AdamW,
@@ -64,6 +65,7 @@ class BaseTransformer(pl.LightningModule):
         super().__init__()
         self.hparams = hparams
         self.step_count = 0
+        self.tfmr_ckpts = {}
         self.output_dir = Path(self.hparams.output_dir)
         cache_dir = self.hparams.cache_dir if self.hparams.cache_dir else None
         if config is None:
@@ -76,6 +78,7 @@ class BaseTransformer(pl.LightningModule):
         else:
             self.config: PretrainedConfig = config
         if tokenizer is None:
+            import ipdb; ipdb.set_trace()
             self.tokenizer = AutoTokenizer.from_pretrained(
                 self.hparams.tokenizer_name if self.hparams.tokenizer_name else self.hparams.model_name_or_path,
                 cache_dir=cache_dir,
@@ -168,6 +171,15 @@ class BaseTransformer(pl.LightningModule):
                 str(self.hparams.max_seq_length),
             ),
         )
+
+    @pl.utilities.rank_zero_only
+    def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+        save_path = self.output_dir.joinpath("best_tfmr")
+        save_path.mkdir(exist_ok=True)
+        self.model.config.save_step = self.step_count
+        self.model.save_pretrained(save_path)
+        self.tokenizer.save_pretrained(save_path)
+        self.tfmr_ckpts[self.step_count] = save_path
 
     @staticmethod
     def add_model_specific_args(parser, root_dir):

@@ -291,6 +291,7 @@ class SummarizationTrainer(BaseTransformer):
 
 def main(args, model=None):
     Path(args.output_dir).mkdir(exist_ok=True)
+
     if len(os.listdir(args.output_dir)) > 3 and args.do_train:
         raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
     if model is None:
@@ -301,6 +302,7 @@ def main(args, model=None):
         logger = WandbLogger(name=args.output_dir, project=WANDB_PROJ_NAME)
     elif args.logger == "wandb_shared":
         logger = WandbLogger(name=args.output_dir, project="hf_summarization")
+    pickle_save(model.hparams, model.hparams_save_path)
     trainer: pl.Trainer = generic_train(
         model,
         args,
