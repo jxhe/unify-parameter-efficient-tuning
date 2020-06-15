@@ -35,7 +35,7 @@ try:
     from .replacement_scheduler import LinearReplacementScheduler
 except ImportError:
     from finetune import SummarizationTrainer
-    from finetune import main as ft_main
+
     from initialization_utils import init_student, copy_layers
     from utils import (
         use_task_specific_params,
@@ -45,6 +45,8 @@ except ImportError:
         assert_all_frozen,
         any_requires_grad,
     )
+    from finetune import main as ft_main
+    from replacement_scheduler import LinearReplacementScheduler
 
 
 class TheseusDistiller(SummarizationTrainer):
