@@ -43,6 +43,22 @@ BART_PRETRAINED_MODEL_ARCHIVE_LIST = [
     # See all BART models at https://huggingface.co/models?filter=bart
 ]
 
+def get_layers_to_copy(n_to_get, tot):
+    all_layers = list(range(tot))
+    if tot == 12:  # Alternating for special cases
+        layers_to_copy = {  # maps # layers in student -> which teacher layers to copy
+            6: [0, 2, 4, 7, 9, 11],
+            1: [11],
+            3: [0, 6, 11],
+            2: [0, 11],
+            4: [0, 4, 8, 11],
+            9: [0, 1, 2, 4, 5, 7, 9, 10, 11],
+            12: all_layers,
+        }
+        return layers_to_copy[n_to_get]
+    else:
+        return all_layers[:n_to_get]
+
 
 BART_START_DOCSTRING = r"""
 
@@ -90,8 +106,6 @@ BART_INPUTS_DOCSTRING = r"""
             Default behavior: generate a tensor that ignores pad tokens in decoder_input_ids. Causal mask will also be used by default.
             If you want to change padding behavior, you should read :func:`~transformers.modeling_bart._prepare_decoder_inputs` and modify.
             See diagram 1 in the paper for more info on the default strategy
-        output_attentions (:obj:`bool`, `optional`, defaults to `:obj:`None`):
-            If set to ``True``, the attentions tensors of all attention layers are returned. See ``attentions`` under returned tensors for more detail.
 """
 
 
@@ -233,8 +247,33 @@ class EncoderLayer(nn.Module):
             x = self.final_layer_norm(x)
         return x, attn_weights
 
+class TheseusMixin:
+    def set_replacing_rate(self, replacing_rate):
+        if not 0 < replacing_rate <= 1:
+            raise Exception('Replace rate must be in the range (0, 1]!')
+        self.bernoulli = Bernoulli(torch.tensor([replacing_rate]))
 
-class BartEncoder(nn.Module):
+    def determine_inference_layers(self) -> nn.ModuleList:
+        if self.scc_layers is None:
+            return self.layers
+        if self.training:
+            inference_layers = []
+            for i in range(self.scc_n_layer):
+                if self.bernoulli.sample() == 1:  # REPLACE
+                    inference_layers.append(self.scc_layers[i])
+                else:  # KEEP the original
+                    for offset in range(self.compress_ratio):
+                        inference_layers.append(self.layers[i * self.compress_ratio + offset])
+
+        else:  # inference with compressed model
+            inference_layers = self.scc_layers
+
+        return inference_layers
+
+    def init_successor_layers(self):
+        pass
+
+class BartEncoder(nn.Module, TheseusMixin):
     """
     Transformer encoder consisting of *config.encoder_layers* self attention layers. Each layer
     is a :class:`EncoderLayer`.
@@ -265,38 +304,16 @@ class BartEncoder(nn.Module):
                 config.max_position_embeddings, embed_dim, self.padding_idx,
             )
         self.layers = nn.ModuleList([EncoderLayer(config) for _ in range(config.encoder_layers)])
-        if config.student_encoder_layers is not None:
-            self.scc_layers = nn.ModuleList([EncoderLayer(config) for _ in range(config.student_encoder_layers)])
-        else:
-            self.scc_layers = None
+
         self.layernorm_embedding = LayerNorm(embed_dim) if config.normalize_embedding else nn.Identity()
         # mbart has one extra layer_norm
         self.layer_norm = LayerNorm(config.d_model) if config.normalize_before else None
+        self.scc_layers = None
+        if config.student_encoder_layers is not None:
+            self.scc_layers = nn.ModuleList([EncoderLayer(config) for _ in range(config.student_encoder_layers)])
+        self.init_successor_layers()
 
-
-    def set_replacing_rate(self, replacing_rate):
-        if not 0 < replacing_rate <= 1:
-            raise Exception('Replace rate must be in the range (0, 1]!')
-        self.bernoulli = Bernoulli(torch.tensor([replacing_rate]))
-
-    def determine_inference_layers(self) -> nn.ModuleList:
-        if self.scc_layers is None:
-            return self.layers
-        if self.training:
-            inference_layers = []
-            for i in range(self.scc_n_layer):
-                if self.bernoulli.sample() == 1:  # REPLACE
-                    inference_layers.append(self.scc_layers[i])
-                else:  # KEEP the original
-                    for offset in range(self.compress_ratio):
-                        inference_layers.append(self.layers[i * self.compress_ratio + offset])
-
-        else:  # inference with compressed model
-            inference_layers = self.scc_layers
-
-        return inference_layers
-
-    def forward(self, input_ids, attention_mask=None, output_attentions=False):
+    def forward(self, input_ids, attention_mask=None, output_hidden_states=False, output_attentions=False):
         """
         Args:
             input_ids (LongTensor): tokens in the source language of shape
@@ -328,7 +345,7 @@ class BartEncoder(nn.Module):
 
         encoder_states, all_attentions = [], []
         for encoder_layer in inference_layers:
-            if self.output_hidden_states:
+            if output_hidden_states:
                 encoder_states.append(x)
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
             dropout_probability = random.uniform(0, 1)
@@ -342,7 +359,7 @@ class BartEncoder(nn.Module):
 
         if self.layer_norm:
             x = self.layer_norm(x)
-        if self.output_hidden_states:
+        if output_hidden_states:
             encoder_states.append(x)
 
         # T x B x C -> B x T x C
@@ -441,7 +458,7 @@ class DecoderLayer(nn.Module):
         )  # just self_attn weights for now, following t5, layer_state = cache for decoding
 
 
-class BartDecoder(nn.Module):
+class BartDecoder(nn.Module, TheseusMixin):
     """
     Transformer decoder consisting of *config.decoder_layers* layers. Each layer
     is a :class:`DecoderLayer`.
@@ -452,7 +469,6 @@ class BartDecoder(nn.Module):
 
     def __init__(self, config: BartConfig, embed_tokens: nn.Embedding):
         super().__init__()
-        self.output_hidden_states = config.output_hidden_states
         self.dropout = config.dropout
         self.layerdrop = config.decoder_layerdrop
         self.padding_idx = embed_tokens.padding_idx
@@ -472,6 +488,10 @@ class BartDecoder(nn.Module):
         )  # type: List[DecoderLayer]
         self.layernorm_embedding = LayerNorm(config.d_model) if config.normalize_embedding else nn.Identity()
         self.layer_norm = LayerNorm(config.d_model) if config.add_final_layer_norm else None
+        self.scc_layers = None
+        if config.student_encoder_layers is not None:
+            self.scc_layers = nn.ModuleList([EncoderLayer(config) for _ in range(config.student_encoder_layers)])
+        self.init_successor_layers()
 
     def forward(
         self,
@@ -482,6 +502,7 @@ class BartDecoder(nn.Module):
         decoder_causal_mask,
         decoder_cached_states=None,
         use_cache=False,
+        output_hidden_states=False,
         output_attentions=False,
         **unused,
     ):
@@ -528,9 +549,11 @@ class BartDecoder(nn.Module):
         all_hidden_states = ()
         all_self_attns = ()
         next_decoder_cache = []
-        for idx, decoder_layer in enumerate(self.layers):
+
+        inference_layers = self.determine_inference_layers()
+        for idx, decoder_layer in enumerate(inference_layers):
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
-            if self.output_hidden_states:
+            if output_hidden_states:
                 all_hidden_states += (x,)
             dropout_probability = random.uniform(0, 1)
             if self.training and (dropout_probability < self.layerdrop):
@@ -825,8 +848,6 @@ def _get_shape(t):
 class BartModel(PretrainedBartModel):
     def __init__(self, config: BartConfig):
         super().__init__(config)
-        self.output_hidden_states = config.output_hidden_states
-
         padding_idx, vocab_size = config.pad_token_id, config.vocab_size
         self.shared = nn.Embedding(vocab_size, config.d_model, padding_idx)
 
@@ -845,6 +866,7 @@ class BartModel(PretrainedBartModel):
         decoder_attention_mask=None,
         decoder_cached_states=None,
         use_cache=False,
+        output_hidden_states=False,
         output_attentions=None,
     ):
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
@@ -865,7 +887,10 @@ class BartModel(PretrainedBartModel):
 
         if encoder_outputs is None:
             encoder_outputs = self.encoder(
-                input_ids=input_ids, attention_mask=attention_mask, output_attentions=output_attentions,
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                output_hidden_states=output_hidden_states,
+                output_attentions=output_attentions,
             )
         assert isinstance(encoder_outputs, tuple)
         # decoder outputs consists of (dec_features, layer_state, dec_hidden, dec_attn)
@@ -878,6 +903,7 @@ class BartModel(PretrainedBartModel):
             decoder_cached_states=decoder_cached_states,
             output_attentions=output_attentions,
             use_cache=use_cache,
+            output_hidden_states=output_hidden_states,
         )
 
         # Attention and hidden_states will be [] or None if they aren't needed
@@ -937,6 +963,7 @@ class BartForConditionalGeneration(PretrainedBartModel):
         decoder_cached_states=None,
         labels=None,
         use_cache=False,
+        output_hidden_states=False,
         output_attentions=None,
         **unused,
     ):
@@ -954,12 +981,12 @@ class BartForConditionalGeneration(PretrainedBartModel):
             Masked language modeling loss.
         prediction_scores (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length, config.vocab_size)`)
             Prediction scores of the language modeling head (scores for each vocabulary token before SoftMax).
-        hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``config.output_hidden_states=True``):
+        hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_hidden_states=True``):
             Tuple of :obj:`torch.FloatTensor` (one for the output of the embeddings + one for the output of each layer)
             of shape :obj:`(batch_size, sequence_length, hidden_size)`.
 
             Hidden-states of the model at the output of each layer plus the initial embedding outputs.
-        attentions (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_attentions=True`` is passed or ``config.output_attentions=True``):
+        attentions (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_attentions=True``):
             Tuple of :obj:`torch.FloatTensor` (one for each layer) of shape
             :obj:`(batch_size, num_heads, sequence_length, sequence_length)`.
 
@@ -996,6 +1023,7 @@ class BartForConditionalGeneration(PretrainedBartModel):
             decoder_attention_mask=decoder_attention_mask,
             decoder_cached_states=decoder_cached_states,
             use_cache=use_cache,
+            output_hidden_states=output_hidden_states,
             output_attentions=output_attentions,
         )
         lm_logits = F.linear(outputs[0], self.model.shared.weight, bias=self.final_logits_bias)
@@ -1016,6 +1044,8 @@ class BartForConditionalGeneration(PretrainedBartModel):
             encoder_outputs, decoder_cached_states = past, None
         else:
             encoder_outputs, decoder_cached_states = past
+        assert decoder_cached_states is None or len(decoder_cached_states)
+
         return {
             "input_ids": None,  # encoder_outputs is defined. input_ids not needed
             "encoder_outputs": encoder_outputs,
@@ -1091,6 +1121,7 @@ class BartForSequenceClassification(PretrainedBartModel):
         decoder_input_ids=None,
         decoder_attention_mask=None,
         labels=None,
+        output_hidden_states=False,
         output_attentions=None,
     ):
         r"""
@@ -1105,11 +1136,11 @@ class BartForSequenceClassification(PretrainedBartModel):
                 Classification loss (cross entropy)
             logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, config.num_labels)`):
                 Classification (or regression if config.num_labels==1) scores (before SoftMax).
-            hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``config.output_hidden_states=True``):
+            hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_hidden_states=True``):
                 Tuple of :obj:`torch.FloatTensor` (one for the output of the embeddings + one for the output of each layer)
                 of shape :obj:`(batch_size, sequence_length, hidden_size)`.
                 Hidden-states of the model at the output of each layer plus the initial embedding outputs.
-            attentions (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_attentions=True`` is passed or ``config.output_attentions=True``):
+            attentions (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_attentions=True``):
                 Tuple of :obj:`torch.FloatTensor` (one for each layer) of shape :obj:`(batch_size, num_heads, sequence_length, sequence_length)`.
                 Attentions weights after the attention softmax, used to compute the weighted average in the
                 self-attention
@@ -1135,6 +1166,7 @@ class BartForSequenceClassification(PretrainedBartModel):
             decoder_input_ids=decoder_input_ids,
             decoder_attention_mask=decoder_attention_mask,
             encoder_outputs=encoder_outputs,
+            output_hidden_states=output_hidden_states,
             output_attentions=output_attentions,
         )
         x = outputs[0]  # last hidden state

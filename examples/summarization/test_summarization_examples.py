@@ -23,6 +23,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger()
 FP16_EVER = False
 CHEAP_ARGS = {
+    "theseus_replace_rate": 0,
     "logger": "default",
     "alpha_hid": 0,
     "freeze_embeds": True,
@@ -93,7 +94,6 @@ def make_test_data_dir():
     return tmp_dir
 
 
-@unittest.skip("These wont' pass until hidden_states kwarg is merged.")
 class TestSummarizationDistiller(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

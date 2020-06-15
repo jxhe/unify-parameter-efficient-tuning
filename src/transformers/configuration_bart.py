@@ -118,6 +118,8 @@ class BartConfig(PretrainedConfig):
 
         # Classifier stuff
         self.classif_dropout = classifier_dropout
+
+        # Theseus params
         self.student_encoder_layers = student_encoder_layers
         self.student_decoder_layers = student_decoder_layers
 

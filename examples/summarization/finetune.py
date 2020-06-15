@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from lightning_base import BaseTransformer, add_generic_args, generic_train
 from transformers import get_linear_schedule_with_warmup
 
-
+WANDB_PROJ_NAME = 'transformers_fork-examples_summarization_bart'
 try:
     from .utils import (
         use_task_specific_params,
@@ -281,7 +281,7 @@ class SummarizationTrainer(BaseTransformer):
             "--freeze_embeds", action="store_true",
         )
         parser.add_argument("--sortish_sampler", action="store_true", default=False)
-        parser.add_argument("--logger", type=str, choices=["default", "wandb", "wandb_shared"], default="default")
+        parser.add_argument("--logger", type=str, choices=["default", "wandb", "wandb_shared"], default="wandb")
         parser.add_argument("--n_train", type=int, default=-1, required=False)
         parser.add_argument("--n_val", type=int, default=500, required=False)
         parser.add_argument("--n_test", type=int, default=-1, required=False)
@@ -295,10 +295,10 @@ def main(args, model=None):
         raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
     if model is None:
         model: BaseTransformer = SummarizationTrainer(args)
-    if args.logger == "default" or args.fast_dev_run:
+    if args.logger == "default" or args.fast_dev_run or str(args.output_dir).startswith('/tmp') or str(args.output_dir).startswith('/var'):
         logger = True
     elif args.logger == "wandb":
-        logger = WandbLogger()
+        logger = WandbLogger(name=args.output_dir, project=WANDB_PROJ_NAME)
     elif args.logger == "wandb_shared":
         logger = WandbLogger(name=args.output_dir, project="hf_summarization")
     trainer: pl.Trainer = generic_train(

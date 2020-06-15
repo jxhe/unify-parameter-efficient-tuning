@@ -40,7 +40,10 @@ except ImportError:
 
 
 class TheseusDistiller(SummarizationTrainer):
-    pass
+    def __init__(self):
+        pass
+    def optimizer_step(self):
+        pass
 
 class SummarizationDistiller(SummarizationTrainer):
     loss_names = ["loss", "ce_loss", "mlm_loss", "enc_mse_loss", "hid_loss_enc", "hid_loss_dec"]
@@ -54,7 +57,6 @@ class SummarizationDistiller(SummarizationTrainer):
         self.teacher = teacher
         use_task_specific_params(self.teacher, "summarization")
         freeze_params(self.teacher)
-        assert len(self.model.model.decoder.layers) == len(d_layers_to_copy)
         self.sanity_check_gradients()
         self.ce_loss_fct = nn.KLDivLoss(reduction="batchmean")
         self.temperature = 2.0
@@ -200,12 +202,7 @@ class SummarizationDistiller(SummarizationTrainer):
         parser.add_argument(  # TODO: remove
             "--enc_only", action="store_true", default=False,
         )
-        parser.add_argument(  # TODO: remove
-            "--freeze_decoder", action="store_true",
-        )
-
-        parser.add_argument("--auto_scale_batch_size", default=False, action="store_true")
-
+        parser.add_argument('--theseus_replace_rate', type=float, default=0.)
         return parser
 
     def _step(self, batch):
@@ -255,7 +252,7 @@ class SummarizationDistiller(SummarizationTrainer):
             )
         dec_mask = decoder_input_ids.eq(self.tokenizer.pad_token_id)
         loss_ce, s_logits_slct, t_logits_slct = self.calc_ce_loss(dec_mask, slogits, tlogits)
-        if not self.hparams.freeze_decoder and self.alpha_hid > 0:
+        if self.alpha_hid > 0:
             hid_loss_dec = self.calc_hidden_loss(dec_mask, dec_hidden, tdec_hidden, self.hparams.d_layer_to_copy)
 
         blended_loss = (
@@ -312,9 +309,8 @@ class T5SummarizationDistiller(SummarizationDistiller):
         for d in [self.model.encoder, self.model.decoder]:
             freeze_params(d.embed_tokens)
 
-    def sanity_check_gradients(self, d_layers_to_copy):
+    def sanity_check_gradients(self):
         """T5"""
-        assert len(self.model.decoder.block) == len(d_layers_to_copy)
         assert_all_frozen(self.teacher)
         assert_all_frozen(self.model.decoder.embed_tokens)
         assert_all_frozen(self.model.encoder.embed_tokens)
@@ -378,7 +374,7 @@ class T5SummarizationDistiller(SummarizationDistiller):
             )
 
         loss_ce, s_logits_slct, t_logits_slct = self.calc_ce_loss(dec_mask, slogits, tlogits)
-        if not self.hparams.freeze_decoder and self.alpha_hid > 0:
+        if  self.alpha_hid > 0:
             hid_loss_dec = self.calc_hidden_loss(dec_mask, dec_hidden, tdec_hidden, self.hparams.d_layer_to_copy)
 
         blended_loss = (
@@ -392,9 +388,11 @@ class T5SummarizationDistiller(SummarizationDistiller):
 
 def create_module(args):
     t5 = "t5" in args.model_name_or_path
-    if args.no_teacher:
+    if args.no_teacher and args.theseus_replace_rate == 0:
         assert not args.enc_only
         module_cls = SummarizationTrainer
+    elif args.no_teacher and args.theseus_replace_rate >0:
+        module_cls = TheseusDistiller
     elif t5:
         module_cls = T5SummarizationDistiller
     elif args.enc_only:
@@ -452,7 +450,7 @@ def distill_main(args):
         raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
 
     model = create_module(args)
-    ft_main(args, model=model)
+    return ft_main(args, model=model)
 
 
 if __name__ == "__main__":
