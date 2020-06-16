@@ -214,11 +214,8 @@ def get_git_info():
     }
     return repo_infos
 
-
 ROUGE_KEYS = ["rouge1", "rouge2", "rougeL"]
-
-
-def calculate_rouge(output_lns: List[str], reference_lns: List[str]) -> Dict:
+def calculate_rouge(output_lns: List[str], reference_lns: List[str], all_stats=False):
     scorer = rouge_scorer.RougeScorer(ROUGE_KEYS, use_stemmer=True)
     aggregator = scoring.BootstrapAggregator()
 
@@ -227,7 +224,10 @@ def calculate_rouge(output_lns: List[str], reference_lns: List[str]) -> Dict:
         aggregator.add_scores(scores)
 
     result = aggregator.aggregate()
-    return {k: v.mid.fmeasure for k, v in result.items()}
+    if all_stats:
+        return expanded_rouge_df(result)
+    else:
+        return {k: v.mid.fmeasure for k, v in result.items()}
 
 
 def freeze_params(model: nn.Module):
@@ -254,3 +254,29 @@ def assert_not_all_frozen(model):
     model_grads: List[bool] = list(grad_status(model))
     npars = len(model_grads)
     assert any(model_grads), f"none of {npars} weights require grad"
+
+
+
+
+def dictify(rouge_obj) -> List:
+    records = []
+    for k, rouge_measurement in rouge_obj.items():
+        if k == "rouge1":
+            continue
+        for k1 in ["low", "mid", "high"]:
+            if k1 != "mid":
+                continue
+            v1 = getattr(rouge_measurement, k1)
+            for k2 in ["precision", "recall", "fmeasure"]:
+                records.append([k, k1, k2, getattr(v1, k2)])
+
+    return records
+
+import pandas as pd
+def expanded_rouge_df(rouge_all) -> pd.DataFrame:
+    return (
+        pd.DataFrame(dictify(rouge_all), columns=["metric", "k1", "k2", "val"])
+        .set_index(["metric", "k2"])["val"]
+        .unstack("metric")
+        .rename_axis(None)
+    )
