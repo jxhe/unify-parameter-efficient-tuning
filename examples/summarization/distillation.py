@@ -21,7 +21,7 @@ from transformers import (
 
 
 try:
-    from .finetune import SummarizationTrainer
+    from .finetune import SummarizationModule
     from .initialization_utils import init_student, copy_layers
     from .utils import (
         use_task_specific_params,
@@ -34,8 +34,8 @@ try:
     from .finetune import main as ft_main
     from .replacement_scheduler import LinearReplacementScheduler
 except ImportError:
-    from finetune import SummarizationTrainer
-
+    from finetune import SummarizationModule
+    from finetune import main as ft_main
     from initialization_utils import init_student, copy_layers
     from utils import (
         use_task_specific_params,
@@ -45,11 +45,10 @@ except ImportError:
         assert_all_frozen,
         any_requires_grad,
     )
-    from finetune import main as ft_main
     from replacement_scheduler import LinearReplacementScheduler
 
 
-class TheseusDistiller(SummarizationTrainer):
+class TheseusDistiller(SummarizationModule):
     def __init__(self, hparams):
 
         assert Path(hparams.data_dir).exists()
@@ -103,10 +102,11 @@ class TheseusDistiller(SummarizationTrainer):
             copy_layers(teacher.model.encoder.layers, student.model.encoder.layers, e_layers_to_copy)
 
 
-class SummarizationDistiller(SummarizationTrainer):
+class SummarizationDistiller(SummarizationModule):
     loss_names = ["loss", "ce_loss", "mlm_loss", "enc_mse_loss", "hid_loss_enc", "hid_loss_dec"]
 
     def __init__(self, hparams):
+        assert Path(hparams.data_dir).exists()
 
         d_layers_to_copy, student, student_cfg, teacher = self.pre_init(hparams)
 
@@ -214,26 +214,16 @@ class SummarizationDistiller(SummarizationTrainer):
 
     @staticmethod
     def add_model_specific_args(parser, root_dir):
-        SummarizationTrainer.add_model_specific_args(parser, root_dir)
-        parser.add_argument(
-            "--teacher", default="facebook/bart-large-cnn", type=str,
-        )
+        SummarizationModule.add_model_specific_args(parser, root_dir)
+        parser.add_argument("--teacher", default="facebook/bart-large-cnn", type=str)
         parser.add_argument("--alpha_ce", default=0.8, type=float)
         parser.add_argument("--alpha_mlm", default=0.2, type=float)
         # parser.add_argument("--alpha_cos", default=0.0, type=float)
         parser.add_argument("--alpha_encoder_loss", default=0.0, type=float)
-        parser.add_argument(
-            "--alpha_hid", default=0.0, type=float, required=False,
-        )
-        parser.add_argument(
-            "--student_decoder_layers", default=12, type=int, required=False,
-        )
-        parser.add_argument(
-            "--student_encoder_layers", default=12, type=int, required=False,
-        )
-        parser.add_argument(
-            "--no_teacher", action="store_true", default=False,
-        )
+        parser.add_argument("--alpha_hid", default=0.0, type=float, required=False)
+        parser.add_argument("--student_decoder_layers", default=12, type=int, required=False)
+        parser.add_argument("--student_encoder_layers", default=12, type=int, required=False)
+        parser.add_argument("--no_teacher", action="store_true", default=False)
         parser.add_argument(  # TODO: remove
             "--enc_only", action="store_true", default=False,
         )
@@ -451,7 +441,7 @@ def create_module(args):
     t5 = "t5" in args.model_name_or_path
     if args.no_teacher and args.theseus_replace_rate == 0:
         assert not args.enc_only
-        module_cls = SummarizationTrainer
+        module_cls = SummarizationModule
     elif args.no_teacher and args.theseus_replace_rate > 0:
         module_cls = TheseusDistiller
     elif t5:
