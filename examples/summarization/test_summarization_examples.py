@@ -74,6 +74,7 @@ CHEAP_ARGS = {
     "freeze_encoder": False,
     "freeze_decoder": False,
     "auto_scale_batch_size": False,
+    "init_strategy": "bottom",
 }
 
 
@@ -171,6 +172,7 @@ class TestSummarizationDistiller(unittest.TestCase):
             num_train_epochs=4,
             val_check_interval=0.25,
             alpha_hid=2.0,
+            init_strategy='alternate',
         )
         model = self._bart_distiller_cli(updates, check_contents=False)
 

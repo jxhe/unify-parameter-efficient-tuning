@@ -62,12 +62,13 @@ class TheseusDistiller(SummarizationModule):
         super().__init__(hparams, model=model)
         self.different_encoder: bool = hparams.student_encoder_layers != self.model.config.encoder_layers
         self.different_decoder: bool = hparams.student_decoder_layers != self.model.config.decoder_layers
+
         if hparams.theseus_init_copy:
             hparams.d_layers_to_copy = get_layers_to_copy(
-                hparams.student_decoder_layers, self.model.config.decoder_layers
+                hparams.student_decoder_layers, self.model.config.decoder_layers, strategy=hparams.init_strategy,
             )
             hparams.e_layers_to_copy: List = get_layers_to_copy(
-                hparams.student_encoder_layers, self.model.config.encoder_layers
+                hparams.student_encoder_layers, self.model.config.encoder_layers, strategy=hparams.init_strategy
             )
             if self.different_decoder:
                 copy_layers(
@@ -145,8 +146,8 @@ class SummarizationDistiller(SummarizationModule):
             "decoder_layers": hparams.student_decoder_layers,
             "encoder_layers": hparams.student_encoder_layers,
         }
-        d_layers_to_copy = get_layers_to_copy(student_updates["decoder_layers"], teacher.config.decoder_layers)
-        e_layers_to_copy: List = get_layers_to_copy(student_updates["encoder_layers"], teacher.config.encoder_layers)
+        d_layers_to_copy = get_layers_to_copy(student_updates["decoder_layers"], teacher.config.decoder_layers, strategy=hparams.init_strategy)
+        e_layers_to_copy: List = get_layers_to_copy(student_updates["encoder_layers"], teacher.config.encoder_layers, strategy=hparams.init_strategy)
         hparams.d_layer_to_copy = d_layers_to_copy
         hparams.e_layer_to_copy = e_layers_to_copy
         kw = teacher.config.to_diff_dict()
@@ -224,11 +225,10 @@ class SummarizationDistiller(SummarizationModule):
         parser.add_argument("--student_decoder_layers", default=12, type=int, required=False)
         parser.add_argument("--student_encoder_layers", default=12, type=int, required=False)
         parser.add_argument("--no_teacher", action="store_true", default=False)
-        parser.add_argument(  # TODO: remove
-            "--enc_only", action="store_true", default=False,
-        )
         parser.add_argument("--theseus_replace_rate", type=float, default=0.0)
         parser.add_argument("--theseus_init_copy", action="store_true")
+        parser.add_argument("--init_strategy", type=str, default='alternate', choices=['alternate', 'top', 'bottom'])
+
         return parser
 
     def _step(self, batch):
@@ -336,8 +336,8 @@ class T5SummarizationDistiller(SummarizationDistiller):
         teacher = T5ForConditionalGeneration.from_pretrained(hparams.teacher)
         n_layer = hparams.student_decoder_layers
         assert n_layer == hparams.student_encoder_layers  # TODO(SS): relax this
-        d_layers_to_copy = get_layers_to_copy(n_layer, len(teacher.decoder.block))
-        e_layers_to_copy: List = get_layers_to_copy(n_layer, len(teacher.encoder.block))
+        d_layers_to_copy = get_layers_to_copy(n_layer, len(teacher.decoder.block), strategy=hparams.init_strategy)
+        e_layers_to_copy: List = get_layers_to_copy(n_layer, len(teacher.encoder.block), strategy=hparams.init_strategy)
         student_updates = {"num_layers": n_layer}
         hparams.d_layer_to_copy = d_layers_to_copy
         hparams.e_layer_to_copy = e_layers_to_copy
@@ -440,14 +440,11 @@ class T5SummarizationDistiller(SummarizationDistiller):
 def create_module(args):
     t5 = "t5" in args.model_name_or_path
     if args.no_teacher and args.theseus_replace_rate == 0:
-        assert not args.enc_only
         module_cls = SummarizationModule
     elif args.no_teacher and args.theseus_replace_rate > 0:
         module_cls = TheseusDistiller
     elif t5:
         module_cls = T5SummarizationDistiller
-    elif args.enc_only:
-        raise ValueError("Deleted that")
     else:
         module_cls = SummarizationDistiller
     args.setup_cls: str = module_cls.__name__
@@ -478,21 +475,29 @@ def evaluate_checkpoint(ckpt_path: Path, dest_dir=None):
     trainer.test(model)
 
 
-def get_layers_to_copy(n_to_get, tot):
-    all_layers = list(range(tot))
-    if tot == 12:  # Alternating for special cases
-        layers_to_copy = {  # maps # layers in student -> which teacher layers to copy
-            6: [0, 2, 4, 7, 9, 11],
-            1: [11],
-            3: [0, 6, 11],
-            2: [0, 11],
-            4: [0, 4, 8, 11],
-            9: [0, 1, 2, 4, 5, 7, 9, 10, 11],
-            12: all_layers,
-        }
-        return layers_to_copy[n_to_get]
+DISTILBERT_ALTERNATE_PATTERN = {  # maps # layers in student -> which teacher layers to copy
+    6: [0, 2, 4, 7, 9, 11],
+    1: [11],
+    3: [0, 6, 11],
+    2: [0, 11],
+    4: [0, 4, 8, 11],
+    9: [0, 1, 2, 4, 5, 7, 9, 10, 11],
+    12: list(range(12)),
+}
+
+def get_layers_to_copy(n_student_layers: int, n_teacher_layers: int, strategy='alternate') -> List:
+    all_layers = list(range(n_teacher_layers))
+    if strategy == 'alternate':
+        if n_teacher_layers == 12:
+            return DISTILBERT_ALTERNATE_PATTERN[n_student_layers]
+        else:
+            return all_layers[::2][:n_student_layers]
+    elif strategy == 'bottom':
+        return all_layers[:n_student_layers]
+    elif strategy == 'top':
+        return all_layers[-n_student_layers:]
     else:
-        return all_layers[:n_to_get]
+        raise ValueError(f'layer copy strategy {strategy}  not supported')
 
 
 def distill_main(args):
