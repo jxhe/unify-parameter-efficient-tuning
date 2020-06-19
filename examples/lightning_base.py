@@ -217,14 +217,15 @@ class BaseTransformer(pl.LightningModule):
 
 
 class LoggingCallback(pl.Callback):
+
+    @pl.utilities.rank_zero_only
     def on_validation_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
         logger.info("***** Validation results *****")
-        if pl_module.is_logger():
-            metrics = trainer.callback_metrics
-            # Log results
-            for key in sorted(metrics):
-                if key not in ["log", "progress_bar"]:
-                    logger.info("{} = {}\n".format(key, str(metrics[key])))
+        metrics = trainer.callback_metrics
+        # Log results
+        for key in sorted(metrics):
+            if key not in ["log", "progress_bar"]:
+                logger.info("{} = {}\n".format(key, str(metrics[key])))
 
     def on_test_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule):
         logger.info("***** Test results *****")
