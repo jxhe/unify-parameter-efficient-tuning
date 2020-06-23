@@ -83,12 +83,11 @@ class SummarizationModule(BaseTransformer):
         assert self.target_lens["train"] <= self.target_lens["val"], f"target_lens: {self.target_lens}"
         assert self.target_lens["train"] <= self.target_lens["test"], f"target_lens: {self.target_lens}"
         if not self.hparams.unfreeze_embeds:
-
             self.freeze_embeds()
         if self.hparams.freeze_encoder:
             freeze_params(self.model.model.encoder)  # TODO: this will break for t5
         self.hparams.git_sha = get_git_info()["repo_sha"]
-        self.num_workers = 4 #if self.hparams.gpus <= 1 else None  # passing num_workers breaks lightning for multigpu
+        self.num_workers = hparams.num_workers
 
     def freeze_embeds(self):
         """Freeze token embeddings and positional embeddings for bart, just token embeddings for t5."""
@@ -129,7 +128,7 @@ class SummarizationModule(BaseTransformer):
     def validation_step(self, batch, batch_idx) -> Dict:
         return self._generative_step(batch)
 
-    def validation_end(self, outputs, prefix="val") -> Dict:
+    def validation_epoch_end(self, outputs, prefix="val") -> Dict:
         self.step_count += 1
         losses = {k: torch.stack([x[k] for x in outputs]).mean() for k in self.loss_names}
         loss = losses["loss"]
@@ -147,14 +146,12 @@ class SummarizationModule(BaseTransformer):
         self.metrics[prefix].append(metrics)
         pickle_save(self.metrics, self.metrics_save_path)
 
-    def _generative_step(self, batch):
+    def _generative_step(self, batch: dict) -> dict:
         pad_token_id = self.tokenizer.pad_token_id
         source_ids, source_mask, y = SummarizationDataset.trim_seq2seq_batch(batch, pad_token_id)
-        # TODO(SS): task specific params
-
         t0 = time.time()
         generated_ids = self.model.generate(input_ids=source_ids, attention_mask=source_mask, use_cache=True,)
-        gen_time = time.time() - t0
+        gen_time = time.time() - t0 / source_ids.shape[0]
         preds = self.ids_to_clean_text(generated_ids)
         target = self.ids_to_clean_text(y)
         loss_tensors = self._step(batch)
@@ -167,24 +164,8 @@ class SummarizationModule(BaseTransformer):
     def test_step(self, batch, batch_idx):
         return self._generative_step(batch)
 
-    def test_end(self, outputs):
-        return self.validation_end(outputs, prefix="test")
-
     def test_epoch_end(self, outputs):
-        output_test_predictions_file = os.path.join(self.hparams.output_dir, "test_predictions.txt")
-        output_test_targets_file = os.path.join(self.hparams.output_dir, "test_targets.txt")
-        # write predictions and targets for later rouge evaluation.
-        with open(output_test_predictions_file, "w+") as p_writer, open(output_test_targets_file, "w+") as t_writer:
-            for output_batch in outputs:
-                p_writer.writelines(s + "\n" for s in output_batch["preds"])
-                t_writer.writelines(s + "\n" for s in output_batch["target"])
-            p_writer.close()
-            t_writer.close()
-
-        return self.test_end(outputs)
-
-    def validation_epoch_end(self, outputs):
-        self.validation_end(outputs, "val")
+        return self.validation_epoch_end(outputs, prefix="test")
 
     def get_dataset(self, type_path) -> SummarizationDataset:
         n_obs = self.n_obs[type_path]
@@ -297,8 +278,16 @@ def main(args, model=None) -> SummarizationModule:
     ):
         logger = True  # don't pollute wandb logs unnecessarily
     elif args.logger == "wandb":
+        from pytorch_lightning.loggers import WandbLogger
+
         logger = WandbLogger(name=model.output_dir.name, project=WANDB_PROJ_NAME)
     elif args.logger == "wandb_shared":
+        from pytorch_lightning.loggers import WandbLogger
+
+        logger = WandbLogger(name=model.output_dir.name)
+    elif args.logger == "wandb_shared":
+        from pytorch_lightning.loggers import WandbLogger
+
         # TODO: separate LB for CNN, we should use Path(args.data_dir).name to determine the correct LB.
         logger = WandbLogger(name=model.output_dir.name, project="hf_summarization")
     trainer: pl.Trainer = generic_train(
@@ -309,6 +298,7 @@ def main(args, model=None) -> SummarizationModule:
         logger=logger,
         # TODO: early stopping callback seems messed up
     )
+    pickle_save(model.hparams, model.output_dir / "hparams.pkl")
     if not args.do_predict:
         return model
 

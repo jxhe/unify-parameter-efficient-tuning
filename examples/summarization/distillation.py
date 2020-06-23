@@ -10,14 +10,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from lightning_base import generic_train
-from transformers import (
-    AdamW,
-    AutoConfig,
-    BartConfig,
-    BartForConditionalGeneration,
-    T5Config,
-    T5ForConditionalGeneration,
-)
+from transformers import AdamW, BartConfig, BartForConditionalGeneration, T5Config, T5ForConditionalGeneration
 
 
 try:
@@ -33,6 +26,7 @@ try:
     )
     from .finetune import main as ft_main
     from .replacement_scheduler import LinearReplacementScheduler
+
 except ImportError:
     from finetune import SummarizationModule
     from finetune import main as ft_main
@@ -83,7 +77,7 @@ class TheseusDistiller(SummarizationModule):
 
         self.replace_scheduler_encoder = LinearReplacementScheduler(self.model.model.encoder, 0.6)
         self.replace_scheduler_decoder = LinearReplacementScheduler(self.model.model.decoder, 0.6)
-        freeze_params(self.model.model.encoder.layers)  # Test 
+        freeze_params(self.model.model.encoder.layers)  # Test
         freeze_params(self.model.model.decoder.layers)
 
     def optimizer_step(self, *args, **kwargs) -> None:
@@ -146,8 +140,14 @@ class SummarizationDistiller(SummarizationModule):
             "decoder_layers": hparams.student_decoder_layers,
             "encoder_layers": hparams.student_encoder_layers,
         }
-        d_layers_to_copy = get_layers_to_copy(student_updates["decoder_layers"], teacher.config.decoder_layers, strategy=hparams.init_strategy)
-        e_layers_to_copy: List = get_layers_to_copy(student_updates["encoder_layers"], teacher.config.encoder_layers, strategy=hparams.init_strategy)
+
+        d_layers_to_copy = get_layers_to_copy(
+            student_updates["decoder_layers"], teacher.config.decoder_layers, strategy=hparams.init_strategy
+        )
+        e_layers_to_copy: List = get_layers_to_copy(
+            student_updates["encoder_layers"], teacher.config.encoder_layers, strategy=hparams.init_strategy
+        )
+
         hparams.d_layer_to_copy = d_layers_to_copy
         hparams.e_layer_to_copy = e_layers_to_copy
         kw = teacher.config.to_diff_dict()
@@ -194,6 +194,31 @@ class SummarizationDistiller(SummarizationModule):
             s_logits_slct = student_outputs
         return F.mse_loss(s_logits_slct, t_logits_slct)
 
+    def calc_ce_loss(self, mask, s_logits, t_logits):
+        if mask is not None:
+            # mask has False at padding_idx
+            sel_mask = mask[:, :, None].expand_as(s_logits)
+            s_logits_slct = torch.masked_select(
+                s_logits, sel_mask
+            )  # (bs * seq_length * voc_size) modulo the 1s in mask
+            t_logits_slct = torch.masked_select(
+                t_logits, sel_mask
+            )  # (bs * seq_length * voc_size) modulo the 1s in mask
+        else:
+            t_logits_slct = t_logits
+            s_logits_slct = s_logits  # (bs * seq_length * voc_size) modulo the 1s in mask
+        s_logits_slct = s_logits_slct.view(-1, s_logits.size(-1))  # (bs * seq_length, voc_size) modulo the 1s in mask
+        t_logits_slct = t_logits_slct.view(-1, s_logits.size(-1))  # (bs * seq_length, voc_size) modulo the 1s in mask
+        assert t_logits_slct.size() == s_logits_slct.size()
+        loss_ce = (
+            self.ce_loss_fct(
+                F.log_softmax(s_logits_slct / self.temperature, dim=-1),
+                F.softmax(t_logits_slct / self.temperature, dim=-1),
+            )
+            * (self.temperature) ** 2
+        )
+        return loss_ce, s_logits_slct, t_logits_slct
+
     def configure_optimizers(self):
         "Prepare optimizer and schedule (linear warmup and decay)"
 
@@ -222,13 +247,13 @@ class SummarizationDistiller(SummarizationModule):
         # parser.add_argument("--alpha_cos", default=0.0, type=float)
         parser.add_argument("--alpha_encoder_loss", default=0.0, type=float)
         parser.add_argument("--alpha_hid", default=0.0, type=float, required=False)
+
         parser.add_argument("--student_decoder_layers", default=12, type=int, required=False)
         parser.add_argument("--student_encoder_layers", default=12, type=int, required=False)
         parser.add_argument("--no_teacher", action="store_true", default=False)
         parser.add_argument("--theseus_replace_rate", type=float, default=0.0)
         parser.add_argument("--theseus_init_copy", action="store_true")
-        parser.add_argument("--init_strategy", type=str, default='alternate', choices=['alternate', 'top', 'bottom'])
-
+        parser.add_argument("--init_strategy", type=str, default="alternate", choices=["alternate", "top", "bottom"])
         return parser
 
     def _step(self, batch):
@@ -305,39 +330,15 @@ class SummarizationDistiller(SummarizationModule):
         ]
         return sum(hidden_losses)
 
-    def calc_ce_loss(self, mask, s_logits, t_logits):
-        if mask is not None:
-            # mask has False at padding_idx
-            sel_mask = mask[:, :, None].expand_as(s_logits)
-            s_logits_slct = torch.masked_select(
-                s_logits, sel_mask
-            )  # (bs * seq_length * voc_size) modulo the 1s in mask
-            t_logits_slct = torch.masked_select(
-                t_logits, sel_mask
-            )  # (bs * seq_length * voc_size) modulo the 1s in mask
-        else:
-            t_logits_slct = t_logits
-            s_logits_slct = s_logits  # (bs * seq_length * voc_size) modulo the 1s in mask
-        s_logits_slct = s_logits_slct.view(-1, s_logits.size(-1))  # (bs * seq_length, voc_size) modulo the 1s in mask
-        t_logits_slct = t_logits_slct.view(-1, s_logits.size(-1))  # (bs * seq_length, voc_size) modulo the 1s in mask
-        assert t_logits_slct.size() == s_logits_slct.size()
-        loss_ce = (
-            self.ce_loss_fct(
-                F.log_softmax(s_logits_slct / self.temperature, dim=-1),
-                F.softmax(t_logits_slct / self.temperature, dim=-1),
-            )
-            * (self.temperature) ** 2
-        )
-        return loss_ce, s_logits_slct, t_logits_slct
-
 
 class T5SummarizationDistiller(SummarizationDistiller):
     def pre_init(self, hparams):
+        raise NotImplementedError("T5 Distillation does not work yet")
         teacher = T5ForConditionalGeneration.from_pretrained(hparams.teacher)
         n_layer = hparams.student_decoder_layers
         assert n_layer == hparams.student_encoder_layers  # TODO(SS): relax this
-        d_layers_to_copy = get_layers_to_copy(n_layer, len(teacher.decoder.block), strategy=hparams.init_strategy)
-        e_layers_to_copy: List = get_layers_to_copy(n_layer, len(teacher.encoder.block), strategy=hparams.init_strategy)
+        d_layers_to_copy = get_layers_to_copy(n_layer, len(teacher.decoder.block))
+        e_layers_to_copy: List = get_layers_to_copy(n_layer, len(teacher.encoder.block))
         student_updates = {"num_layers": n_layer}
         hparams.d_layer_to_copy = d_layers_to_copy
         hparams.e_layer_to_copy = e_layers_to_copy
@@ -485,19 +486,20 @@ DISTILBERT_ALTERNATE_PATTERN = {  # maps # layers in student -> which teacher la
     12: list(range(12)),
 }
 
-def get_layers_to_copy(n_student_layers: int, n_teacher_layers: int, strategy='alternate') -> List:
+
+def get_layers_to_copy(n_student_layers: int, n_teacher_layers: int, strategy="alternate") -> List:
     all_layers = list(range(n_teacher_layers))
-    if strategy == 'alternate':
+    if strategy == "alternate":
         if n_teacher_layers == 12:
             return DISTILBERT_ALTERNATE_PATTERN[n_student_layers]
         else:
             return all_layers[::2][:n_student_layers]
-    elif strategy == 'bottom':
+    elif strategy == "bottom":
         return all_layers[:n_student_layers]
-    elif strategy == 'top':
+    elif strategy == "top":
         return all_layers[-n_student_layers:]
     else:
-        raise ValueError(f'layer copy strategy {strategy}  not supported')
+        raise ValueError(f"layer copy strategy {strategy}  not supported")
 
 
 def distill_main(args):

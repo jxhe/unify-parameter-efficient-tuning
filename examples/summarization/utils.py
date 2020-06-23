@@ -32,7 +32,6 @@ def encode_file(
             examples = torch.load(cache_path)
             assert isinstance(examples, list)
             return examples
-
         except Exception:
             print(f"failed to load from {cache_path}, retokenizing {data_path}")
     data_path = Path(data_path)
@@ -47,8 +46,10 @@ def encode_file(
             max_length=max_length,
             pad_to_max_length=pad_to_max_length,
             add_prefix_space=True,
+            truncation=True,
             return_tensors=return_tensors,
         )
+        assert tokenized.input_ids.shape[1] == max_length
         examples.append(tokenized)
     torch.save(lmap(dict, examples), cache_path.open("wb"))
     return examples
@@ -94,16 +95,11 @@ class SummarizationDataset(Dataset):
             prefix=prefix,
             tok_name=tok_name,
         )
-        if type_path == "train":
-            tgt_path = os.path.join(data_dir, type_path + ".target")
-        else:
-            tgt_path = os.path.join(data_dir, type_path + ".target")
-
+        tgt_path = os.path.join(data_dir, type_path + ".target")
         self.target = encode_file(
             tokenizer, tgt_path, max_target_length, overwrite_cache=overwrite_cache, tok_name=tok_name
         )
-        self.source = encode_file(tokenizer, os.path.join(data_dir, type_path + ".source"), max_source_length)
-        self.target = encode_file(tokenizer, os.path.join(data_dir, type_path + ".target"), max_target_length)
+
         if n_obs is not None:
             self.source = self.source[:n_obs]
             self.target = self.target[:n_obs]
@@ -214,7 +210,10 @@ def get_git_info():
     }
     return repo_infos
 
+
 ROUGE_KEYS = ["rouge1", "rouge2", "rougeL"]
+
+
 def calculate_rouge(output_lns: List[str], reference_lns: List[str], all_stats=False):
     scorer = rouge_scorer.RougeScorer(ROUGE_KEYS, use_stemmer=True)
     aggregator = scoring.BootstrapAggregator()
@@ -224,6 +223,7 @@ def calculate_rouge(output_lns: List[str], reference_lns: List[str], all_stats=F
         aggregator.add_scores(scores)
 
     result = aggregator.aggregate()
+
     if all_stats:
         return expanded_rouge_df(result)
     else:
@@ -247,15 +247,13 @@ def assert_all_frozen(model):
     model_grads: List[bool] = list(grad_status(model))
     n_require_grad = sum(lmap(int, model_grads))
     npars = len(model_grads)
-    assert not any(model_grads), f"{n_require_grad/npars:.1%} of {npars} weights require grad"
+    assert not any(model_grads), f"{n_require_grad / npars:.1%} of {npars} weights require grad"
 
 
 def assert_not_all_frozen(model):
     model_grads: List[bool] = list(grad_status(model))
     npars = len(model_grads)
     assert any(model_grads), f"none of {npars} weights require grad"
-
-
 
 
 def dictify(rouge_obj) -> List:
@@ -272,8 +270,10 @@ def dictify(rouge_obj) -> List:
 
     return records
 
-import pandas as pd
-def expanded_rouge_df(rouge_all) -> pd.DataFrame:
+
+def expanded_rouge_df(rouge_all):
+    import pandas as pd
+
     return (
         pd.DataFrame(dictify(rouge_all), columns=["metric", "k1", "k2", "val"])
         .set_index(["metric", "k2"])["val"]
