@@ -1350,15 +1350,15 @@ class ReformerIntegrationTestsDynamic(unittest.TestCase):
         ), "trax can only test casaul mask for ReformerLM. Use tests for layers to test non-casaul mask"
 
         if mode == "train":
-            loss_fn = trax.layers.CrossEntropyLoss(has_weights=True)
-            trax_model = trax.layers.Serial(trax_model, loss_fn)
+            trax_model = trax.layers.Serial(trax_model, trax.layers.CrossEntropyLoss())
             input_signature = (
                 trax_ShapeDtype(shape, np.int32),
                 trax_ShapeDtype(shape, np.int32),
-                trax_ShapeDtype(shape, np.int32),
+#                trax_ShapeDtype(shape, np.int32),
             )
             trax_weights, trax_state = trax_model.init(input_signature)
-            trax_input = (np_input, np_input_2, mask)
+#            trax_input = (np_input, np_input_2, mask)
+            trax_input = (np_input, np_input_2)
             torch_trax_weights = trax_weights[0]
         else:
             input_signature = trax_ShapeDtype(shape, np.int32)
@@ -1373,7 +1373,6 @@ class ReformerIntegrationTestsDynamic(unittest.TestCase):
                 [torch.tensor(np_zeros), torch.tensor(np_input[:, :-1])], dim=-1
             )
             attention_mask = torch.tensor(mask)
-            hf_labels = torch.tensor(np_input).to(dtype=torch.long)
             hf_labels = (
                 -100 * (1 - attention_mask) + torch.tensor(np_input) * attention_mask
             ).to(dtype=torch.long)
@@ -1404,6 +1403,8 @@ class ReformerIntegrationTestsDynamic(unittest.TestCase):
                 res = trax_model(batch, weights=weights, state=state)
                 return res, trax_model.state
 
+            import ipdb
+            ipdb.set_trace()
             grad_fn = jax.grad(model_and_loss_call, has_aux=True)
             grads, state = grad_fn(trax_weights, trax_input, trax_state)
 

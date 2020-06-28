@@ -410,6 +410,7 @@ class LSHSelfAttention(nn.Module, EfficientAttentionUtils):
         )
 
         # make sure bucket idx is not longer then sequence length
+        full_sorted_bucket_idx = sorted_bucket_idx
         sorted_bucket_idx = sorted_bucket_idx % sequence_length
 
         query_key_vectors = self._gather_by_expansion(query_key_vectors, sorted_bucket_idx, num_hashes)
@@ -439,7 +440,7 @@ class LSHSelfAttention(nn.Module, EfficientAttentionUtils):
         del query_key_vectors, key_vectors, value_vectors
 
         # calculate total concatenad chunks to split gradients correctly
-        out_vectors, logits = GatherSorted.apply(out_vectors, logits, sorted_bucket_idx, undo_sorted_bucket_idx, self.num_hashes)
+        out_vectors, logits = GatherSorted.apply(out_vectors, logits, full_sorted_bucket_idx, undo_sorted_bucket_idx, self.num_hashes)
 
         if num_hashes > 1:
             out_vectors = self._split_dim_by(
@@ -730,20 +731,22 @@ class GatherSorted(Function):
 
         # split gradient vectors and sorted bucket idxs by concatenated chunk dimension to gather correct indices
         # shape is BatchSize x NumAttnHeads x NumHashes x ChunkLen
-        grad_logits = torch.reshape(grad_logits, (grad_logits_shape[:2] + (num_hashes, -1)))
+#        grad_logits = torch.reshape(grad_logits, (grad_logits_shape[:2] + (num_hashes, -1)))
         # shape is BatchSize x NumAttnHeads x NumHashes x ChunkLen x ChunkLen
-        grad_out_vectors = torch.reshape(grad_out_vectors, (grad_out_vectors_shape[:2] + (num_hashes, -1) + grad_out_vectors_shape[-1:]))
-
-        sorted_bucket_idx = torch.reshape(sorted_bucket_idx, (sorted_bucket_idx.shape[:2] + (num_hashes, -1)))
-
+#        grad_out_vectors = torch.reshape(grad_out_vectors, (grad_out_vectors_shape[:2] + (num_hashes, -1) + grad_out_vectors_shape[-1:]))
+#
+#        sorted_bucket_idx = torch.reshape(sorted_bucket_idx, (sorted_bucket_idx.shape[:2] + (num_hashes, -1)))
+#
         # reverse sort of forward
         expanded_sort_indices = sorted_bucket_idx.unsqueeze(-1).expand(grad_out_vectors.shape)
-        grad_out_vectors = torch.gather(grad_out_vectors, 3, expanded_sort_indices)
-        grad_logits = torch.gather(grad_logits, 3, sorted_bucket_idx)
+#        grad_out_vectors = torch.gather(grad_out_vectors, 3, expanded_sort_indices)
+#        grad_logits = torch.gather(grad_logits, 3, sorted_bucket_idx)
+        grad_out_vectors = torch.gather(grad_out_vectors, 2, expanded_sort_indices)
+        grad_logits = torch.gather(grad_logits, 2, sorted_bucket_idx)
 
         # reshape into correct shape
-        grad_logits = torch.reshape(grad_logits, grad_logits_shape)
-        grad_out_vectors = torch.reshape(grad_out_vectors, grad_out_vectors_shape)
+#        grad_logits = torch.reshape(grad_logits, grad_logits_shape)
+#        grad_out_vectors = torch.reshape(grad_out_vectors, grad_out_vectors_shape)
 
         # return grad and `None` fillers for last 3 forward args
         return grad_out_vectors, grad_logits, None, None, None
@@ -1545,9 +1548,10 @@ class ReformerModelWithLMHead(ReformerPreTrainedModel):
         outputs = (logits,) + reformer_outputs[1:]
 
         if labels is not None:
-            # Shift so that tokens < n predict n
+            # for final implementation use following to lines / comment out for gradient test 
 #            shift_logits = logits[..., :-1, :].contiguous()
 #            shift_labels = labels[..., 1:].contiguous()
+            # for gradient test use the following two lines
             shift_logits = logits.contiguous()
             shift_labels = labels.contiguous()
             # Flatten the tokens
