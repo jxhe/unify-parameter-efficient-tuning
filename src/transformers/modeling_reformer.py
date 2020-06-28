@@ -15,10 +15,9 @@
 # limitations under the License.
 """PyTorch REFORMER model. """
 
-import sys
-
 import inspect
 import logging
+import sys
 from collections import namedtuple
 from functools import reduce
 from operator import mul
@@ -31,7 +30,7 @@ from torch import nn
 from torch.autograd.function import Function
 from torch.nn import CrossEntropyLoss
 
-from .activations import gelu, gelu_new, swish, gelu_fast
+from .activations import gelu, gelu_fast, gelu_new, swish
 from .configuration_reformer import ReformerConfig
 from .modeling_utils import PreTrainedModel
 
@@ -65,7 +64,9 @@ LSHSelfAttentionOutput = namedtuple("LSHSelfAttentionOutput", ["hidden_states", 
 LocalSelfAttentionOutput = namedtuple("LocalSelfAttentionOutput", ["hidden_states", "attention_probs"])
 AttentionOutput = namedtuple("AttentionOutput", ["hidden_states", "attention_probs", "buckets"])
 ReformerOutput = namedtuple("ReformerOutput", ["hidden_states", "attn_output", "attention_probs", "buckets"])
-ReformerBackwardOutput = namedtuple("ReformerBackwardOutput", ["attn_output", "hidden_states", "grad_attn_output", "grad_hidden_states"])
+ReformerBackwardOutput = namedtuple(
+    "ReformerBackwardOutput", ["attn_output", "hidden_states", "grad_attn_output", "grad_hidden_states"]
+)
 
 
 def create_sinusoidal_embeddings(n_pos, dim, out):
@@ -440,7 +441,7 @@ class LSHSelfAttention(nn.Module, EfficientAttentionUtils):
         del query_key_vectors, key_vectors, value_vectors
 
         # calculate total concatenad chunks to split gradients correctly
-        out_vectors, logits = GatherSorted.apply(out_vectors, logits, full_sorted_bucket_idx, undo_sorted_bucket_idx, self.num_hashes)
+        out_vectors, logits = GatherSorted.apply(out_vectors, logits, full_sorted_bucket_idx, undo_sorted_bucket_idx)
 
         if num_hashes > 1:
             out_vectors = self._split_dim_by(
@@ -484,7 +485,9 @@ class LSHSelfAttention(nn.Module, EfficientAttentionUtils):
             # Factorize the hash if self.num_buckets is a list or tuple
             rotation_size, num_buckets = 0, 1
             for bucket_factor in self.num_buckets:
-                assert bucket_factor % 2 == 0, "The number of buckets should be even, but `num_bucket`: {}".format(bucket_factor)
+                assert bucket_factor % 2 == 0, "The number of buckets should be even, but `num_bucket`: {}".format(
+                    bucket_factor
+                )
                 rotation_size = rotation_size + bucket_factor
                 num_buckets = num_buckets * bucket_factor
 
@@ -511,16 +514,16 @@ class LSHSelfAttention(nn.Module, EfficientAttentionUtils):
             # rotation is used batches
             rotated_vectors = torch.einsum("bmtd,mdhr->bmhtr", vectors, random_rotations)
 
-#        if self.hash_seed is not None:
-            # for determinism
-#            torch.manual_seed(self.hash_seed)
-#
-#        rotations_shape = (self.num_attention_heads, vectors.shape[-1], num_hashes, rotation_size // 2)
+        #        if self.hash_seed is not None:
+        # for determinism
+        #            torch.manual_seed(self.hash_seed)
+        #
+        #        rotations_shape = (self.num_attention_heads, vectors.shape[-1], num_hashes, rotation_size // 2)
         # create a random self.attention_head_size x num_hashes x num_buckets/2
-#        random_rotations = torch.randn(rotations_shape, device=vectors.device).to(vectors.dtype)
-#
+        #        random_rotations = torch.randn(rotations_shape, device=vectors.device).to(vectors.dtype)
+        #
         # Output dim: Batch_Size x Num_Attn_Heads x Num_Hashes x Seq_Len x Num_Buckets/2
-#        rotated_vectors = torch.einsum("bmtd,mdhr->bmhtr", vectors, random_rotations)
+        #        rotated_vectors = torch.einsum("bmtd,mdhr->bmhtr", vectors, random_rotations)
 
         if isinstance(self.num_buckets, int) or len(self.num_buckets) == 1:
             rotated_vectors = torch.cat([rotated_vectors, -rotated_vectors], dim=-1)
@@ -586,13 +589,7 @@ class LSHSelfAttention(nn.Module, EfficientAttentionUtils):
         self.num_buckets = num_buckets
 
     def _attend(
-        self,
-        query_vectors,
-        key_vectors,
-        value_vectors,
-        sorted_bucket_idx,
-        attention_mask,
-        head_mask,
+        self, query_vectors, key_vectors, value_vectors, sorted_bucket_idx, attention_mask, head_mask,
     ):
         key_vectors = self._look_adjacent(key_vectors, self.num_chunks_before, self.num_chunks_after)
         value_vectors = self._look_adjacent(value_vectors, self.num_chunks_before, self.num_chunks_after)
@@ -704,10 +701,9 @@ class LSHSelfAttention(nn.Module, EfficientAttentionUtils):
 
 class GatherSorted(Function):
     @staticmethod
-    def forward(ctx, out_vectors, logits, sorted_bucket_idx, undo_sorted_bucket_idx, num_hashes):
+    def forward(ctx, out_vectors, logits, sorted_bucket_idx, undo_sorted_bucket_idx):
         # save sorted_bucket_idx for backprop
         ctx.sorted_bucket_idx = sorted_bucket_idx
-        ctx.num_hashes = num_hashes
 
         out_vectors = out_vectors.detach()
         logits = logits.detach()
@@ -721,35 +717,13 @@ class GatherSorted(Function):
     def backward(ctx, grad_out_vectors, grad_logits):
         # get parameters saved in ctx
         sorted_bucket_idx = ctx.sorted_bucket_idx
-        num_hashes = ctx.num_hashes
 
-        # get real gradient shape
-        # shape is BatchSize x NumAttnHeads x ChunkLen * NumHashes
-        grad_logits_shape = grad_logits.shape
-        # shape is BatchSize x NumAttnHeads x ChunkLen * NumHashes x ChunkLen
-        grad_out_vectors_shape = grad_out_vectors.shape
-
-        # split gradient vectors and sorted bucket idxs by concatenated chunk dimension to gather correct indices
-        # shape is BatchSize x NumAttnHeads x NumHashes x ChunkLen
-#        grad_logits = torch.reshape(grad_logits, (grad_logits_shape[:2] + (num_hashes, -1)))
-        # shape is BatchSize x NumAttnHeads x NumHashes x ChunkLen x ChunkLen
-#        grad_out_vectors = torch.reshape(grad_out_vectors, (grad_out_vectors_shape[:2] + (num_hashes, -1) + grad_out_vectors_shape[-1:]))
-#
-#        sorted_bucket_idx = torch.reshape(sorted_bucket_idx, (sorted_bucket_idx.shape[:2] + (num_hashes, -1)))
-#
-        # reverse sort of forward
         expanded_sort_indices = sorted_bucket_idx.unsqueeze(-1).expand(grad_out_vectors.shape)
-#        grad_out_vectors = torch.gather(grad_out_vectors, 3, expanded_sort_indices)
-#        grad_logits = torch.gather(grad_logits, 3, sorted_bucket_idx)
         grad_out_vectors = torch.gather(grad_out_vectors, 2, expanded_sort_indices)
         grad_logits = torch.gather(grad_logits, 2, sorted_bucket_idx)
 
-        # reshape into correct shape
-#        grad_logits = torch.reshape(grad_logits, grad_logits_shape)
-#        grad_out_vectors = torch.reshape(grad_out_vectors, grad_out_vectors_shape)
-
         # return grad and `None` fillers for last 3 forward args
-        return grad_out_vectors, grad_logits, None, None, None
+        return grad_out_vectors, grad_logits, None, None
 
 
 class LocalSelfAttention(nn.Module, EfficientAttentionUtils):
@@ -1039,7 +1013,7 @@ class ReformerLayer(nn.Module):
 
         with torch.no_grad():
             # every forward pass we sample a different seed
-            # for dropout and save seed for forward fn in backward 
+            # for dropout and save seed for forward fn in backward
             # to have correct dropout
             self._init_attention_seed()
             attn_outputs = self.attention(
@@ -1058,8 +1032,8 @@ class ReformerLayer(nn.Module):
             # free memory
             del prev_attn_output
 
-            # every forward pass we sample a different seed 
-            # for dropout and save seed for forward fn in backward 
+            # every forward pass we sample a different seed
+            # for dropout and save seed for forward fn in backward
             # to have correct dropout
             self._init_feed_forward_seed()
             # Y_2 = X_2 + g(Y_1)
@@ -1193,7 +1167,8 @@ class _ReversibleFunction(Function):
         attn_output, hidden_states = ctx.saved_tensors
 
         # create tuple
-        output = ReformerBackwardOutput(attn_output=attn_output, 
+        output = ReformerBackwardOutput(
+            attn_output=attn_output,
             hidden_states=hidden_states,
             grad_attn_output=grad_attn_output,
             grad_hidden_states=grad_hidden_states,
@@ -1304,13 +1279,15 @@ class ReformerPreTrainedModel(PreTrainedModel):
             if module.weight.requires_grad:
                 module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
                 # TODO(PVP): discuss with Thom if necessary here to use different init
-#                torch.nn.init.xavier_uniform_(module.weight)
+        #                torch.nn.init.xavier_uniform_(module.weight)
         elif isinstance(module, ReformerLayerNorm):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
         if isinstance(module, nn.Linear) and module.bias is not None:
             module.bias.data.zero_()
             # TODO(PVP): discuss with Thom if necessary here to use different init
+
+
 #            module.bias.data.normal_(mean=0.0, std=1e-6)
 
 
@@ -1436,7 +1413,10 @@ class ReformerModel(ReformerPreTrainedModel):
             # Extend `attention_mask`
             if attention_mask is not None:
                 attention_mask = torch.cat(
-                    [attention_mask, torch.zeros(input_shape[0], padding_length, device=device, dtype=attention_mask.dtype,)],
+                    [
+                        attention_mask,
+                        torch.zeros(input_shape[0], padding_length, device=device, dtype=attention_mask.dtype,),
+                    ],
                     dim=-1,
                 )
             else:
@@ -1548,9 +1528,9 @@ class ReformerModelWithLMHead(ReformerPreTrainedModel):
         outputs = (logits,) + reformer_outputs[1:]
 
         if labels is not None:
-            # for final implementation use following to lines / comment out for gradient test 
-#            shift_logits = logits[..., :-1, :].contiguous()
-#            shift_labels = labels[..., 1:].contiguous()
+            # for final implementation use following to lines / comment out for gradient test
+            #            shift_logits = logits[..., :-1, :].contiguous()
+            #            shift_labels = labels[..., 1:].contiguous()
             # for gradient test use the following two lines
             shift_logits = logits.contiguous()
             shift_labels = labels.contiguous()
