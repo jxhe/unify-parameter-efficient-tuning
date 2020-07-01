@@ -1871,12 +1871,3 @@ class ReformerForMaskedLM(ReformerPreTrainedModel):
             outputs = (masked_lm_loss,) + outputs
 
         return outputs  # (mlm_loss), lm_logits, (hidden_states), (attentions)
-
-    def prepare_inputs_for_generation(self, input_ids, past, **kwargs):
-        # TODO(PVP): Add smart caching
-        inputs_dict = {"input_ids": input_ids}
-
-        if "num_hashes" in kwargs:
-            inputs_dict["num_hashes"] = kwargs["num_hashes"]
-
-        return inputs_dict
