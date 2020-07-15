@@ -78,6 +78,9 @@ from .file_utils import (
     cached_path,
     is_tf_available,
     is_torch_available,
+    is_py3nvml_available,
+    is_torch_tpu_available,
+    is_psutil_available,
 )
 from .hf_argparser import HfArgumentParser
 
@@ -347,7 +350,8 @@ if is_torch_available():
     from .data.datasets import GlueDataset, TextDataset, LineByLineTextDataset, GlueDataTrainingArguments
 
     # Benchmarks
-    from .benchmark import PyTorchBenchmark, PyTorchBenchmarkArguments
+    from .benchmark.benchmark import PyTorchBenchmark
+    from .benchmark.benchmark_args import PyTorchBenchmarkArguments
 
 # TensorFlow
 if is_tf_available():

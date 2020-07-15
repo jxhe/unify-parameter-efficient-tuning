@@ -61,6 +61,35 @@ except (ImportError, AssertionError):
 
 
 try:
+    import torch_xla.core.xla_model as xm  # noqa: F401
+
+    if _torch_available:
+        _torch_tpu_available = True  # pylint: disable=
+    else:
+        _torch_tpu_available = False
+except ImportError:
+    _torch_tpu_available = False
+
+
+try:
+    import psutil  # noqa: F401
+
+    _psutil_available = True
+
+except ImportError:
+    _psutil_available = False
+
+
+try:
+    import py3nvml  # noqa: F401
+
+    _py3nvml_available = True
+
+except ImportError:
+    _py3nvml_available = False
+
+
+try:
     from torch.hub import _get_torch_home
 
     torch_cache_home = _get_torch_home()
@@ -96,6 +125,18 @@ def is_torch_available():
 
 def is_tf_available():
     return _tf_available
+
+
+def is_torch_tpu_available():
+    return _torch_tpu_available
+
+
+def is_psutil_available():
+    return _psutil_available
+
+
+def is_py3nvml_available():
+    return _py3nvml_available
 
 
 def add_start_docstrings(*docstr):
