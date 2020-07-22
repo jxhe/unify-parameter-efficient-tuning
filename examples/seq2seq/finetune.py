@@ -106,6 +106,8 @@ class SummarizationModule(BaseTransformer):
         self.num_workers = hparams.num_workers
         self.decoder_start_token_id = None
         self.dataset_class = Seq2SeqDataset
+        if self.hparams.loss_dropper:
+            self.criterion = torch.nn.NLLLoss(weight, reduction='none')
 
     def freeze_embeds(self):
         """Freeze token embeddings and positional embeddings for bart, just token embeddings for t5."""
@@ -134,6 +136,9 @@ class SummarizationModule(BaseTransformer):
         decoder_input_ids = target_ids[:, :-1].contiguous()  # Why this line?
         lm_labels = target_ids[:, 1:].clone()  # why clone?
         outputs = self(source_ids, attention_mask=source_mask, decoder_input_ids=decoder_input_ids, use_cache=False)
+
+
+
 
         if self.hparams.label_smoothing == 0:
             # Same behavior as modeling_bart.py
@@ -303,6 +308,7 @@ class SummarizationModule(BaseTransformer):
             "--task", type=str, default="summarization", required=False, help="# examples. -1 means use all."
         )
         parser.add_argument("--label_smoothing", type=float, default=0.0, required=False)
+        parser.add_argument("--loss_dropper", type=float, default=0.0, required=False)
         parser.add_argument("--src_lang", type=str, default="", required=False)
         parser.add_argument("--tgt_lang", type=str, default="", required=False)
         parser.add_argument(
