@@ -373,6 +373,9 @@ class TFModelTesterMixin:
 
             outputs_dict = model(input_ids)
             hidden_states = outputs_dict[0]
+            import ipdb
+
+            ipdb.set_trace()
 
             # Add a dense layer on top to test integration with other keras modules
             outputs = tf.keras.layers.Dense(2, activation="softmax", name="outputs")(hidden_states)
@@ -674,7 +677,6 @@ class TFModelTesterMixin:
 
                 # Test that model correctly compute the loss with a dict
                 prepared_for_class = self._prepare_for_class(inputs_dict.copy(), model_class, return_labels=True)
-                loss = model(prepared_for_class)[0]
                 self.assertEqual(loss.shape, [loss_size])
 
                 # Test that model correctly compute the loss with a tuple
