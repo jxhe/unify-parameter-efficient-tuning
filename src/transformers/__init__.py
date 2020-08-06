@@ -570,6 +570,7 @@ if is_tf_available():
         TFLongformerModel,
         TFLongformerForMaskedLM,
         TFLongformerForQuestionAnswering,
+        TFLongformerSelfAttention,
     )
 
     from .modeling_tf_mobilebert import (
