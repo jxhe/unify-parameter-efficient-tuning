@@ -569,6 +569,7 @@ if is_tf_available():
         TF_LONGFORMER_PRETRAINED_MODEL_ARCHIVE_LIST,
         TFLongformerModel,
         TFLongformerForMaskedLM,
+        TFLongformerForQuestionAnswering,
     )
 
     from .modeling_tf_mobilebert import (
