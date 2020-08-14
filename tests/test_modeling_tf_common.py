@@ -536,6 +536,8 @@ class TFModelTesterMixin:
                 elif tuple_object is None:
                     return
                 else:
+                    tuple_object = tf.clip_by_value(tuple_object, -1e12, 1e12)
+                    dict_object = tf.clip_by_value(dict_object, -1e12, 1e12)
                     self.assertTrue(
                         all(tf.equal(tuple_object, dict_object)),
                         msg=f"Tuple and dict output are not equal. Difference: {tf.math.reduce_max(tf.abs(tuple_object - dict_object))}",
