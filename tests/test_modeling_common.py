@@ -709,8 +709,8 @@ class ModelTesterMixin:
                     elif tuple_object is None:
                         return
                     else:
-                        tuple_object[tuple_object == float("inf")] = 0
-                        dict_object[dict_object == float("inf")] = 0
+                        tuple_object.clamp_(-1e12, 1e12)
+                        dict_object.clamp_(-1e12, 1e12)
                         self.assertTrue(
                             torch.allclose(tuple_object, dict_object, atol=1e-5),
                             msg=f"Tuple and dict output are not equal. Difference: {torch.max(torch.abs(tuple_object - dict_object))}",
