@@ -6,7 +6,7 @@ export GAS=1
 
 python finetune.py \
     --learning_rate=3e-5 \
-    --fp16 \
+    --fp16 --fp16_opt_level=O1 \
     --gpus 1 \
     --do_train \
     --do_predict \

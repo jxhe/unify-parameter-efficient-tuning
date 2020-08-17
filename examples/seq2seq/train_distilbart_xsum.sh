@@ -6,7 +6,7 @@ python distillation.py \
   --learning_rate=3e-4 \
   --do_train \
   --do_predict \
-  --fp16 \
+  --fp16 --fp16_opt_level=O1 \
   --val_check_interval 0.1 --n_val 1000 \
   --teacher facebook/bart-large-xsum --data_dir $XSUM_DIR \
   --max_target_length=60 --val_max_target_length=60 --test_max_target_length=100 \
