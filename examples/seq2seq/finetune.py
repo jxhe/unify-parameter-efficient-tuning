@@ -64,7 +64,7 @@ logger = logging.getLogger(__name__)
 
 class SummarizationModule(BaseTransformer):
     mode = "summarization"
-    loss_names = ["loss"]
+    loss_names = ["loss", "dropper_mask_mean"]
     metric_names = ROUGE_KEYS
     val_metric = "rouge2"
 
@@ -152,7 +152,6 @@ class SummarizationModule(BaseTransformer):
         outputs = self(source_ids, attention_mask=source_mask, decoder_input_ids=decoder_input_ids, use_cache=False)
         bs = source_ids.shape[0]
 
-        self.criterion = torch.nn.NLLLoss(weights, reduction='none', ignore_index=pad_token_id)
         if self.hparams.label_smoothing == 0:
             # Same behavior as modeling_bart.py
             #loss_fct = torch.nn.CrossEntropyLoss(ignore_index=pad_token_id)
@@ -160,21 +159,22 @@ class SummarizationModule(BaseTransformer):
             assert lm_logits.shape[-1] == self.model.config.vocab_size
 
             loss_fct = torch.nn.NLLLoss(reduction='none', ignore_index=pad_token_id)
-            logit_shape = lm_logits.view(-1, lm_logits.shape[-1])
+            #logit_shape =
             #weights = torch.ones(logit_shape
-            loss = loss_fct(lm_logits.view(*logit_shape), lm_labels.view(-1))
-            import ipdb; ipdb.set_trace()
+            loss = loss_fct(lm_logits.view(-1, lm_logits.shape[-1]), lm_labels.view(-1))
+            loss = loss.view(-1, bs)
             loss = loss.mean(dim=0)
             mask = self.dropper(loss)
             loss *= mask
             loss = loss.mean()
+            return (loss, 1-mask.mean())
             #loss = loss.view(-1, bs)
         else:
             lprobs = torch.nn.functional.log_softmax(outputs[0], dim=-1)
             loss, nll_loss = label_smoothed_nll_loss(
                 lprobs, lm_labels, self.hparams.label_smoothing, ignore_index=pad_token_id
             )
-        return (loss,)
+        return (loss,torch.tensor(1.))
 
     @property
     def pad(self) -> int:
