@@ -153,11 +153,11 @@ class SummarizationModule(BaseTransformer):
 
         if self.hparams.label_smoothing == 0:
             # Same behavior as modeling_bart.py
-            #loss_fct = torch.nn.CrossEntropyLoss(ignore_index=pad_token_id)
+            loss_fct = torch.nn.CrossEntropyLoss(reduction='none', ignore_index=pad_token_id)
             lm_logits = outputs[0]
             assert lm_logits.shape[-1] == self.model.config.vocab_size
 
-            loss_fct = torch.nn.NLLLoss(reduction='none', ignore_index=pad_token_id)
+            #loss_fct = torch.nn.NLLLoss(reduction='none', ignore_index=pad_token_id)
             #logit_shape =
             #weights = torch.ones(logit_shape
             loss = loss_fct(lm_logits.view(-1, lm_logits.shape[-1]), lm_labels.view(-1))
