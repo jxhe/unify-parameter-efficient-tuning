@@ -70,7 +70,7 @@ class SummarizationModule(BaseTransformer):
     def __init__(self, hparams, **kwargs):
         super().__init__(hparams, num_labels=None, mode=self.mode, **kwargs)
         use_task_specific_params(self.model, "summarization")
-        self.dropper = LossDropper(dropc=.3)
+        self.dropper = LossDropper(dropc=.05)
         save_git_info(self.hparams.output_dir)
         self.metrics_save_path = Path(self.output_dir) / "metrics.json"
         self.hparams_save_path = Path(self.output_dir) / "hparams.pkl"
