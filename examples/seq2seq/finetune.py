@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 
 from lightning_base import BaseTransformer, add_generic_args, generic_train
 from transformers import MarianTokenizer, MBartTokenizer, T5ForConditionalGeneration
+from transformers.modeling_bart import shift_tokens_right
 
 
 try:
@@ -140,8 +141,10 @@ class SummarizationModule(BaseTransformer):
         pad_token_id = self.tokenizer.pad_token_id
         source_ids, source_mask, target_ids = batch["input_ids"], batch["attention_mask"], batch["decoder_input_ids"]
 
-
-        if isinstance(self.model, T5ForConditionalGeneration):
+        if "labels" in batch:
+            lm_labels = batch["labels"]
+            decoder_input_ids = shift_tokens_right(lm_labels, pad_token_id)
+        elif isinstance(self.model, T5ForConditionalGeneration):
             decoder_input_ids = self.model._shift_right(target_ids)
             lm_labels = target_ids
         else:
@@ -152,6 +155,7 @@ class SummarizationModule(BaseTransformer):
         bs = source_ids.shape[0]
 
         if self.hparams.label_smoothing == 0:
+
             # Same behavior as modeling_bart.py
             loss_fct = torch.nn.CrossEntropyLoss(reduction='none', ignore_index=pad_token_id)
             lm_logits = outputs[0]
