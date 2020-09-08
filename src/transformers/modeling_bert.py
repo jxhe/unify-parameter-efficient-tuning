@@ -332,7 +332,7 @@ class BertSelfOutput(nn.Module):
 class BertScriptableAttention(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.self =  BertScriptableSelfAttention(config)
+        self.self = BertScriptableSelfAttention(config)
         self.output = BertSelfOutput(config)
         self.pruned_heads = set()
 
@@ -537,7 +537,7 @@ class BertScriptableEncoder(nn.Module):
                     create_custom_forward(layer_module),
                     hidden_states,
                     attention_mask,
-                    head_mask[i],
+                    layer_head_mask,
                     encoder_hidden_states,
                     encoder_attention_mask,
                 )
