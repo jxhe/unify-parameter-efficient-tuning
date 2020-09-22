@@ -276,10 +276,12 @@ class DistributedSortishSampler(Sampler):
             if not dist.is_available():
                 raise RuntimeError("Requires distributed package to be available")
             num_replicas = dist.get_world_size()
+            self._rank = -1
         if rank is None:
             if not dist.is_available():
                 raise RuntimeError("Requires distributed package to be available")
             rank = dist.get_rank()
+            self._rank = rank
         self.dataset = dataset
         self.num_replicas = num_replicas
         self.rank = rank

@@ -195,7 +195,7 @@ class SummarizationModule(BaseTransformer):
         #all_metrics['n_obs'] =
 
 
-        all_metrics['rank'] = getattr(self.train_dataloader(), 'rank', -1.)
+        all_metrics['rank'] = getattr(self.train_dataloader(), '_rank', -1.)
 
         self.save_metrics(all_metrics, prefix)  # writes to self.metrics_save_path
         preds = flatten_list([x["preds"] for x in outputs])
