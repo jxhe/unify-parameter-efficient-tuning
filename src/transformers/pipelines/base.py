@@ -17,26 +17,27 @@ class PipelineConfig:
 
 
 # Define all the generic types for a Pipeline
-InputType = TypeVar("InputType")  # Pipeline input type
-OutputType = TypeVar("OutputType")  # Pipeline output type
-IntermediateType = TypeVar("IntermediateType")  # Model output type (i.e. after forward())
-ConfigType = TypeVar("ConfigType", bound=PipelineConfig)  # Pipeline configuration type
+PipelineInputType = TypeVar("PipelineInputType")  # Pipeline input type
+PipelineOutputType = TypeVar("PipelineOutputType")  # Pipeline output type
+PipelineIntermediateType = TypeVar("PipelineIntermediateType")  # Model output type (i.e. after forward())
+PipelineConfigType = TypeVar("PipelineConfigType", bound=PipelineConfig)  # Pipeline configuration type
 ModelType = TypeVar("ModelType")  # Pipeline model type
 
 
-class Pipeline(ABC, Generic[ConfigType, ModelType, InputType, IntermediateType, OutputType]):
+class Pipeline(ABC, Generic[PipelineConfigType, ModelType, PipelineInputType, PipelineIntermediateType, PipelineOutputType]):
     """"""
 
     __slots__ = ["task", "default_config", "_tokenizer", "_model", "_configs"]
 
+    # TODO: Check if the $task variable is required and won't introduce dependency on it
     task: ClassVar[str]
-    default_config: ClassVar[ConfigType]
+    default_config: ClassVar[PipelineConfigType]
 
     def __init__(self, tokenizer: PreTrainedTokenizer, model: ModelType):
         self._tokenizer = tokenizer
         self._model = model
 
-        self._configs: Dict[str, ConfigType] = dict()
+        self._configs: Dict[str, PipelineConfigType] = dict()
         self._configs["default"] = self.default_config
 
     @property
@@ -58,7 +59,7 @@ class Pipeline(ABC, Generic[ConfigType, ModelType, InputType, IntermediateType, 
         raise self._model
 
     @property
-    def configs(self) -> Mapping[str, ConfigType]:
+    def configs(self) -> Mapping[str, PipelineConfigType]:
         """
         Return all registered configuration's mapping on the pipeline
         Returns:
@@ -68,10 +69,10 @@ class Pipeline(ABC, Generic[ConfigType, ModelType, InputType, IntermediateType, 
         return self._configs
 
     @property
-    def default_config(self) -> ConfigType:
+    def default_config(self) -> PipelineConfigType:
         return self.default_config
 
-    def get_config(self, name: str) -> Optional[ConfigType]:
+    def get_config(self, name: str) -> Optional[PipelineConfigType]:
         """
         Attempt to retrieve a configuration from its registered name.
         If no configuration matches the requested name, None is returned.
@@ -84,7 +85,7 @@ class Pipeline(ABC, Generic[ConfigType, ModelType, InputType, IntermediateType, 
         """
         return self._configs.get(name, None)
 
-    def register_config(self, name: str, config: ConfigType) -> ConfigType:
+    def register_config(self, name: str, config: PipelineConfigType) -> PipelineConfigType:
         """
         Register a configuration with the specified name uniquely identifying a configuration.
         Args:
@@ -96,7 +97,7 @@ class Pipeline(ABC, Generic[ConfigType, ModelType, InputType, IntermediateType, 
         self._configs[name] = config
         return config
 
-    def delete_config(self, name: str) -> Optional[ConfigType]:
+    def delete_config(self, name: str) -> Optional[PipelineConfigType]:
         """
         Attempt to delete a configuration if registered on the pipeline.
         The ConfigType instance associated with the provided name is returned if present on the pipeline,
@@ -110,11 +111,12 @@ class Pipeline(ABC, Generic[ConfigType, ModelType, InputType, IntermediateType, 
         """
         return self._configs.pop(name, None)
 
+    @abstractmethod
     def __call__(
-        self, inputs: MaybeBatch[InputType], config: Optional[Union[str, ConfigType]], **kwargs
-    ) -> MaybeBatch[IntermediateType]:
-        """
+            self, inputs: MaybeBatch[PipelineInputType], config: Optional[Union[str, PipelineConfigType]], **kwargs
+    ) -> MaybeBatch[PipelineIntermediateType]:
 
+        """
         Args:
             inputs (:obj:`InputType`):
             config (:obj:`ConfigType`)
@@ -122,23 +124,10 @@ class Pipeline(ABC, Generic[ConfigType, ModelType, InputType, IntermediateType, 
 
         Returns:
         """
-        # Retrieve the appropriate config if identifier is provided or None
-        if isinstance(config, str):
-            config = self.get_config(config)
-        elif not config:
-            config = self.default_config
-
-        # Preprocess the input
-        encodings = self.preprocess(inputs, config)
-
-        # Forward the encoding through the model
-        model_output = self.forward(encodings, config)
-
-        # Apply any postprocessing steps required
-        return self.postprocess(model_output, config)
+        raise NotImplementedError()
 
     @abstractmethod
-    def preprocess(self, inputs: MaybeBatch[InputType], config: ConfigType) -> BatchEncoding:
+    def preprocess(self, inputs: MaybeBatch[PipelineInputType], config: PipelineConfigType) -> BatchEncoding:
         """
         Process the raw inputs to generate a BatchEncoding representation through the use of a tokenizer.
         Args:
@@ -152,7 +141,7 @@ class Pipeline(ABC, Generic[ConfigType, ModelType, InputType, IntermediateType, 
         raise NotImplementedError()
 
     @abstractmethod
-    def forward(self, encodings: BatchEncoding, config: ConfigType) -> IntermediateType:
+    def forward(self, encodings: BatchEncoding, config: PipelineConfigType) -> PipelineIntermediateType:
         """
 
         Args:
@@ -163,11 +152,11 @@ class Pipeline(ABC, Generic[ConfigType, ModelType, InputType, IntermediateType, 
         raise NotImplementedError()
 
     @abstractmethod
-    def postprocess(self, model_output: IntermediateType, config: ConfigType) -> MaybeBatch[OutputType]:
+    def postprocess(self, model_output: PipelineIntermediateType, config: PipelineConfigType) -> MaybeBatch[PipelineOutputType]:
         """
 
         Args:
-            model_output (:obj:`IntermediateType`):
+            model_output (:obj:`PipelineIntermediateType`):
             config (:obj:`ConfigType`)
 
         Returns:

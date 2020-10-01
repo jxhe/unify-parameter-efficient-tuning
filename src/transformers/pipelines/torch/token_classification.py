@@ -1,13 +1,15 @@
-from transformers import BatchEncoding
 from transformers.modeling_outputs import TokenClassifierOutput
-from transformers.pipelines.base import ConfigType, InputType, IntermediateType, MaybeBatch, OutputType, PipelineConfig
-from transformers.pipelines.torch import TorchPipeline
+from transformers.pipelines.base import IntermediateType, MaybeBatch, PipelineOutputType, PipelineConfig
+from transformers.pipelines.torch import PreTrainedPipeline
 
 
 # Token Classification
 
 TokenClassificationInput = str
-TokenClassificationConfig = PipelineConfig
+
+
+class TokenClassificationConfig(PipelineConfig):
+    group_entities: bool = False
 
 
 class TokenClassificationOutput:
@@ -15,18 +17,13 @@ class TokenClassificationOutput:
 
 
 class TokenClassificationPipeline(
-    TorchPipeline[
+    PreTrainedPipeline[
         TokenClassificationConfig, TokenClassificationInput, TokenClassifierOutput, TokenClassificationOutput
     ]
 ):
     task = "token-classification"
     default_config = TokenClassificationConfig()
 
-    def preprocess(self, inputs: MaybeBatch[InputType], config: ConfigType) -> BatchEncoding:
-        pass
+    def postprocess(self, model_output: TokenClassifierOutput, config: TokenClassificationConfig) -> MaybeBatch[TokenClassificationOutput]:
 
-    def forward(self, encodings: BatchEncoding, config: ConfigType) -> IntermediateType:
-        pass
-
-    def postprocess(self, model_output: IntermediateType, config: ConfigType) -> MaybeBatch[OutputType]:
         pass

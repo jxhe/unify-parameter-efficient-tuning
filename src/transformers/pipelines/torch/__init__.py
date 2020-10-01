@@ -1,4 +1,4 @@
-from .base import TorchPipeline
+from .base import PreTrainedPipeline
 from .token_classification import (
     TokenClassificationConfig,
     TokenClassificationInput,

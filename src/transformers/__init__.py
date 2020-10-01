@@ -120,27 +120,27 @@ from .modeling_tf_pytorch_utils import (
 )
 
 # Pipelines
-from .pipelines import (
-    Conversation,
-    ConversationalPipeline,
-    CsvPipelineDataFormat,
-    FeatureExtractionPipeline,
-    FillMaskPipeline,
-    JsonPipelineDataFormat,
-    NerPipeline,
-    PipedPipelineDataFormat,
-    Pipeline,
-    PipelineDataFormat,
-    QuestionAnsweringPipeline,
-    SummarizationPipeline,
-    Text2TextGenerationPipeline,
-    TextClassificationPipeline,
-    TextGenerationPipeline,
-    TokenClassificationPipeline,
-    TranslationPipeline,
-    ZeroShotClassificationPipeline,
-    pipeline,
-)
+# from .pipelines import (
+#     Conversation,
+#     ConversationalPipeline,
+#     CsvPipelineDataFormat,
+#     FeatureExtractionPipeline,
+#     FillMaskPipeline,
+#     JsonPipelineDataFormat,
+#     NerPipeline,
+#     PipedPipelineDataFormat,
+#     Pipeline,
+#     PipelineDataFormat,
+#     QuestionAnsweringPipeline,
+#     SummarizationPipeline,
+#     Text2TextGenerationPipeline,
+#     TextClassificationPipeline,
+#     TextGenerationPipeline,
+#     TokenClassificationPipeline,
+#     TranslationPipeline,
+#     ZeroShotClassificationPipeline,
+#     pipeline,
+# )
 
 # Retriever
 from .retrieval_rag import RagRetriever
