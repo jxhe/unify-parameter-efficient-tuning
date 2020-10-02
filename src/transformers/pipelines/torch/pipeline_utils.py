@@ -3,13 +3,13 @@ from typing import Optional, Union
 
 import torch
 
-from transformers import PreTrainedModel, BatchEncoding
+from transformers import PreTrainedModel, BatchEncoding, TensorType
 from transformers.pipelines import MaybeBatch, Pipeline
-from transformers.pipelines.base import PipelineConfigType, PipelineInputType, IntermediateType, PipelineOutputType, \
+from transformers.pipelines.base import PipelineConfigType, PipelineInputType, PipelineOutputType, \
     PipelineIntermediateType
 
 
-class PreTrainedPipeline(Pipeline[PipelineConfigType, PreTrainedModel, PipelineInputType, IntermediateType, PipelineOutputType], ABC):
+class PreTrainedPipeline(Pipeline[PipelineConfigType, PreTrainedModel, PipelineInputType, PipelineIntermediateType, PipelineOutputType], ABC):
 
     @property
     def device(self) -> torch.device:
@@ -24,10 +24,10 @@ class PreTrainedPipeline(Pipeline[PipelineConfigType, PreTrainedModel, PipelineI
         return self
 
     def preprocess(self, inputs: MaybeBatch[PipelineInputType], config: PipelineConfigType) -> BatchEncoding:
-        return self._tokenizer.batch_encode_plus(
+        return self._tokenizer(
             inputs,
-            return_tensors=torch.TensorType.PYTORCH,
-            **config.tokenizer_kwargs,
+            return_tensors=TensorType.PYTORCH,
+            **(config.tokenizer_kwargs or {}),
         )
 
     def __call__(self, inputs: MaybeBatch[PipelineInputType], config: Optional[Union[str, PipelineConfigType]], **kwargs) -> MaybeBatch[PipelineIntermediateType]:
@@ -44,9 +44,9 @@ class PreTrainedPipeline(Pipeline[PipelineConfigType, PreTrainedModel, PipelineI
         model_output = self.forward(encodings, config)
 
         # Apply any postprocessing steps required
-        return self.postprocess(model_output, config)
+        return self.postprocess(encodings, model_output, config)
 
-    def forward(self, encodings, config):
+    def forward(self, encodings, config) -> PipelineIntermediateType:
         return self._model(**encodings, **config.model_kwargs)
 
 

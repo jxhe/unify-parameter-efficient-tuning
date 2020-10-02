@@ -1,19 +1,22 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, ClassVar, Dict, Generic, Mapping, Optional, Sized, TypeVar, Union
+from dataclasses import dataclass, field
+from typing import Any, ClassVar, Dict, Generic, Mapping, Optional, TypeVar, Union, List
 
 from transformers import BatchEncoding, PreTrainedTokenizer
 
 
 # Syntactic sugar to indicate it can take multiple inputs of type T at once.
 T = TypeVar("T")
-MaybeBatch = Union[T, Sized[T]]
+MaybeBatch = Union[T, List[T]]
 
 
 @dataclass
 class PipelineConfig:
-    tokenizer_kwargs: Optional[Dict[str, Any]] = None
-    model_kwargs: Optional[Dict[str, Any]] = None
+    tokenizer_kwargs: Dict[str, Any] = field(default_factory=dict)
+    model_kwargs: Dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self):
+        self.model_kwargs.setdefault("return_dict", True)
 
 
 # Define all the generic types for a Pipeline
@@ -27,7 +30,7 @@ ModelType = TypeVar("ModelType")  # Pipeline model type
 class Pipeline(ABC, Generic[PipelineConfigType, ModelType, PipelineInputType, PipelineIntermediateType, PipelineOutputType]):
     """"""
 
-    __slots__ = ["task", "default_config", "_tokenizer", "_model", "_configs"]
+    __slots__ = ["_tokenizer", "_model", "_configs"]
 
     # TODO: Check if the $task variable is required and won't introduce dependency on it
     task: ClassVar[str]
@@ -152,10 +155,11 @@ class Pipeline(ABC, Generic[PipelineConfigType, ModelType, PipelineInputType, Pi
         raise NotImplementedError()
 
     @abstractmethod
-    def postprocess(self, model_output: PipelineIntermediateType, config: PipelineConfigType) -> MaybeBatch[PipelineOutputType]:
+    def postprocess(self, encodings: BatchEncoding, model_output: PipelineIntermediateType, config: PipelineConfigType) -> MaybeBatch[PipelineOutputType]:
         """
 
         Args:
+            encodings:
             model_output (:obj:`PipelineIntermediateType`):
             config (:obj:`ConfigType`)
 
