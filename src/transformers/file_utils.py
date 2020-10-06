@@ -143,6 +143,24 @@ except (AttributeError, ImportError):
     _has_sklearn = False
 
 
+try:
+    import sentencepiece  # noqa: F401
+
+    _sentencepiece_available = True
+
+except ImportError:
+    _sentencepiece_available = False
+
+
+try:
+    import tokenizers  # noqa: F401
+
+    _tokenizers_available = True
+
+except ImportError:
+    _tokenizers_available = False
+
+
 default_cache_path = os.path.join(torch_cache_home, "transformers")
 
 
@@ -205,6 +223,14 @@ def is_faiss_available():
 
 def is_sklearn_available():
     return _has_sklearn
+
+
+def is_sentencepiece_available():
+    return _sentencepiece_available
+
+
+def is_tokenizers_available():
+    return _tokenizers_available
 
 
 DATASETS_IMPORT_ERROR = """
