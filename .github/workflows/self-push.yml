@@ -44,15 +44,14 @@ jobs:
       run: |
         source .env/bin/activate
         pip install --upgrade pip
-        pip install torch!=1.6.0
-        pip install .[sklearn,testing,onnxruntime]
+        pip install .[tf,sklearn,testing,onnxruntime]
         pip install git+https://github.com/huggingface/datasets
 
     - name: Are GPUs recognized by our DL frameworks
       run: |
         source .env/bin/activate
-        python -c "import torch; print('Cuda available:', torch.cuda.is_available())"
-        python -c "import torch; print('Number of GPUs available:', torch.cuda.device_count())"
+        python -c "import tensorflow as tf; print('TF GPUs available:', bool(tf.config.list_physical_devices('GPU')))"
+        python -c "import tensorflow as tf; print('Number of TF GPUs available:', len(tf.config.list_physical_devices('GPU')))"
 
     - name: Run all non-slow tests on GPU
       env:
@@ -95,15 +94,14 @@ jobs:
         run: |
           source .env/bin/activate
           pip install --upgrade pip
-          pip install torch!=1.6.0
-          pip install .[sklearn,testing,onnxruntime]
+          pip install .[tf,sklearn,testing,onnxruntime]
           pip install git+https://github.com/huggingface/datasets
 
       - name: Are GPUs recognized by our DL frameworks
         run: |
           source .env/bin/activate
-          python -c "import torch; print('Cuda available:', torch.cuda.is_available())"
-          python -c "import torch; print('Number of GPUs available:', torch.cuda.device_count())"
+          python -c "import tensorflow as tf; print('TF GPUs available:', bool(tf.config.list_physical_devices('GPU')))"
+          python -c "import tensorflow as tf; print('Number of TF GPUs available:', len(tf.config.list_physical_devices('GPU')))"
 
       - name: Run all non-slow tests on GPU
         env:
