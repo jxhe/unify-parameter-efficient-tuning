@@ -330,14 +330,14 @@ class RelPartialLearnableMultiHeadAttn(nn.Module):
         if attn_mask is not None and torch.sum(attn_mask).item():
             attn_mask = attn_mask == 1  # Switch to bool
             if attn_mask.dim() == 2:
-                if next(self.parameters()).dtype == torch.float16:
+                if list(self.parameters())[0].dtype == torch.float16:
                     attn_score = (
                         attn_score.float().masked_fill(attn_mask[None, :, :, None], -65000).type_as(attn_score)
                     )
                 else:
                     attn_score = attn_score.float().masked_fill(attn_mask[None, :, :, None], -1e30).type_as(attn_score)
             elif attn_mask.dim() == 3:
-                if next(self.parameters()).dtype == torch.float16:
+                if list(self.parameters())[0].dtype == torch.float16:
                     attn_score = attn_score.float().masked_fill(attn_mask[:, :, :, None], -65000).type_as(attn_score)
                 else:
                     attn_score = attn_score.float().masked_fill(attn_mask[:, :, :, None], -1e30).type_as(attn_score)
@@ -435,7 +435,7 @@ class AdaptiveEmbedding(nn.Module):
             if self.d_proj != self.d_embed:
                 embed = F.linear(embed, self.emb_projs[0])
         else:
-            param = next(self.parameters())
+            param = list(self.parameters())[0]
             inp_flat = inp.view(-1)
             emb_flat = torch.zeros([inp_flat.size(0), self.d_proj], dtype=param.dtype, device=param.device)
             for i in range(len(self.cutoffs)):
@@ -806,7 +806,7 @@ class TransfoXLModel(TransfoXLPreTrainedModel):
     def init_mems(self, bsz):
         if self.mem_len > 0:
             mems = []
-            param = next(self.parameters())
+            param = list(self.parameters())[0]
             for i in range(self.n_layer):
                 empty = torch.zeros(self.mem_len, bsz, self.config.d_model, dtype=param.dtype, device=param.device)
                 mems.append(empty)
@@ -886,7 +886,7 @@ class TransfoXLModel(TransfoXLPreTrainedModel):
             elif head_mask.dim() == 2:
                 head_mask = head_mask.unsqueeze(1).unsqueeze(1).unsqueeze(1)
             head_mask = head_mask.to(
-                dtype=next(self.parameters()).dtype
+                dtype=list(self.parameters())[0].dtype
             )  # switch to fload if need + fp16 compatibility
         else:
             head_mask = [None] * self.n_layer
