@@ -33,7 +33,7 @@ from .file_utils import (
     add_start_docstrings_to_model_forward,
 )
 from .modeling_transfo_xl_utilities import ProjectedAdaptiveLogSoftmax
-from .modeling_utils import PreTrainedModel
+from .modeling_utils import PreTrainedModel, ModuleUtilsMixin
 from .utils import logging
 
 
@@ -231,7 +231,7 @@ class PositionwiseFF(nn.Module):
         return output
 
 
-class RelPartialLearnableMultiHeadAttn(nn.Module):
+class RelPartialLearnableMultiHeadAttn(nn.Module, ModuleUtilsMixin):
     def __init__(
         self,
         n_head,
@@ -401,7 +401,7 @@ class RelPartialLearnableDecoderLayer(nn.Module):
         return outputs
 
 
-class AdaptiveEmbedding(nn.Module):
+class AdaptiveEmbedding(nn.Module, ModuleUtilsMixin):
     def __init__(self, n_token, d_embed, d_proj, cutoffs, div_val=1, sample_softmax=False):
         super().__init__()
 
