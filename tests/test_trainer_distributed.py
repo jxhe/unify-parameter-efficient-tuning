@@ -46,6 +46,8 @@ if is_torch_available():
 class TestTrainerDistributed(TestCasePlus):
     @require_torch_multigpu
     def test_trainer(self):
+        import os
+        os.system("nvidia-smi")
 
         distributed_args = f"""
             -m torch.distributed.launch
