@@ -1977,7 +1977,7 @@ class ReformerModel(ReformerPreTrainedModel):
         self.embeddings = ReformerEmbeddings(config)
         self.encoder = ReformerEncoder(config)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.embeddings.word_embeddings
@@ -2015,8 +2015,10 @@ class ReformerModel(ReformerPreTrainedModel):
         return_dict=None,
     ):
         use_cache = use_cache if use_cache is not None else self.config.use_cache
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -2192,7 +2194,7 @@ class ReformerModelWithLMHead(ReformerPreTrainedModel):
         self.reformer = ReformerModel(config)
         self.lm_head = ReformerOnlyLMHead(config)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_output_embeddings(self):
         return self.lm_head.decoder
@@ -2304,7 +2306,7 @@ class ReformerForMaskedLM(ReformerPreTrainedModel):
         self.reformer = ReformerModel(config)
         self.lm_head = ReformerOnlyLMHead(config)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_output_embeddings(self):
         return self.lm_head.decoder
@@ -2387,7 +2389,7 @@ class ReformerForSequenceClassification(ReformerPreTrainedModel):
         if config.is_decoder is True:
             logger.warning("You might want to disable causal masking for sequence classification")
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(REFORMER_INPUTS_DOCSTRING)
     @add_code_sample_docstrings(
@@ -2489,7 +2491,7 @@ class ReformerForQuestionAnswering(ReformerPreTrainedModel):
         # 2 * config.hidden_size because we use reversible residual layers
         self.qa_outputs = nn.Linear(2 * config.hidden_size, config.num_labels)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(REFORMER_INPUTS_DOCSTRING)
     @add_code_sample_docstrings(

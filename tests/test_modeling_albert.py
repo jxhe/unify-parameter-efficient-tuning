@@ -24,6 +24,8 @@ from .test_modeling_common import ModelTesterMixin, ids_tensor, random_attention
 
 
 if is_torch_available():
+    import torch
+
     from transformers import (
         AlbertConfig,
         AlbertForMaskedLM,
@@ -213,6 +215,8 @@ class AlbertModelTester:
 @require_torch
 class AlbertModelTest(ModelTesterMixin, unittest.TestCase):
 
+    test_gradient_checkpointing = True
+
     all_model_classes = (
         (
             AlbertModel,
@@ -263,3 +267,28 @@ class AlbertModelTest(ModelTesterMixin, unittest.TestCase):
         for model_name in ALBERT_PRETRAINED_MODEL_ARCHIVE_LIST[:1]:
             model = AlbertModel.from_pretrained(model_name)
             self.assertIsNotNone(model)
+
+    def test_model_gradient_checkpointing(self):
+        if not self.test_gradient_checkpointing:
+            return
+
+        for model_class in self.all_model_classes:
+            print(model_class)
+            config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
+            model = model_class(config)
+            model.to(torch_device)
+            model.eval()
+            outputs_no_checkpointing = model(**self._prepare_for_class(inputs_dict, model_class))
+
+            config.gradient_checkpointing = True
+            model_with_gc = model_class(config)
+            model_with_gc.load_state_dict(model.state_dict())
+            model_with_gc.to(torch_device)
+            model_with_gc.eval()
+            outputs_with_checkpointing = model_with_gc(**self._prepare_for_class(inputs_dict, model_class))
+
+            for output_no_checkpointing, output_with_checkpointing in zip(
+                outputs_no_checkpointing, outputs_with_checkpointing
+            ):
+                if isinstance(output_with_checkpointing, torch.Tensor):
+                    self.assertTrue(torch.allclose(output_no_checkpointing, output_with_checkpointing))

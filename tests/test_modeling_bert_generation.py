@@ -189,6 +189,9 @@ class BertGenerationEncoderTest(ModelTesterMixin, GenerationTesterMixin, unittes
     all_model_classes = (BertGenerationEncoder, BertGenerationDecoder) if is_torch_available() else ()
     all_generative_model_classes = (BertGenerationDecoder,) if is_torch_available() else ()
 
+    # Should have a class in `AutoModelWithLMHead` to be tested on Gradient Checkpointing.
+    test_gradient_checkpointing = False
+
     def setUp(self):
         self.model_tester = BertGenerationEncoderTester(self)
         self.config_tester = ConfigTester(self, config_class=BertGenerationConfig, hidden_size=37)

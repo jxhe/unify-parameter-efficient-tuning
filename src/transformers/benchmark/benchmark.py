@@ -254,6 +254,7 @@ class PyTorchBenchmark(Benchmark):
             else:
                 # cpu
                 memory_bytes = measure_peak_memory_cpu(func)
+                print("PEAK", memory_bytes)
                 memory = Memory(memory_bytes) if isinstance(memory_bytes, int) else memory_bytes
 
             if self.args.trace_memory_line_by_line:
@@ -261,6 +262,7 @@ class PyTorchBenchmark(Benchmark):
             else:
                 summary = None
 
+            print(memory, summary)
             return memory, summary
         except RuntimeError as e:
             self.print_fn("Doesn't fit on GPU. {}".format(e))

@@ -406,9 +406,9 @@ class DebertaEncoder(nn.Module):
                 next_kv,
                 attention_mask,
                 output_attentions,
-                query_states=query_states,
-                relative_pos=relative_pos,
-                rel_embeddings=rel_embeddings,
+                query_states,
+                relative_pos,
+                rel_embeddings,
             )
             if output_attentions:
                 hidden_states, att_m = hidden_states
@@ -843,13 +843,16 @@ class DebertaModel(DebertaPreTrainedModel):
         self.encoder = DebertaEncoder(config)
         self.z_steps = 0
         self.config = config
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.embeddings.word_embeddings
 
     def set_input_embeddings(self, new_embeddings):
         self.embeddings.word_embeddings = new_embeddings
+
+    def get_layers(self):
+        return self.encoder.layer
 
     def _prune_heads(self, heads_to_prune):
         """
@@ -876,11 +879,13 @@ class DebertaModel(DebertaPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        return_dict = torch.tensor(return_dict if return_dict is not None else self.config.use_return_dict)
 
         if input_ids is not None and inputs_embeds is not None:
             raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
@@ -968,7 +973,7 @@ class DebertaForSequenceClassification(DebertaPreTrainedModel):
         drop_out = self.config.hidden_dropout_prob if drop_out is None else drop_out
         self.dropout = StableDropout(drop_out)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.deberta.get_input_embeddings()

@@ -657,7 +657,7 @@ class T5Stack(T5PreTrainedModel):
         self.final_layer_norm = T5LayerNorm(config.d_model, eps=config.layer_norm_epsilon)
         self.dropout = nn.Dropout(config.dropout_rate)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.embed_tokens
@@ -684,8 +684,10 @@ class T5Stack(T5PreTrainedModel):
     ):
 
         use_cache = use_cache if use_cache is not None else self.config.use_cache
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -919,7 +921,7 @@ class T5Model(T5PreTrainedModel):
         decoder_config.num_layers = config.num_decoder_layers
         self.decoder = T5Stack(decoder_config, self.shared)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.shared
@@ -1067,7 +1069,7 @@ class T5ForConditionalGeneration(T5PreTrainedModel):
 
         self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.shared

@@ -100,6 +100,7 @@ class BlenderbotTesterMixin(ModelTesterMixin, unittest.TestCase):
     test_pruning = False
     test_missing_keys = False
     test_torchscript = False
+    test_gradient_checkpointing = False
 
     def setUp(self):
         self.model_tester = BlenderbotModelTester(self)

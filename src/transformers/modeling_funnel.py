@@ -648,7 +648,7 @@ class FunnelEncoder(nn.Module):
                         key = value = hidden if self.config.pool_q_only else pooled_hidden
                     else:
                         query = key = value = hidden
-                    layer_output = layer(query, key, value, attention_inputs, output_attentions=output_attentions)
+                    layer_output = layer(query, key, value, attention_inputs, output_attentions)
                     hidden = layer_output[0]
                     if do_pooling:
                         attention_inputs = self.attention_structure.post_attention_pooling(attention_inputs)
@@ -898,13 +898,16 @@ class FunnelBaseModel(FunnelPreTrainedModel):
         self.embeddings = FunnelEmbeddings(config)
         self.encoder = FunnelEncoder(config)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.embeddings.word_embeddings
 
     def set_input_embeddings(self, new_embeddings):
         self.embeddings.word_embeddings = new_embeddings
+
+    def get_layers(self):
+        return [layer for block in self.encoder.blocks for layer in block]
 
     @add_start_docstrings_to_model_forward(FUNNEL_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @add_code_sample_docstrings(
@@ -925,8 +928,10 @@ class FunnelBaseModel(FunnelPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -975,7 +980,7 @@ class FunnelModel(FunnelPreTrainedModel):
         self.encoder = FunnelEncoder(config)
         self.decoder = FunnelDecoder(config)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.embeddings.word_embeddings
@@ -1000,7 +1005,9 @@ class FunnelModel(FunnelPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
@@ -1080,7 +1087,7 @@ class FunnelForPreTraining(FunnelPreTrainedModel):
 
         self.funnel = FunnelModel(config)
         self.discriminator_predictions = FunnelDiscriminatorPredictions(config)
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(FUNNEL_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @replace_return_docstrings(output_type=FunnelForPreTrainingOutput, config_class=_CONFIG_FOR_DOC)
@@ -1162,7 +1169,7 @@ class FunnelForMaskedLM(FunnelPreTrainedModel):
         self.funnel = FunnelModel(config)
         self.lm_head = nn.Linear(config.d_model, config.vocab_size)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_output_embeddings(self):
         return self.lm_head
@@ -1238,7 +1245,7 @@ class FunnelForSequenceClassification(FunnelPreTrainedModel):
 
         self.funnel = FunnelBaseModel(config)
         self.classifier = FunnelClassificationHead(config, config.num_labels)
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(FUNNEL_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @add_code_sample_docstrings(
@@ -1315,7 +1322,7 @@ class FunnelForMultipleChoice(FunnelPreTrainedModel):
 
         self.funnel = FunnelBaseModel(config)
         self.classifier = FunnelClassificationHead(config, 1)
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(FUNNEL_INPUTS_DOCSTRING.format("batch_size, num_choices, sequence_length"))
     @add_code_sample_docstrings(
@@ -1401,7 +1408,7 @@ class FunnelForTokenClassification(FunnelPreTrainedModel):
         self.dropout = nn.Dropout(config.hidden_dropout)
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(FUNNEL_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @add_code_sample_docstrings(
@@ -1483,7 +1490,7 @@ class FunnelForQuestionAnswering(FunnelPreTrainedModel):
         self.funnel = FunnelModel(config)
         self.qa_outputs = nn.Linear(config.hidden_size, config.num_labels)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(FUNNEL_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @add_code_sample_docstrings(

@@ -157,7 +157,7 @@ class DPREncoder(PreTrainedModel):
         self.projection_dim = config.projection_dim
         if self.projection_dim > 0:
             self.encode_proj = nn.Linear(self.bert_model.config.hidden_size, config.projection_dim)
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def forward(
         self,
@@ -199,8 +199,8 @@ class DPREncoder(PreTrainedModel):
             return self.encode_proj.out_features
         return self.bert_model.config.hidden_size
 
-    def init_weights(self):
-        self.bert_model.init_weights()
+    def init_weights_and_layers(self):
+        self.bert_model.init_weights_and_layers()
         if self.projection_dim > 0:
             self.encode_proj.apply(self.bert_model._init_weights)
 
@@ -214,7 +214,7 @@ class DPRSpanPredictor(PreTrainedModel):
         self.encoder = DPREncoder(config)
         self.qa_outputs = nn.Linear(self.encoder.embeddings_size, 2)
         self.qa_classifier = nn.Linear(self.encoder.embeddings_size, 1)
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def forward(
         self,
@@ -261,8 +261,8 @@ class DPRSpanPredictor(PreTrainedModel):
             attentions=outputs.attentions,
         )
 
-    def init_weights(self):
-        self.encoder.init_weights()
+    def init_weights_and_layers(self):
+        self.encoder.init_weights_and_layers()
 
 
 ##################
@@ -281,8 +281,8 @@ class DPRPretrainedContextEncoder(PreTrainedModel):
     base_model_prefix = "ctx_encoder"
     authorized_missing_keys = [r"position_ids"]
 
-    def init_weights(self):
-        self.ctx_encoder.init_weights()
+    def init_weights_and_layers(self):
+        self.ctx_encoder.init_weights_and_layers()
 
 
 class DPRPretrainedQuestionEncoder(PreTrainedModel):
@@ -296,8 +296,8 @@ class DPRPretrainedQuestionEncoder(PreTrainedModel):
     base_model_prefix = "question_encoder"
     authorized_missing_keys = [r"position_ids"]
 
-    def init_weights(self):
-        self.question_encoder.init_weights()
+    def init_weights_and_layers(self):
+        self.question_encoder.init_weights_and_layers()
 
 
 class DPRPretrainedReader(PreTrainedModel):
@@ -311,8 +311,8 @@ class DPRPretrainedReader(PreTrainedModel):
     base_model_prefix = "span_predictor"
     authorized_missing_keys = [r"position_ids"]
 
-    def init_weights(self):
-        self.span_predictor.encoder.init_weights()
+    def init_weights_and_layers(self):
+        self.span_predictor.encoder.init_weights_and_layers()
         self.span_predictor.qa_classifier.apply(self.span_predictor.encoder.bert_model._init_weights)
         self.span_predictor.qa_outputs.apply(self.span_predictor.encoder.bert_model._init_weights)
 
@@ -434,7 +434,7 @@ class DPRContextEncoder(DPRPretrainedContextEncoder):
         super().__init__(config)
         self.config = config
         self.ctx_encoder = DPREncoder(config)
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(DPR_ENCODERS_INPUTS_DOCSTRING)
     @replace_return_docstrings(output_type=DPRContextEncoderOutput, config_class=_CONFIG_FOR_DOC)
@@ -460,8 +460,10 @@ class DPRContextEncoder(DPRPretrainedContextEncoder):
             >>> embeddings = model(input_ids).pooler_output
         """
 
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -512,7 +514,7 @@ class DPRQuestionEncoder(DPRPretrainedQuestionEncoder):
         super().__init__(config)
         self.config = config
         self.question_encoder = DPREncoder(config)
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(DPR_ENCODERS_INPUTS_DOCSTRING)
     @replace_return_docstrings(output_type=DPRQuestionEncoderOutput, config_class=_CONFIG_FOR_DOC)
@@ -537,8 +539,10 @@ class DPRQuestionEncoder(DPRPretrainedQuestionEncoder):
             >>> input_ids = tokenizer("Hello, is my dog cute ?", return_tensors='pt')["input_ids"]
             >>> embeddings = model(input_ids).pooler_output
         """
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -589,7 +593,7 @@ class DPRReader(DPRPretrainedReader):
         super().__init__(config)
         self.config = config
         self.span_predictor = DPRSpanPredictor(config)
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(DPR_READER_INPUTS_DOCSTRING)
     @replace_return_docstrings(output_type=DPRReaderOutput, config_class=_CONFIG_FOR_DOC)
@@ -622,8 +626,10 @@ class DPRReader(DPRPretrainedReader):
             >>> relevance_logits = outputs.relevance_logits
 
         """
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict

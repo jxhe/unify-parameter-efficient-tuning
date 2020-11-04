@@ -115,7 +115,7 @@ class DeeBertModel(BertPreTrainedModel):
         self.encoder = DeeBertEncoder(config)
         self.pooler = BertPooler(config)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def init_highway_pooler(self):
         self.encoder.init_highway_pooler(self.pooler)
@@ -286,7 +286,7 @@ class DeeBertForSequenceClassification(BertPreTrainedModel):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, self.config.num_labels)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(BERT_INPUTS_DOCSTRING)
     def forward(

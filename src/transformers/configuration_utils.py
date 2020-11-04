@@ -170,6 +170,7 @@ class PretrainedConfig(object):
         self.torchscript = kwargs.pop("torchscript", False)  # Only used by PyTorch models
         self.use_bfloat16 = kwargs.pop("use_bfloat16", False)
         self.pruned_heads = kwargs.pop("pruned_heads", {})
+        self.gradient_checkpointing = kwargs.pop("gradient_checkpointing", False)
         self.tie_word_embeddings = kwargs.pop(
             "tie_word_embeddings", True
         )  # Whether input and output word embeddings should be tied for all MLM, LM and Seq2Seq models.

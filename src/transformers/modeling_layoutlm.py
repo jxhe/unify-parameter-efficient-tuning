@@ -380,32 +380,14 @@ class LayoutLMEncoder(nn.Module):
                 all_hidden_states = all_hidden_states + (hidden_states,)
 
             layer_head_mask = head_mask[i] if head_mask is not None else None
-
-            if getattr(self.config, "gradient_checkpointing", False):
-
-                def create_custom_forward(module):
-                    def custom_forward(*inputs):
-                        return module(*inputs, output_attentions)
-
-                    return custom_forward
-
-                layer_outputs = torch.utils.checkpoint.checkpoint(
-                    create_custom_forward(layer_module),
-                    hidden_states,
-                    attention_mask,
-                    layer_head_mask,
-                    encoder_hidden_states,
-                    encoder_attention_mask,
-                )
-            else:
-                layer_outputs = layer_module(
-                    hidden_states,
-                    attention_mask,
-                    layer_head_mask,
-                    encoder_hidden_states,
-                    encoder_attention_mask,
-                    output_attentions,
-                )
+            layer_outputs = layer_module(
+                hidden_states,
+                attention_mask,
+                layer_head_mask,
+                encoder_hidden_states,
+                encoder_attention_mask,
+                output_attentions,
+            )
             hidden_states = layer_outputs[0]
             if output_attentions:
                 all_attentions = all_attentions + (layer_outputs[1],)
@@ -591,13 +573,16 @@ class LayoutLMModel(LayoutLMPreTrainedModel):
         self.encoder = LayoutLMEncoder(config)
         self.pooler = LayoutLMPooler(config)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.embeddings.word_embeddings
 
     def set_input_embeddings(self, value):
         self.embeddings.word_embeddings = value
+
+    def get_layers(self):
+        return self.encoder.layer
 
     def _prune_heads(self, heads_to_prune):
         """
@@ -655,11 +640,13 @@ class LayoutLMModel(LayoutLMPreTrainedModel):
         return_dict (bool, optional):
             If set to True, the model will return a ModelOutput instead of a plain tuple.
         """
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        return_dict = torch.tensor(return_dict if return_dict is not None else self.config.use_return_dict)
 
         if input_ids is not None and inputs_embeds is not None:
             raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
@@ -736,7 +723,7 @@ class LayoutLMForMaskedLM(LayoutLMPreTrainedModel):
         self.layoutlm = LayoutLMModel(config)
         self.cls = LayoutLMOnlyMLMHead(config)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.layoutlm.embeddings.word_embeddings
@@ -827,7 +814,7 @@ class LayoutLMForTokenClassification(LayoutLMPreTrainedModel):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.layoutlm.embeddings.word_embeddings

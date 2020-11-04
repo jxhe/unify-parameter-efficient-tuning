@@ -232,6 +232,7 @@ class SqueezeBertModelTest(ModelTesterMixin, unittest.TestCase):
     test_torchscript = True
     test_resize_embeddings = True
     test_head_masking = False
+    test_gradient_checkpointing = False
 
     def setUp(self):
         self.model_tester = SqueezeBertModelTester(self)

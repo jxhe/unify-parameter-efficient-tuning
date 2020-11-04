@@ -162,8 +162,10 @@ class FlaubertModel(XLMModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -324,7 +326,7 @@ class FlaubertWithLMHeadModel(XLMWithLMHeadModel):
     def __init__(self, config):
         super().__init__(config)
         self.transformer = FlaubertModel(config)
-        self.init_weights()
+        self.init_weights_and_layers()
 
 
 @add_start_docstrings(
@@ -345,7 +347,7 @@ class FlaubertForSequenceClassification(XLMForSequenceClassification):
     def __init__(self, config):
         super().__init__(config)
         self.transformer = FlaubertModel(config)
-        self.init_weights()
+        self.init_weights_and_layers()
 
 
 @add_start_docstrings(
@@ -366,7 +368,7 @@ class FlaubertForTokenClassification(XLMForTokenClassification):
     def __init__(self, config):
         super().__init__(config)
         self.transformer = FlaubertModel(config)
-        self.init_weights()
+        self.init_weights_and_layers()
 
 
 @add_start_docstrings(
@@ -387,7 +389,7 @@ class FlaubertForQuestionAnsweringSimple(XLMForQuestionAnsweringSimple):
     def __init__(self, config):
         super().__init__(config)
         self.transformer = FlaubertModel(config)
-        self.init_weights()
+        self.init_weights_and_layers()
 
 
 @add_start_docstrings(
@@ -408,7 +410,7 @@ class FlaubertForQuestionAnswering(XLMForQuestionAnswering):
     def __init__(self, config):
         super().__init__(config)
         self.transformer = FlaubertModel(config)
-        self.init_weights()
+        self.init_weights_and_layers()
 
 
 @add_start_docstrings(
@@ -429,4 +431,4 @@ class FlaubertForMultipleChoice(XLMForMultipleChoice):
     def __init__(self, config):
         super().__init__(config)
         self.transformer = FlaubertModel(config)
-        self.init_weights()
+        self.init_weights_and_layers()

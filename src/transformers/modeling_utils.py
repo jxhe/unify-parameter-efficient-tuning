@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import inspect
 import os
 import re
@@ -665,9 +666,28 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin):
 
         return new_embeddings
 
-    def init_weights(self):
+    def get_layers(self):
         """
-        Initializes and prunes weights if needed.
+        Returns the model's transformer layers.
+
+        Returns:
+            :obj:`List[nn.Module]` or :obj:`nn.ModuleList`: A list or :obj:`nn.ModuleList` containing all transformer
+            layers.
+        """
+        base_model = getattr(self, self.base_model_prefix, self)
+
+        if base_model is not self:
+            return base_model.get_layers()
+        else:
+            raise NotImplementedError
+
+    def init_weights(self):
+        # Backwards compatibility
+        self.init_weights_and_layers()
+
+    def init_weights_and_layers(self):
+        """
+        Initializes and prunes weights if needed. Sets up gradient checkpointing if in the configuration.
         """
         # Initialize weights
         self.apply(self._init_weights)
@@ -678,6 +698,11 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin):
 
         # Tie weights if needed
         self.tie_weights()
+
+        # Gradient checkpointing if needed
+        if self.config.gradient_checkpointing:
+            for layer in self.get_layers():
+                layer.forward = functools.partial(torch.utils.checkpoint.checkpoint, layer.forward)
 
     def prune_heads(self, heads_to_prune: Dict[int, List[int]]):
         """

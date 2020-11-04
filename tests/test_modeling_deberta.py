@@ -54,6 +54,9 @@ class DebertaModelTest(ModelTesterMixin, unittest.TestCase):
     test_head_masking = False
     is_encoder_decoder = False
 
+    # Needs to have DebertaForMaskedLM to test this.
+    test_gradient_checkpointing = False
+
     class DebertaModelTester(object):
         def __init__(
             self,

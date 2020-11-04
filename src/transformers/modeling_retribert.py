@@ -95,7 +95,7 @@ class RetriBertModel(RetriBertPreTrainedModel):
 
         self.ce_loss = nn.CrossEntropyLoss(reduction="mean")
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def embed_sentences_checkpointed(
         self,

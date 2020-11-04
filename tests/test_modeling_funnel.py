@@ -454,3 +454,28 @@ class FunnelModelIntegrationTest(unittest.TestCase):
         expected_output_mean = torch.tensor(0.0256)
         self.assertTrue(torch.allclose(output.sum(), expected_output_sum, atol=1e-4))
         self.assertTrue(torch.allclose(output.mean(), expected_output_mean, atol=1e-4))
+
+    def test_model_gradient_checkpointing_equivalent_results(self):
+        if not self.test_gradient_checkpointing:
+            return
+
+        for model_class in self.all_model_classes:
+            print(model_class)
+            config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
+            model = model_class(config)
+            model.to(torch_device)
+            model.eval()
+            outputs_no_checkpointing = model(**self._prepare_for_class(inputs_dict, model_class))
+
+            config.gradient_checkpointing = True
+            model_with_gc = model_class(config)
+            model_with_gc.load_state_dict(model.state_dict())
+            model_with_gc.to(torch_device)
+            model_with_gc.eval()
+            outputs_with_checkpointing = model_with_gc(**self._prepare_for_class(inputs_dict, model_class))
+
+            for output_no_checkpointing, output_with_checkpointing in zip(
+                outputs_no_checkpointing, outputs_with_checkpointing
+            ):
+                if isinstance(output_with_checkpointing, torch.Tensor):
+                    self.assertTrue(torch.allclose(output_no_checkpointing, output_with_checkpointing))

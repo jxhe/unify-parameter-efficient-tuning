@@ -76,12 +76,7 @@ def separate_process_wrapper_fn(func: Callable[[], None], do_multi_processing: b
         # run function in an individual
         # process to get correct memory
         def wrapper_func(queue: Queue, *args):
-            try:
-                result = func(*args)
-            except Exception as e:
-                logger.error(e)
-                print(e)
-                result = "N/A"
+            result = func(*args)
             queue.put(result)
 
         queue = Queue()
@@ -291,13 +286,13 @@ def measure_peak_memory_cpu(function: Callable[[], None], interval=0.5, device_i
                 # receive memory and num measurements
                 max_memory = parent_connection.recv()
                 num_measurements = parent_connection.recv()
-            except Exception:
+            except Exception as e:
                 # kill process in a clean way
                 parent = psutil.Process(os.getpid())
                 for child in parent.children(recursive=True):
                     os.kill(child.pid, SIGKILL)
                 mem_process.join(0)
-                raise RuntimeError("Process killed. Error in Process")
+                raise RuntimeError(f"Process killed. Error in Process: {e}")
 
             # run process at least 20 * interval or until it finishes
             mem_process.join(20 * interval)
@@ -692,7 +687,8 @@ class Benchmark(ABC):
                 for sequence_length in self.args.sequence_lengths:
                     if self.args.inference:
                         if self.args.memory:
-                            memory, inference_summary = self.inference_memory(model_name, batch_size, sequence_length)
+                            outputs = self.inference_memory(model_name, batch_size, sequence_length)
+                            memory, inference_summary = outputs if type(outputs) == tuple else (outputs, None)
                             inference_result_memory[model_name]["result"][batch_size][sequence_length] = memory
                         if self.args.speed:
                             time = self.inference_speed(model_name, batch_size, sequence_length)
@@ -700,7 +696,8 @@ class Benchmark(ABC):
 
                     if self.args.training:
                         if self.args.memory:
-                            memory, train_summary = self.train_memory(model_name, batch_size, sequence_length)
+                            outputs = self.train_memory(model_name, batch_size, sequence_length)
+                            memory, train_summary = outputs if type(outputs) == tuple else (outputs, None)
                             train_result_memory[model_name]["result"][batch_size][sequence_length] = memory
                         if self.args.speed:
                             time = self.train_speed(model_name, batch_size, sequence_length)

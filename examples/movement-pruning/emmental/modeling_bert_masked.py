@@ -482,7 +482,7 @@ class MaskedBertModel(MaskedBertPreTrainedModel):
         self.encoder = BertEncoder(config)
         self.pooler = BertPooler(config)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.embeddings.word_embeddings
@@ -669,7 +669,7 @@ class MaskedBertForSequenceClassification(MaskedBertPreTrainedModel):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, self.config.num_labels)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(MASKED_BERT_INPUTS_DOCSTRING)
     def forward(
@@ -754,7 +754,7 @@ class MaskedBertForMultipleChoice(MaskedBertPreTrainedModel):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, 1)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(MASKED_BERT_INPUTS_DOCSTRING)
     def forward(
@@ -844,7 +844,7 @@ class MaskedBertForTokenClassification(MaskedBertPreTrainedModel):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(MASKED_BERT_INPUTS_DOCSTRING)
     def forward(
@@ -930,7 +930,7 @@ class MaskedBertForQuestionAnswering(MaskedBertPreTrainedModel):
         self.bert = MaskedBertModel(config)
         self.qa_outputs = nn.Linear(config.hidden_size, config.num_labels)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(MASKED_BERT_INPUTS_DOCSTRING)
     def forward(

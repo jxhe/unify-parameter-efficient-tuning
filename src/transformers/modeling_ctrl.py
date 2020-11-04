@@ -149,7 +149,7 @@ class MultiHeadAttention(torch.nn.Module):
             k = torch.cat((past_key, k), dim=-2)
             v = torch.cat((past_value, v), dim=-2)
 
-        if use_cache is True:
+        if use_cache:
             present = torch.stack((k, v))
         else:
             present = (None,)
@@ -334,13 +334,16 @@ class CTRLModel(CTRLPreTrainedModel):
         )
         self.layernorm = nn.LayerNorm(config.n_embd, eps=config.layer_norm_epsilon)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.w
 
     def set_input_embeddings(self, new_embeddings):
         self.w = new_embeddings
+
+    def get_layers(self):
+        return self.h
 
     def _prune_heads(self, heads_to_prune):
         """
@@ -379,9 +382,11 @@ class CTRLModel(CTRLPreTrainedModel):
             past_key_values = kwargs.pop("past")
         assert kwargs == {}, f"Unexpected keyword arguments: {list(kwargs.keys())}."
 
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        use_cache = use_cache if use_cache is not None else self.config.use_cache
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        use_cache = torch.tensor(use_cache if use_cache is not None else self.config.use_cache)
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -459,17 +464,18 @@ class CTRLModel(CTRLPreTrainedModel):
         for i, (h, layer_past) in enumerate(zip(self.h, past_key_values)):
             if output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_states.view(*output_shape),)
+            layer_head_mask = head_mask[i] if head_mask is not None else None
             outputs = h(
                 hidden_states,
                 mask,
-                layer_past=layer_past,
-                attention_mask=attention_mask,
-                head_mask=head_mask[i],
-                use_cache=use_cache,
-                output_attentions=output_attentions,
+                layer_past,
+                attention_mask,
+                layer_head_mask,
+                use_cache,
+                output_attentions,
             )
             hidden_states, present = outputs[:2]
-            if use_cache is True:
+            if use_cache:
                 presents = presents + (present,)
 
             if output_attentions:
@@ -509,7 +515,7 @@ class CTRLLMHeadModel(CTRLPreTrainedModel):
         self.transformer = CTRLModel(config)
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=True)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_output_embeddings(self):
         return self.lm_head

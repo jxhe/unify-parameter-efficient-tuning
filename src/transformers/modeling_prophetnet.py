@@ -1135,7 +1135,7 @@ class ProphetNetEncoder(ProphetNetPreTrainedModel):
 
         self.layers = nn.ModuleList([ProphetNetEncoderLayer(config) for _ in range(config.num_encoder_layers)])
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.word_embeddings
@@ -1170,8 +1170,10 @@ class ProphetNetEncoder(ProphetNetPreTrainedModel):
             >>> last_hidden_states = outputs.last_hidden_state
         """
 
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -1251,7 +1253,7 @@ class ProphetNetDecoder(ProphetNetPreTrainedModel):
         self.layers = nn.ModuleList([ProphetNetDecoderLayer(config) for _ in range(config.num_decoder_layers)])
         self.embeddings_layer_norm = ProphetNetLayerNorm(config.hidden_size)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.word_embeddings
@@ -1310,8 +1312,10 @@ class ProphetNetDecoder(ProphetNetPreTrainedModel):
             >>> last_hidden_states = outputs.last_hidden_state
         """
         use_cache = use_cache if use_cache is not None else self.config.use_cache
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -1559,7 +1563,7 @@ class ProphetNetModel(ProphetNetPreTrainedModel):
         decoder_config.is_encoder_decoder = False
         self.decoder = ProphetNetDecoder(decoder_config, self.word_embeddings)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.word_embeddings
@@ -1611,8 +1615,10 @@ class ProphetNetModel(ProphetNetPreTrainedModel):
         """
 
         use_cache == use_cache if use_cache is not None else self.config.use_cache
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -1671,7 +1677,7 @@ class ProphetNetForConditionalGeneration(ProphetNetPreTrainedModel):
 
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_output_embeddings(self):
         return self.lm_head
@@ -1859,7 +1865,7 @@ class ProphetNetForCausalLM(ProphetNetPreTrainedModel):
 
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.decoder.word_embeddings

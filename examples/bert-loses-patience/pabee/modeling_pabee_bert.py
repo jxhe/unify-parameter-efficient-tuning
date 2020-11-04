@@ -70,7 +70,7 @@ class BertModelWithPabee(BertModel):
 
         self.encoder = BertEncoderWithPabee(config)
 
-        self.init_weights()
+        self.init_weights_and_layers()
         self.patience = 0
         self.inference_instances_num = 0
         self.inference_layers_num = 0
@@ -252,7 +252,7 @@ class BertForSequenceClassificationWithPabee(BertPreTrainedModel):
             [nn.Linear(config.hidden_size, self.config.num_labels) for _ in range(config.num_hidden_layers)]
         )
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(BERT_INPUTS_DOCSTRING)
     def forward(

@@ -862,6 +862,7 @@ class ProphetNetModelTest(ModelTesterMixin, GenerationTesterMixin, unittest.Test
     test_resize_embeddings = False
     test_headmasking = False
     is_encoder_decoder = True
+    test_gradient_checkpointing = False
 
     def setUp(self):
         self.model_tester = ProphetNetModelTester(self)

@@ -583,6 +583,7 @@ class ReformerLocalAttnModelTest(ReformerTesterMixin, GenerationTesterMixin, Mod
     test_pruning = False
     test_headmasking = False
     test_torchscript = False
+    test_gradient_checkpointing = False
 
     def prepare_kwargs(self):
         return {

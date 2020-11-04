@@ -140,6 +140,7 @@ class BARTModelTest(ModelTesterMixin, GenerationTesterMixin, unittest.TestCase):
     test_pruning = False
     test_head_masking = False
     test_missing_keys = False
+    test_gradient_checkpointing = False
 
     def setUp(self):
         self.model_tester = ModelTester(self)

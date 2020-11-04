@@ -329,6 +329,8 @@ class FlaubertModelTester(object):
 @require_torch
 class FlaubertModelTest(ModelTesterMixin, unittest.TestCase):
 
+    test_gradient_checkpointing = False
+
     all_model_classes = (
         (
             FlaubertModel,

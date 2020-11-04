@@ -67,6 +67,7 @@ class ModelTesterMixin:
     test_head_masking = True
     test_missing_keys = True
     is_encoder_decoder = False
+    test_gradient_checkpointing = True
 
     def _prepare_for_class(self, inputs_dict, model_class, return_labels=False):
         inputs_dict = copy.deepcopy(inputs_dict)
@@ -880,6 +881,71 @@ class ModelTesterMixin:
 
             with torch.no_grad():
                 model(**inputs)[0]
+
+    def test_model_gradient_checkpointing_equivalent_results(self):
+        if not self.test_gradient_checkpointing:
+            return
+
+        for model_class in self.all_model_classes:
+            print(model_class)
+            config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
+            model = model_class(config)
+            model.to(torch_device)
+            model.eval()
+            outputs_no_checkpointing = model(**self._prepare_for_class(inputs_dict, model_class))
+
+            config.gradient_checkpointing = True
+            model_with_gc = model_class(config)
+            model_with_gc.load_state_dict(model.state_dict())
+            model_with_gc.to(torch_device)
+            model_with_gc.eval()
+            outputs_with_checkpointing = model_with_gc(**self._prepare_for_class(inputs_dict, model_class))
+
+            for output_no_checkpointing, output_with_checkpointing in zip(
+                outputs_no_checkpointing, outputs_with_checkpointing
+            ):
+                if isinstance(output_with_checkpointing, torch.Tensor):
+                    self.assertTrue(torch.allclose(output_no_checkpointing, output_with_checkpointing))
+
+    def test_model_gradient_checkpointing_memory(self):
+        if not self.test_gradient_checkpointing:
+            return
+
+        from transformers import PyTorchBenchmark, PyTorchBenchmarkArguments
+
+        config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
+        gc_config = config
+        gc_config.gradient_checkpointing = True
+
+        ngc_config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
+
+        assert gc_config.gradient_checkpointing and not ngc_config.gradient_checkpointing
+
+        # Gradient Checkpointing becomes really valuable for large input sizes.
+        batch_size = int(self.model_tester.batch_size / 2)
+        sequence_length = int(self.model_tester.max_position_embeddings / 2)
+
+        # Run the benchmark
+        args = PyTorchBenchmarkArguments(
+            models=["gc", "ngc"],
+            batch_sizes=[batch_size],
+            sequence_lengths=[sequence_length],
+            inference=False,
+            training=True,
+            speed=False,
+        )
+        benchmark = PyTorchBenchmark(args, configs=[gc_config, ngc_config])
+
+        # Parse results
+        result = benchmark.run()
+        memory_result = result.memory_train_result
+        gc_memory_result = memory_result["gc"]["result"][batch_size][sequence_length]
+        ngc_memory_result = memory_result["ngc"]["result"][batch_size][sequence_length]
+
+        self.assertTrue(
+            ngc_memory_result > gc_memory_result * 1.2,
+            "Assert that gradient checkpointing requires a lot less memory.",
+        )
 
     @require_torch_multigpu
     def test_multigpu_data_parallel_forward(self):

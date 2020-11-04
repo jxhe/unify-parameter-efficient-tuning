@@ -600,13 +600,16 @@ class AlbertModel(AlbertPreTrainedModel):
             self.pooler = None
             self.pooler_activation = None
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.embeddings.word_embeddings
 
     def set_input_embeddings(self, value):
         self.embeddings.word_embeddings = value
+
+    def get_layers(self):
+        return [layer for layer_group in self.encoder.albert_layer_groups for layer in layer_group.albert_layers]
 
     def _resize_token_embeddings(self, new_num_tokens):
         old_embeddings = self.embeddings.word_embeddings
@@ -650,11 +653,13 @@ class AlbertModel(AlbertPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        return_dict = torch.tensor(return_dict if return_dict is not None else self.config.use_return_dict)
 
         if input_ids is not None and inputs_embeds is not None:
             raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
@@ -719,7 +724,7 @@ class AlbertForPreTraining(AlbertPreTrainedModel):
         self.predictions = AlbertMLMHead(config)
         self.sop_classifier = AlbertSOPHead(config)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_output_embeddings(self):
         return self.predictions.decoder
@@ -871,7 +876,7 @@ class AlbertForMaskedLM(AlbertPreTrainedModel):
         self.albert = AlbertModel(config, add_pooling_layer=False)
         self.predictions = AlbertMLMHead(config)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_output_embeddings(self):
         return self.predictions.decoder
@@ -965,7 +970,7 @@ class AlbertForSequenceClassification(AlbertPreTrainedModel):
         self.dropout = nn.Dropout(config.classifier_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, self.config.num_labels)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(ALBERT_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @add_code_sample_docstrings(
@@ -1053,7 +1058,7 @@ class AlbertForTokenClassification(AlbertPreTrainedModel):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, self.config.num_labels)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(ALBERT_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @add_code_sample_docstrings(
@@ -1141,7 +1146,7 @@ class AlbertForQuestionAnswering(AlbertPreTrainedModel):
         self.albert = AlbertModel(config, add_pooling_layer=False)
         self.qa_outputs = nn.Linear(config.hidden_size, config.num_labels)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(ALBERT_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @add_code_sample_docstrings(
@@ -1240,7 +1245,7 @@ class AlbertForMultipleChoice(AlbertPreTrainedModel):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, 1)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(ALBERT_INPUTS_DOCSTRING.format("batch_size, num_choices, sequence_length"))
     @add_code_sample_docstrings(

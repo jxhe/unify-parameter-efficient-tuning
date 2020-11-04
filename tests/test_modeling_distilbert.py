@@ -211,6 +211,7 @@ class DistilBertModelTest(ModelTesterMixin, unittest.TestCase):
     test_torchscript = True
     test_resize_embeddings = True
     test_head_masking = True
+    test_gradient_checkpointing = True
 
     def setUp(self):
         self.model_tester = DistilBertModelTester(self)

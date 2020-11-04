@@ -1106,7 +1106,7 @@ class LongformerModel(LongformerPreTrainedModel):
         self.encoder = LongformerEncoder(config)
         self.pooler = LongformerPooler(config) if add_pooling_layer else None
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.embeddings.word_embeddings
@@ -1223,8 +1223,10 @@ class LongformerModel(LongformerPreTrainedModel):
             >>> pooled_output = outputs.pooler_output
         """
 
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -1303,7 +1305,7 @@ class LongformerForMaskedLM(LongformerPreTrainedModel):
         self.longformer = LongformerModel(config, add_pooling_layer=False)
         self.lm_head = LongformerLMHead(config)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_output_embeddings(self):
         return self.lm_head.decoder
@@ -1410,7 +1412,7 @@ class LongformerForSequenceClassification(LongformerPreTrainedModel):
         self.longformer = LongformerModel(config, add_pooling_layer=False)
         self.classifier = LongformerClassificationHead(config)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(LONGFORMER_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @add_code_sample_docstrings(
@@ -1519,7 +1521,7 @@ class LongformerForQuestionAnswering(LongformerPreTrainedModel):
         self.longformer = LongformerModel(config, add_pooling_layer=False)
         self.qa_outputs = nn.Linear(config.hidden_size, config.num_labels)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(LONGFORMER_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @replace_return_docstrings(output_type=QuestionAnsweringModelOutput, config_class=_CONFIG_FOR_DOC)
@@ -1653,7 +1655,7 @@ class LongformerForTokenClassification(LongformerPreTrainedModel):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(LONGFORMER_INPUTS_DOCSTRING.format("batch_size, sequence_length"))
     @add_code_sample_docstrings(
@@ -1740,7 +1742,7 @@ class LongformerForMultipleChoice(LongformerPreTrainedModel):
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.classifier = nn.Linear(config.hidden_size, 1)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(
         LONGFORMER_INPUTS_DOCSTRING.format("batch_size, num_choices, sequence_length")

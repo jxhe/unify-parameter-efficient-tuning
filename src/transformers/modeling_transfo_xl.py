@@ -785,7 +785,7 @@ class TransfoXLModel(TransfoXLPreTrainedModel):
         else:  # learnable embeddings and absolute embeddings
             raise NotImplementedError  # Removed these to avoid maintaining dead code - They are not used in our pretrained checkpoint
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.word_emb
@@ -852,8 +852,10 @@ class TransfoXLModel(TransfoXLPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -987,7 +989,7 @@ class TransfoXLLMHeadModel(TransfoXLPreTrainedModel):
             config.vocab_size, config.d_embed, config.d_model, config.cutoffs, div_val=config.div_val
         )
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def tie_weights(self):
         """

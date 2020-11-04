@@ -306,9 +306,8 @@ class Transformer(nn.Module):
             if output_hidden_states:
                 all_hidden_states = all_hidden_states + (hidden_state,)
 
-            layer_outputs = layer_module(
-                x=hidden_state, attn_mask=attn_mask, head_mask=head_mask[i], output_attentions=output_attentions
-            )
+            layer_head_mask = head_mask[i] if head_mask is not None else None
+            layer_outputs = layer_module(hidden_state, attn_mask, layer_head_mask, output_attentions)
             hidden_state = layer_outputs[-1]
 
             if output_attentions:
@@ -420,13 +419,16 @@ class DistilBertModel(DistilBertPreTrainedModel):
         self.embeddings = Embeddings(config)  # Embeddings
         self.transformer = Transformer(config)  # Encoder
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.embeddings.word_embeddings
 
     def set_input_embeddings(self, new_embeddings):
         self.embeddings.word_embeddings = new_embeddings
+
+    def get_layers(self):
+        return self.transformer.layer
 
     def _prune_heads(self, heads_to_prune):
         """
@@ -454,11 +456,13 @@ class DistilBertModel(DistilBertPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        return_dict = torch.tensor(return_dict if return_dict is not None else self.config.use_return_dict)
 
         if input_ids is not None and inputs_embeds is not None:
             raise ValueError("You cannot specify both input_ids and inputs_embeds at the same time")
@@ -502,7 +506,7 @@ class DistilBertForMaskedLM(DistilBertPreTrainedModel):
         self.vocab_layer_norm = nn.LayerNorm(config.dim, eps=1e-12)
         self.vocab_projector = nn.Linear(config.dim, config.vocab_size)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
         self.mlm_loss_fct = nn.CrossEntropyLoss()
 
@@ -593,7 +597,7 @@ class DistilBertForSequenceClassification(DistilBertPreTrainedModel):
         self.classifier = nn.Linear(config.dim, config.num_labels)
         self.dropout = nn.Dropout(config.seq_classif_dropout)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(DISTILBERT_INPUTS_DOCSTRING.format("batch_size, num_choices"))
     @add_code_sample_docstrings(
@@ -674,7 +678,7 @@ class DistilBertForQuestionAnswering(DistilBertPreTrainedModel):
         assert config.num_labels == 2
         self.dropout = nn.Dropout(config.qa_dropout)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(DISTILBERT_INPUTS_DOCSTRING.format("batch_size, num_choices"))
     @add_code_sample_docstrings(
@@ -770,7 +774,7 @@ class DistilBertForTokenClassification(DistilBertPreTrainedModel):
         self.dropout = nn.Dropout(config.dropout)
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(DISTILBERT_INPUTS_DOCSTRING)
     @add_code_sample_docstrings(
@@ -854,7 +858,7 @@ class DistilBertForMultipleChoice(DistilBertPreTrainedModel):
         self.classifier = nn.Linear(config.dim, 1)
         self.dropout = nn.Dropout(config.seq_classif_dropout)
 
-        self.init_weights()
+        self.init_weights_and_layers()
 
     @add_start_docstrings_to_model_forward(
         DISTILBERT_INPUTS_DOCSTRING.format("batch_size, num_choices, sequence_length")

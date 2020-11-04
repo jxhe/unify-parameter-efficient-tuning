@@ -274,6 +274,7 @@ class LongformerModelTest(ModelTesterMixin, unittest.TestCase):
     test_pruning = False  # pruning is not supported
     test_headmasking = False  # head masking is not supported
     test_torchscript = False
+    test_gradient_checkpointing = False
 
     all_model_classes = (
         (

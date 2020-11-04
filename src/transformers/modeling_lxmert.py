@@ -885,7 +885,7 @@ class LxmertModel(LxmertPreTrainedModel):
         self.embeddings = LxmertEmbeddings(config)
         self.encoder = LxmertEncoder(config)
         self.pooler = LxmertPooler(config)
-        self.init_weights()
+        self.init_weights_and_layers()
 
     def get_input_embeddings(self):
         return self.embeddings.word_embeddings
@@ -914,8 +914,10 @@ class LxmertModel(LxmertPreTrainedModel):
         return_dict=None,
     ):
 
-        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
-        output_hidden_states = (
+        output_attentions = torch.tensor(
+            output_attentions if output_attentions is not None else self.config.output_attentions
+        )
+        output_hidden_states = torch.tensor(
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
@@ -1040,7 +1042,7 @@ class LxmertForPreTraining(LxmertPreTrainedModel):
             self.answer_head = LxmertVisualAnswerHead(config, self.num_qa_labels)
 
         # Weight initialization
-        self.init_weights()
+        self.init_weights_and_layers()
 
         # Loss functions
         self.loss_fcts = {
@@ -1285,7 +1287,7 @@ class LxmertForQuestionAnswering(LxmertPreTrainedModel):
         self.answer_head = LxmertVisualAnswerHead(config, self.num_qa_labels)
 
         # Weight initialization
-        self.init_weights()
+        self.init_weights_and_layers()
 
         # Loss function
         self.loss = CrossEntropyLoss()

@@ -23,7 +23,7 @@ class DeeRobertaModel(DeeBertModel):
         super().__init__(config)
 
         self.embeddings = RobertaEmbeddings(config)
-        self.init_weights()
+        self.init_weights_and_layers()
 
 
 @add_start_docstrings(
