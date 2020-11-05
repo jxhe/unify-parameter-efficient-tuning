@@ -114,6 +114,115 @@ jobs:
             - store_artifacts:
                   path: ~/transformers/reports
 
+    run_tests_torch_1_3:
+        working_directory: ~/transformers
+        docker:
+            - image: circleci/python:3.7
+        environment:
+            OMP_NUM_THREADS: 1
+        resource_class: xlarge
+        parallelism: 1
+        steps:
+            - checkout
+            - restore_cache:
+                  keys:
+                      - v0.4-torch-{{ checksum "setup.py" }}
+                      - v0.4-{{ checksum "setup.py" }}
+            - run: pip install --upgrade pip
+            - run: pip install .[sklearn,testing]
+            - run: pip install torch==1.3.0
+            - save_cache:
+                  key: v0.4-torch-{{ checksum "setup.py" }}
+                  paths:
+                      - '~/.cache/pip'
+            - run: python -m pytest -n 8 --dist=loadfile -s --make-reports=tests_torch ./tests/ | tee tests_output.txt
+            - store_artifacts:
+                  path: ~/transformers/tests_output.txt
+            - store_artifacts:
+                  path: ~/transformers/reports
+
+    run_tests_torch_1_4:
+        working_directory: ~/transformers
+        docker:
+            - image: circleci/python:3.7
+        environment:
+            OMP_NUM_THREADS: 1
+        resource_class: xlarge
+        parallelism: 1
+        steps:
+            - checkout
+            - restore_cache:
+                  keys:
+                      - v0.4-torch-{{ checksum "setup.py" }}
+                      - v0.4-{{ checksum "setup.py" }}
+            - run: pip install --upgrade pip
+            - run: pip install .[sklearn,testing]
+            - run: pip install torch==1.4.0
+            - save_cache:
+                  key: v0.4-torch-{{ checksum "setup.py" }}
+                  paths:
+                      - '~/.cache/pip'
+            - run: python -m pytest -n 8 --dist=loadfile -s --make-reports=tests_torch ./tests/ | tee tests_output.txt
+            - store_artifacts:
+                  path: ~/transformers/tests_output.txt
+            - store_artifacts:
+                  path: ~/transformers/reports
+
+    run_tests_torch_1_5:
+        working_directory: ~/transformers
+        docker:
+            - image: circleci/python:3.7
+        environment:
+            OMP_NUM_THREADS: 1
+        resource_class: xlarge
+        parallelism: 1
+        steps:
+            - checkout
+            - restore_cache:
+                  keys:
+                      - v0.4-torch-{{ checksum "setup.py" }}
+                      - v0.4-{{ checksum "setup.py" }}
+            - run: pip install --upgrade pip
+            - run: pip install .[sklearn,testing]
+            - run: pip install torch==1.5.1
+            - save_cache:
+                  key: v0.4-torch-{{ checksum "setup.py" }}
+                  paths:
+                      - '~/.cache/pip'
+            - run: python -m pytest -n 8 --dist=loadfile -s --make-reports=tests_torch ./tests/ | tee tests_output.txt
+            - store_artifacts:
+                  path: ~/transformers/tests_output.txt
+            - store_artifacts:
+                  path: ~/transformers/reports
+
+    run_tests_torch_1_6:
+        working_directory: ~/transformers
+        docker:
+            - image: circleci/python:3.7
+        environment:
+            OMP_NUM_THREADS: 1
+        resource_class: xlarge
+        parallelism: 1
+        steps:
+            - checkout
+            - restore_cache:
+                  keys:
+                      - v0.4-torch-{{ checksum "setup.py" }}
+                      - v0.4-{{ checksum "setup.py" }}
+            - run: pip install --upgrade pip
+            - run: pip install .[sklearn,testing]
+            - run: pip install torch==1.6.0
+            - save_cache:
+                  key: v0.4-torch-{{ checksum "setup.py" }}
+                  paths:
+                      - '~/.cache/pip'
+            - run: python -m pytest -n 8 --dist=loadfile -s --make-reports=tests_torch ./tests/ | tee tests_output.txt
+            - store_artifacts:
+                  path: ~/transformers/tests_output.txt
+            - store_artifacts:
+                  path: ~/transformers/reports
+
+
     run_tests_tf:
         working_directory: ~/transformers
         docker:
@@ -393,6 +502,10 @@ workflows:
             - run_tests_custom_tokenizers
             - run_tests_torch_and_tf
             - run_tests_torch
+            - run_tests_torch_1_3
+            - run_tests_torch_1_4
+            - run_tests_torch_1_5
+            - run_tests_torch_1_6
             - run_tests_tf
             - run_tests_flax
             - run_tests_pipelines_torch
