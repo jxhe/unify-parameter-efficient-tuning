@@ -88,7 +88,7 @@ class TapasConfig(PretrainedConfig):
             Method to calculate expected average of cells in the relaxed case.
         cell_selection_preference: (:obj:`float`, `optional`, defaults to None):
             Preference for cell selection in ambiguous cases. Only applicable in case of weak supervision for aggregation (WTQ, WikiSQL).
-            If the total mass of the aggregation probabilities (excluding the "NONE" operator) is higher than this hyperparameter, 
+            If the total mass of the aggregation probabilities (excluding the "NONE" operator) is higher than this hyperparameter,
             then aggregation is predicted for an example.
         answer_loss_cutoff: (:obj:`float`, `optional`, defaults to None):
             Ignore examples with answer loss larger than cutoff.
@@ -109,7 +109,7 @@ class TapasConfig(PretrainedConfig):
         disable_per_token_loss: (:obj:`bool`, `optional`, defaults to :obj:`False`):
             Disable any (strong or weak) supervision on cells.
         span_prediction: (:obj:`string`, `optional`, defaults to :obj:`"none"`):
-            Span selection mode to use. Currently only "none" is supported. 
+            Span selection mode to use. Currently only "none" is supported.
 
     Example::
 
