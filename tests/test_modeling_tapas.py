@@ -31,10 +31,10 @@ if is_torch_available():
     from transformers import (
         TAPAS_PRETRAINED_MODEL_ARCHIVE_LIST,
         TapasConfig,
-        TapasModel,
         TapasForMaskedLM,
-        TapasForSequenceClassification,
         TapasForQuestionAnswering,
+        TapasForSequenceClassification,
+        TapasModel,
     )
 
 
