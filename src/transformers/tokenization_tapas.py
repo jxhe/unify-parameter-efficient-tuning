@@ -935,11 +935,13 @@ class TapasTokenizer(PreTrainedTokenizer):
     def batch_encode_plus(
         self,
         table,
-        queries: Union[
-            List[TextInput],
-            List[PreTokenizedInput],
-            List[EncodedInput],
-        ],
+        queries: Optional[
+            Union[
+                List[TextInput],
+                List[PreTokenizedInput],
+                List[EncodedInput],
+            ]
+        ] = None,
         answer_coordinates: Optional[List[Tuple]] = None,
         answer_texts: Optional[List[TextInput]] = None,
         add_special_tokens: bool = True,
@@ -1238,11 +1240,13 @@ class TapasTokenizer(PreTrainedTokenizer):
     def __call__(
         self,
         table: pd.DataFrame,
-        queries: Union[
-            List[TextInput],
-            List[PreTokenizedInput],
-            List[EncodedInput],
-        ],
+        queries: Optional[
+            Union[
+                List[TextInput],
+                List[PreTokenizedInput],
+                List[EncodedInput],
+            ]
+        ] = None,
         answer_coordinates: Optional[List[Tuple]] = None,
         answer_texts: Optional[List[TextInput]] = None,
         add_special_tokens: bool = True,
@@ -1368,14 +1372,63 @@ class TapasTokenizer(PreTrainedTokenizer):
                 **kwargs,
             )
 
+    def encode(
+        self,
+        table: pd.DataFrame,
+        query: Optional[
+            Union[
+                TextInput,
+                PreTokenizedInput,
+                EncodedInput,
+            ]
+        ] = None,
+        add_special_tokens: bool = True,
+        padding: Union[bool, str, PaddingStrategy] = False,
+        truncation: Union[bool, str, TruncationStrategy] = False,
+        max_length: Optional[int] = None,
+        stride: int = 0,
+        return_tensors: Optional[Union[str, TensorType]] = None,
+        **kwargs
+    ) -> List[int]:
+        """
+        Converts a string to a sequence of ids (integer), using the tokenizer and vocabulary.
+
+        Same as doing ``self.convert_tokens_to_ids(self.tokenize(text))``.
+
+        Args:
+            text (:obj:`str`, :obj:`List[str]` or :obj:`List[int]`):
+                The first sequence to be encoded. This can be a string, a list of strings (tokenized string using the
+                ``tokenize`` method) or a list of integers (tokenized string ids using the ``convert_tokens_to_ids``
+                method).
+            text_pair (:obj:`str`, :obj:`List[str]` or :obj:`List[int]`, `optional`):
+                Optional second sequence to be encoded. This can be a string, a list of strings (tokenized string using
+                the ``tokenize`` method) or a list of integers (tokenized string ids using the
+                ``convert_tokens_to_ids`` method).
+        """
+        encoded_inputs = self.encode_plus(
+            table,
+            query=query,
+            add_special_tokens=add_special_tokens,
+            padding=padding,
+            truncation=truncation,
+            max_length=max_length,
+            stride=stride,
+            return_tensors=return_tensors,
+            **kwargs,
+        )
+
+        return encoded_inputs["input_ids"]
+
     def encode_plus(
         self,
         table: pd.DataFrame,
-        query: Union[
-            TextInput,
-            PreTokenizedInput,
-            EncodedInput,
-        ],
+        query: Optional[
+            Union[
+                TextInput,
+                PreTokenizedInput,
+                EncodedInput,
+            ]
+        ] = None,
         answer_coordinate: Optional[List[Tuple]] = None,
         answer_text: Optional[List[TextInput]] = None,
         add_special_tokens: bool = True,
@@ -1386,8 +1439,8 @@ class TapasTokenizer(PreTrainedTokenizer):
         is_split_into_words: bool = False,
         pad_to_multiple_of: Optional[int] = None,
         return_tensors: Optional[Union[str, TensorType]] = None,
-        return_token_type_ids: Optional[bool] = True,
-        return_attention_mask: Optional[bool] = True,
+        return_token_type_ids: Optional[bool] = None,
+        return_attention_mask: Optional[bool] = None,
         return_overflowing_tokens: bool = False,
         return_special_tokens_mask: bool = False,
         return_offsets_mapping: bool = False,
@@ -1436,31 +1489,31 @@ class TapasTokenizer(PreTrainedTokenizer):
         )
 
     def create_attention_mask_from_sequences(self, query_ids: List[int], table_values: List[TableValue]) -> List[int]:
-        table_ids = list(zip(*table_values))[0]
+        table_ids = list(zip(*table_values))[0] if table_values else []
         return [1] * (1 + len(query_ids) + 1) + [0] * len(table_ids)
 
     def create_segment_token_type_ids_from_sequences(
         self, query_ids: List[int], table_values: List[TableValue]
     ) -> List[int]:
-        table_ids = list(zip(*table_values))[0]
+        table_ids = list(zip(*table_values))[0] if table_values else []
         return [0] * (1 + len(query_ids) + 1) + [1] * len(table_ids)
 
     def create_column_token_type_ids_from_sequences(
         self, query_ids: List[int], table_values: List[TableValue]
     ) -> List[int]:
-        table_column_ids = list(zip(*table_values))[1]
+        table_column_ids = list(zip(*table_values))[1] if table_values else []
         return [0] * (1 + len(query_ids) + 1) + list(table_column_ids)
 
     def create_row_token_type_ids_from_sequences(
         self, query_ids: List[int], table_values: List[TableValue]
     ) -> List[int]:
-        table_row_ids = list(zip(*table_values))[2]
+        table_row_ids = list(zip(*table_values))[2] if table_values else []
         return [0] * (1 + len(query_ids) + 1) + list(table_row_ids)
 
     def create_label_ids_from_sequences_and_answers(
         self, query_ids: List[int], table_values: List[TableValue]
     ) -> List[int]:
-        table_row_ids = list(zip(*table_values))[2]
+        table_row_ids = list(zip(*table_values))[2] if table_values else []
         return [0] * (1 + len(query_ids) + 1) + list(table_row_ids)
 
     def build_inputs_with_special_tokens(
@@ -1511,8 +1564,15 @@ class TapasTokenizer(PreTrainedTokenizer):
         verbose: bool = True,
         **kwargs
     ):
-        query_tokens = self.tokenize(query)
+        if query is None:
+            query = ""
+            logger.warning(
+                "TAPAS is a question answering model but you have not passed a query. Please be aware that the "
+                "model will probably not behave correctly."
+            )
+
         table_tokens = self._tokenize_table(table)
+        query_tokens = self.tokenize(query)
 
         num_rows = self._get_num_rows(table, self.drop_rows_to_fit)
         num_columns = self._get_num_columns(table)
@@ -1597,7 +1657,8 @@ class TapasTokenizer(PreTrainedTokenizer):
 
         # The conversion from tokens -> IDs should be done in the encode method, not in the prepare_for_model method.
         query_ids = self.convert_tokens_to_ids(query)
-        table_ids = self.convert_tokens_to_ids(list(list(zip(*table))[0]))
+        table_ids = list(zip(*table))[0] if len(table) > 0 else list(zip(*table))
+        table_ids = self.convert_tokens_to_ids(list(table_ids))
         total_len = (
             len(query_ids) + len(table_ids) + (self.num_special_tokens_to_add(pair=True) if add_special_tokens else 0)
         )
@@ -1634,6 +1695,12 @@ class TapasTokenizer(PreTrainedTokenizer):
         numeric_relations = self._add_numeric_relations(
             raw_query, column_ids, row_ids, raw_table, {}, columns_to_numeric_values
         )
+
+        # Load from model defaults
+        if return_token_type_ids is None:
+            return_token_type_ids = "token_type_ids" in self.model_input_names
+        if return_attention_mask is None:
+            return_attention_mask = "attention_mask" in self.model_input_names
 
         if return_attention_mask:
             attention_mask = self.create_attention_mask_from_sequences(query_ids, table)
