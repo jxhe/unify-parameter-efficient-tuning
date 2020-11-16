@@ -27,8 +27,6 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
-import sacremoses as sm
-
 from .file_utils import cached_path, is_torch_available, torch_only_method
 from .tokenization_utils import PreTrainedTokenizer
 from .utils import logging
@@ -39,6 +37,12 @@ if is_torch_available():
 
 
 logger = logging.get_logger(__name__)
+
+try:
+    import sacremoses as sm
+except ModuleNotFoundError:
+    logger.error("Sacremoses not found. Will not be able to instantiate an XLM tokenizer.")
+
 
 VOCAB_FILES_NAMES = {
     "pretrained_vocab_file": "vocab.pkl",
