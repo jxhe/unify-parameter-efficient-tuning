@@ -22,13 +22,17 @@ import sys
 import unicodedata
 from typing import List, Optional, Tuple
 
-import sacremoses as sm
 
 from .tokenization_utils import PreTrainedTokenizer
 from .utils import logging
 
 
 logger = logging.get_logger(__name__)
+
+try:
+    import sacremoses as sm
+except ModuleNotFoundError:
+    logger.error("Sacremoses not found. Will not be able to instantiate an XLM tokenizer.")
 
 VOCAB_FILES_NAMES = {
     "vocab_file": "vocab.json",
