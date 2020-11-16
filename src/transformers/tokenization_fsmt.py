@@ -21,8 +21,6 @@ import re
 import unicodedata
 from typing import Dict, List, Optional, Tuple
 
-import sacremoses as sm
-
 from .file_utils import add_start_docstrings
 from .tokenization_utils import BatchEncoding, PreTrainedTokenizer
 from .tokenization_utils_base import PREPARE_SEQ2SEQ_BATCH_DOCSTRING
@@ -30,6 +28,11 @@ from .utils import logging
 
 
 logger = logging.get_logger(__name__)
+
+try:
+    import sacremoses as sm
+except ModuleNotFoundError:
+    logger.error("Sacremoses not found. Will not be able to instantiate an XLM tokenizer.")
 
 VOCAB_FILES_NAMES = {
     "src_vocab_file": "vocab-src.json",
