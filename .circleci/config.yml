@@ -80,18 +80,29 @@ references:
                 kubectl get job | awk 'match($4,/[0-9]+[dh]/) {print $0}'
                 kubectl delete job $(kubectl get job | awk 'match($4,/[0-9]+[dh]/) {print $1}')
 
+setup: &setup
+    working_directory: ~/transformers
+    docker:
+        - image: circleci/python:3.6
+    environment:
+        OMP_NUM_THREADS: 1
+    resource_class: xlarge
+    parallelism: 1
 
+setup-small: &setup-small
+    working_directory: ~/transformers
+    docker:
+        - image: circleci/python:3.6
 
+store: &store
+    - store_artifacts:
+          path: ~/transformers/tests_output.txt
+    - store_artifacts:
+          path: ~/transformers/reports
 
 jobs:
     run_tests_torch_and_tf:
-        working_directory: ~/transformers
-        docker:
-            - image: circleci/python:3.6
-        environment:
-            OMP_NUM_THREADS: 1
-        resource_class: xlarge
-        parallelism: 1
+        <<: *setup
         steps:
             - checkout
             - skip-job-on-doc-only-changes
@@ -112,13 +123,7 @@ jobs:
                   path: ~/transformers/reports
 
     run_tests_torch:
-        working_directory: ~/transformers
-        docker:
-            - image: circleci/python:3.7
-        environment:
-            OMP_NUM_THREADS: 1
-        resource_class: xlarge
-        parallelism: 1
+        <<: *setup
         steps:
             - checkout
             - skip-job-on-doc-only-changes
@@ -133,19 +138,48 @@ jobs:
                   paths:
                       - '~/.cache/pip'
             - run: python -m pytest -n 8 --dist=loadfile -s --make-reports=tests_torch ./tests/ | tee tests_output.txt
-            - store_artifacts:
-                  path: ~/transformers/tests_output.txt
-            - store_artifacts:
-                  path: ~/transformers/reports
+            <<: *store
+
+    run_tests_torch-1-3:
+        <<: *setup
+        steps:
+            - checkout
+            - skip-job-on-doc-only-changes
+            - restore_cache:
+                  keys:
+                      - v0.4-torch-{{ checksum "setup.py" }}
+                      - v0.4-{{ checksum "setup.py" }}
+            - run: pip install --upgrade pip
+            - run: pip install .[sklearn,testing,sentencepiece]
+            - run: pip install torch==1.3
+            - save_cache:
+                  key: v0.4-torch-1-3-{{ checksum "setup.py" }}
+                  paths:
+                      - '~/.cache/pip'
+            - run: python -m pytest -n 8 --dist=loadfile -s --make-reports=tests_torch ./tests/ | tee tests_output.txt
+            <<: *store
+
+    run_tests_torch-1-4:
+        <<: *setup
+        steps:
+            - checkout
+            - skip-job-on-doc-only-changes
+            - restore_cache:
+                  keys:
+                      - v0.4-torch-{{ checksum "setup.py" }}
+                      - v0.4-{{ checksum "setup.py" }}
+            - run: pip install --upgrade pip
+            - run: pip install .[sklearn,testing,sentencepiece]
+            - run: pip install torch==1.4
+            - save_cache:
+                  key: v0.4-torch-1-4-{{ checksum "setup.py" }}
+                  paths:
+                      - '~/.cache/pip'
+            - run: python -m pytest -n 8 --dist=loadfile -s --make-reports=tests_torch ./tests/ | tee tests_output.txt
+            <<: *store
 
     run_tests_tf:
-        working_directory: ~/transformers
-        docker:
-            - image: circleci/python:3.7
-        environment:
-            OMP_NUM_THREADS: 1
-        resource_class: xlarge
-        parallelism: 1
+        <<: *setup
         steps:
             - checkout
             - skip-job-on-doc-only-changes
@@ -160,19 +194,10 @@ jobs:
                   paths:
                       - '~/.cache/pip'
             - run: python -m pytest -n 8 --dist=loadfile -rA -s --make-reports=tests_tf ./tests/ | tee tests_output.txt
-            - store_artifacts:
-                  path: ~/transformers/tests_output.txt
-            - store_artifacts:
-                  path: ~/transformers/reports
+            <<: *store
 
     run_tests_flax:
-        working_directory: ~/transformers
-        docker:
-            - image: circleci/python:3.7
-        environment:
-            OMP_NUM_THREADS: 1
-        resource_class: xlarge
-        parallelism: 1
+        <<: *setup
         steps:
             - checkout
             - skip-job-on-doc-only-changes
@@ -187,19 +212,10 @@ jobs:
                   paths:
                       - '~/.cache/pip'
             - run: python -m pytest -n 8 --dist=loadfile -rA -s --make-reports=tests_flax ./tests/ | tee tests_output.txt
-            - store_artifacts:
-                  path: ~/transformers/tests_output.txt
-            - store_artifacts:
-                  path: ~/transformers/reports
+            <<: *store
 
     run_tests_pipelines_torch:
-        working_directory: ~/transformers
-        docker:
-            - image: circleci/python:3.7
-        environment:
-            OMP_NUM_THREADS: 1
-        resource_class: xlarge
-        parallelism: 1
+        <<: *setup
         steps:
             - checkout
             - skip-job-on-doc-only-changes
@@ -214,19 +230,10 @@ jobs:
                   paths:
                       - '~/.cache/pip'
             - run: RUN_PIPELINE_TESTS=1 python -m pytest -n 8 --dist=loadfile -rA -s --make-reports=tests_pipelines_torch -m is_pipeline_test ./tests/ | tee tests_output.txt
-            - store_artifacts:
-                  path: ~/transformers/tests_output.txt
-            - store_artifacts:
-                  path: ~/transformers/reports
+            <<: *store
 
     run_tests_pipelines_tf:
-        working_directory: ~/transformers
-        docker:
-            - image: circleci/python:3.7
-        environment:
-            OMP_NUM_THREADS: 1
-        resource_class: xlarge
-        parallelism: 1
+        <<: *setup
         steps:
             - checkout
             - skip-job-on-doc-only-changes
@@ -241,17 +248,10 @@ jobs:
                   paths:
                       - '~/.cache/pip'
             - run: RUN_PIPELINE_TESTS=1 python -m pytest -n 8 --dist=loadfile -rA -s --make-reports=tests_pipelines_tf ./tests/ -m is_pipeline_test | tee tests_output.txt
-            - store_artifacts:
-                  path: ~/transformers/tests_output.txt
-            - store_artifacts:
-                  path: ~/transformers/reports
+            <<: *store
 
     run_tests_custom_tokenizers:
-        working_directory: ~/transformers
-        docker:
-            - image: circleci/python:3.7
-        environment:
-            RUN_CUSTOM_TOKENIZERS: yes
+        <<: *setup
         steps:
             - checkout
             - skip-job-on-doc-only-changes
@@ -267,19 +267,10 @@ jobs:
                   paths:
                       - '~/.cache/pip'
             - run: python -m pytest -s --make-reports=tests_custom_tokenizers ./tests/test_tokenization_bert_japanese.py | tee tests_output.txt
-            - store_artifacts:
-                  path: ~/transformers/tests_output.txt
-            - store_artifacts:
-                  path: ~/transformers/reports
+            <<: *store
 
     run_examples_torch:
-        working_directory: ~/transformers
-        docker:
-            - image: circleci/python:3.6
-        environment:
-            OMP_NUM_THREADS: 1
-        resource_class: xlarge
-        parallelism: 1
+        <<: *setup
         steps:
             - checkout
             - skip-job-on-doc-only-changes
@@ -295,15 +286,10 @@ jobs:
                   paths:
                       - '~/.cache/pip'
             - run: python -m pytest -n 8 --dist=loadfile -s --make-reports=examples_torch ./examples/ | tee examples_output.txt
-            - store_artifacts:
-                  path: ~/transformers/examples_output.txt
-            - store_artifacts:
-                  path: ~/transformers/reports
+            <<: *store
 
     build_doc:
-        working_directory: ~/transformers
-        docker:
-            - image: circleci/python:3.6
+        <<: *setup-small
         steps:
             - checkout
             - restore_cache:
@@ -321,9 +307,7 @@ jobs:
                 path: ./docs/_build
 
     deploy_doc:
-        working_directory: ~/transformers
-        docker:
-            - image: circleci/python:3.6
+        <<: *setup-small
         steps:
             - add_ssh_keys:
                 fingerprints:
@@ -341,11 +325,7 @@ jobs:
             - run: ./.circleci/deploy.sh
 
     check_code_quality:
-        working_directory: ~/transformers
-        docker:
-            - image: circleci/python:3.6
-        resource_class: medium
-        parallelism: 1
+        <<: *setup-small
         steps:
             - checkout
             - restore_cache:
@@ -368,11 +348,7 @@ jobs:
             - run: python utils/check_repo.py
 
     check_repository_consistency:
-        working_directory: ~/transformers
-        docker:
-            - image: circleci/python:3.6
-        resource_class: small
-        parallelism: 1
+        <<: *setup-small
         steps:
             - checkout
             - run: pip install requests
@@ -380,12 +356,7 @@ jobs:
 
 # TPU JOBS
     run_examples_tpu:
-        docker:
-            - image: circleci/python:3.6
-        environment:
-            OMP_NUM_THREADS: 1
-        resource_class: xlarge
-        parallelism: 1
+        <<: *setup
         steps:
             - checkout
             - go/install
