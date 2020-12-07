@@ -46,6 +46,7 @@ from ..rag.tokenization_rag import RagTokenizer
 from ..retribert.tokenization_retribert import RetriBertTokenizer
 from ..roberta.tokenization_roberta import RobertaTokenizer
 from ..squeezebert.tokenization_squeezebert import SqueezeBertTokenizer
+from ..tapas.tokenization_tapas import TapasTokenizer
 from ..transfo_xl.tokenization_transfo_xl import TransfoXLTokenizer
 from ..xlm.tokenization_xlm import XLMTokenizer
 from .configuration_auto import (
@@ -82,6 +83,7 @@ from .configuration_auto import (
     RobertaConfig,
     SqueezeBertConfig,
     T5Config,
+    TapasConfig,
     TransfoXLConfig,
     XLMConfig,
     XLMProphetNetConfig,
@@ -218,6 +220,7 @@ TOKENIZER_MAPPING = OrderedDict(
         (RagConfig, (RagTokenizer, None)),
         (XLMProphetNetConfig, (XLMProphetNetTokenizer, None)),
         (ProphetNetConfig, (ProphetNetTokenizer, None)),
+        (TapasConfig, (TapasTokenizer, None)),
     ]
 )
 

@@ -157,6 +157,12 @@ from ..squeezebert.modeling_squeezebert import (
     SqueezeBertModel,
 )
 from ..t5.modeling_t5 import T5ForConditionalGeneration, T5Model
+from ..tapas.modeling_tapas import (
+    TapasModel,
+    TapasForMaskedLM,
+    TapasForQuestionAnswering,
+    TapasForSequenceClassification,
+)
 from ..transfo_xl.modeling_transfo_xl import TransfoXLForSequenceClassification, TransfoXLLMHeadModel, TransfoXLModel
 from ..xlm.modeling_xlm import (
     XLMForMultipleChoice,
@@ -221,6 +227,7 @@ from .configuration_auto import (
     RobertaConfig,
     SqueezeBertConfig,
     T5Config,
+    TapasConfig,
     TransfoXLConfig,
     XLMConfig,
     XLMProphetNetConfig,
@@ -267,6 +274,7 @@ MODEL_MAPPING = OrderedDict(
         (DPRConfig, DPRQuestionEncoder),
         (XLMProphetNetConfig, XLMProphetNetModel),
         (ProphetNetConfig, ProphetNetModel),
+        (TapasConfig, TapasModel),
     ]
 )
 
@@ -297,6 +305,7 @@ MODEL_FOR_PRETRAINING_MAPPING = OrderedDict(
         (ElectraConfig, ElectraForPreTraining),
         (LxmertConfig, LxmertForPreTraining),
         (FunnelConfig, FunnelForPreTraining),
+        (TapasConfig, TapasForMaskedLM),
     ]
 )
 
@@ -328,6 +337,7 @@ MODEL_WITH_LM_HEAD_MAPPING = OrderedDict(
         (EncoderDecoderConfig, EncoderDecoderModel),
         (ReformerConfig, ReformerModelWithLMHead),
         (FunnelConfig, FunnelForMaskedLM),
+        (TapasConfig, TapasForMaskedLM),
     ]
 )
 
@@ -373,6 +383,7 @@ MODEL_FOR_MASKED_LM_MAPPING = OrderedDict(
         (ElectraConfig, ElectraForMaskedLM),
         (ReformerConfig, ReformerForMaskedLM),
         (FunnelConfig, FunnelForMaskedLM),
+        (TapasConfig, TapasForMaskedLM),
     ]
 )
 
@@ -417,6 +428,7 @@ MODEL_FOR_SEQUENCE_CLASSIFICATION_MAPPING = OrderedDict(
         (ReformerConfig, ReformerForSequenceClassification),
         (CTRLConfig, CTRLForSequenceClassification),
         (TransfoXLConfig, TransfoXLForSequenceClassification),
+        (TapasConfig, TapasForSequenceClassification),
     ]
 )
 
@@ -440,6 +452,7 @@ MODEL_FOR_QUESTION_ANSWERING_MAPPING = OrderedDict(
         (ReformerConfig, ReformerForQuestionAnswering),
         (FunnelConfig, FunnelForQuestionAnswering),
         (LxmertConfig, LxmertForQuestionAnswering),
+        (TapasConfig, TapasForQuestionAnswering),
     ]
 )
 
