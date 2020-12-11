@@ -50,7 +50,7 @@ jobs:
           pip install --upgrade pip
           pip install .[torch,sklearn,testing,onnxruntime,sentencepiece]
           pip install git+https://github.com/huggingface/datasets
-          CUDA=cat /usr/local/cuda/version.txt | awk '{print $3}' | awk -F. '{print$1$2}'
+          CUDA=python -c "''.join(torch.version.cuda.split('.'))"
           pip install tapas torch-scatter -f https://pytorch-geometric.com/whl/torch-1.6.0+${CUDA}.html
 
       - name: Are GPUs recognized by our DL frameworks
