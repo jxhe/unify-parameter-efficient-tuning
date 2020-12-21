@@ -39,20 +39,20 @@ from flax.optim import Adam
 from flax.training import common_utils
 from flax.training.common_utils import get_metrics
 from jax.nn import log_softmax
-from modeling_flax_performer import FlaxPerformerForMaskedLM
 from transformers import (
+    CONFIG_MAPPING,
     MODEL_FOR_MASKED_LM_MAPPING,
+    AutoConfig,
     AutoTokenizer,
-    BertConfig,
     FlaxBertForMaskedLM,
     HfArgumentParser,
     PreTrainedTokenizerBase,
     TensorType,
     TrainingArguments,
     is_tensorboard_available,
-    set_seed,
+    set_seed, BertConfig,
 )
-
+from modeling_flax_performer import FlaxPerformerForMaskedLM
 
 # Cache the result
 has_tensorboard = is_tensorboard_available()
@@ -78,14 +78,17 @@ class WandbArguments:
     """
     Arguments for logging
     """
-
     wandb_user_name: Optional[str] = field(
         default=None,
-        metadata={"help": "The WandB user name for potential logging. If left None, no logging"},
+        metadata={
+            "help": "The WandB user name for potential logging. If left None, no logging"
+        },
     )
     wandb_project_name: Optional[str] = field(
         default="performer-experiments",
-        metadata={"help": "The WandB project name for potential logging"},
+        metadata={
+            "help": "The WandB project name for potential logging"
+        },
     )
 
 
@@ -99,7 +102,7 @@ class ModelArguments:
         default=None,
         metadata={
             "help": "The model checkpoint for weights initialization."
-            "Don't set if you want to train a model from scratch."
+                    "Don't set if you want to train a model from scratch."
         },
     )
     performer: bool = field(
@@ -160,7 +163,7 @@ class DataTrainingArguments:
         default=None,
         metadata={
             "help": "The maximum total input sequence length after tokenization. Sequences longer "
-            "than this will be truncated. Default to the max input length of the model."
+                    "than this will be truncated. Default to the max input length of the model."
         },
     )
     preprocessing_num_workers: Optional[int] = field(
@@ -174,7 +177,7 @@ class DataTrainingArguments:
         default=False,
         metadata={
             "help": "Whether to pad all samples to `max_seq_length`. "
-            "If False, will pad the samples dynamically when batching to the maximum length in the batch."
+                    "If False, will pad the samples dynamically when batching to the maximum length in the batch."
         },
     )
 
@@ -245,7 +248,7 @@ class FlaxDataCollatorForLanguageModeling:
         return batch
 
     def mask_tokens(
-        self, inputs: np.ndarray, special_tokens_mask: Optional[np.ndarray]
+            self, inputs: np.ndarray, special_tokens_mask: Optional[np.ndarray]
     ) -> Tuple[jnp.ndarray, jnp.ndarray]:
         """
         Prepare masked tokens inputs/labels for masked language modeling: 80% MASK, 10% random, 10% original.
@@ -275,12 +278,12 @@ class FlaxDataCollatorForLanguageModeling:
 
 
 def create_learning_rate_scheduler(
-    factors="constant * linear_warmup * rsqrt_decay",
-    base_learning_rate=0.5,
-    warmup_steps=1000,
-    decay_factor=0.5,
-    steps_per_decay=20000,
-    steps_per_cycle=100000,
+        factors="constant * linear_warmup * rsqrt_decay",
+        base_learning_rate=0.5,
+        warmup_steps=1000,
+        decay_factor=0.5,
+        steps_per_decay=20000,
+        steps_per_cycle=100000,
 ):
     """Creates learning rate schedule.
     Interprets factors in the factors string which can consist of:
@@ -376,7 +379,7 @@ def cross_entropy(logits, targets, weights=None, label_smoothing=0.0):
     confidence = 1.0 - label_smoothing
     low_confidence = (1.0 - confidence) / (vocab_size - 1)
     normalizing_constant = -(
-        confidence * jnp.log(confidence) + (vocab_size - 1) * low_confidence * jnp.log(low_confidence + 1e-20)
+            confidence * jnp.log(confidence) + (vocab_size - 1) * low_confidence * jnp.log(low_confidence + 1e-20)
     )
     soft_targets = common_utils.onehot(targets, vocab_size, on_value=confidence, off_value=low_confidence)
 
@@ -449,16 +452,15 @@ if __name__ == "__main__":
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
         model_args, data_args, training_args, wandb_args = parser.parse_json_file(
-            json_file=os.path.abspath(sys.argv[1])
-        )
+            json_file=os.path.abspath(sys.argv[1]))
     else:
         model_args, data_args, training_args, wandb_args = parser.parse_args_into_dataclasses()
 
     if (
-        os.path.exists(training_args.output_dir)
-        and os.listdir(training_args.output_dir)
-        and training_args.do_train
-        and not training_args.overwrite_output_dir
+            os.path.exists(training_args.output_dir)
+            and os.listdir(training_args.output_dir)
+            and training_args.do_train
+            and not training_args.overwrite_output_dir
     ):
         raise ValueError(
             f"Output directory ({training_args.output_dir}) already exists and is not empty."
@@ -567,6 +569,7 @@ if __name__ == "__main__":
 
     padding = "max_length" if data_args.pad_to_max_length else False
 
+
     def tokenize_function(examples):
         # Remove empty lines
         examples = [line for line in examples if len(line) > 0 and not line.isspace()]
@@ -577,6 +580,7 @@ if __name__ == "__main__":
             truncation=True,
             max_length=data_args.max_seq_length,
         )
+
 
     tokenized_datasets = datasets.map(
         tokenize_function,
@@ -622,7 +626,6 @@ if __name__ == "__main__":
 
     if wandb_args.wandb_user_name is not None:
         import wandb
-
         wandb.init(project=wandb_args.wandb_project_name, entity=wandb_args.wandb_user_name)
 
     epochs = tqdm(range(nb_epochs), desc=f"Epoch ... (1/{nb_epochs})", position=0)
@@ -677,7 +680,7 @@ if __name__ == "__main__":
         )
 
         if wandb_args.wandb_user_name is not None:
-            wandb.log({"Eval loss": np.array(eval_summary["loss"]).mean()})
+            wandb.log({"Eval loss": np.array(eval_summary['loss']).mean()})
 
         # Save metrics
         if has_tensorboard and jax.host_id() == 0:
