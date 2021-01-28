@@ -155,15 +155,16 @@ class TFBertWordEmbeddings(tf.keras.layers.Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
     def call(self, input_ids: tf.Tensor) -> tf.Tensor:
-        flat_input_ids = tf.reshape(tensor=input_ids, shape=[-1])
-        embeddings = tf.gather(params=self.weight, indices=flat_input_ids)
-        embeddings = tf.reshape(
-            tensor=embeddings, shape=tf.concat(values=[shape_list(input_ids), [self.hidden_size]], axis=0)
-        )
-
-        embeddings.set_shape(input_ids.shape.as_list() + [self.hidden_size])
-
-        return embeddings
+        # flat_input_ids = tf.reshape(tensor=input_ids, shape=[-1])
+        # embeddings = tf.gather(params=self.weight, indices=flat_input_ids)
+        # embeddings = tf.reshape(
+        #     tensor=embeddings, shape=tf.concat(values=[shape_list(input_ids), [self.hidden_size]], axis=0)
+        # )
+        #
+        # embeddings.set_shape(input_ids.shape.as_list() + [self.hidden_size])
+        #
+        # return embeddings
+        return tf.gather(self.weight, input_ids)
 
 
 class TFBertTokenTypeEmbeddings(tf.keras.layers.Layer):
@@ -194,16 +195,18 @@ class TFBertTokenTypeEmbeddings(tf.keras.layers.Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
     def call(self, token_type_ids: tf.Tensor) -> tf.Tensor:
-        flat_token_type_ids = tf.reshape(tensor=token_type_ids, shape=[-1])
-        one_hot_data = tf.one_hot(indices=flat_token_type_ids, depth=self.type_vocab_size, dtype=self._compute_dtype)
-        embeddings = tf.matmul(a=one_hot_data, b=self.token_type_embeddings)
-        embeddings = tf.reshape(
-            tensor=embeddings, shape=tf.concat(values=[shape_list(token_type_ids), [self.hidden_size]], axis=0)
-        )
+        # flat_token_type_ids = tf.reshape(tensor=token_type_ids, shape=[-1])
+        # one_hot_data = tf.one_hot(indices=flat_token_type_ids, depth=self.type_vocab_size, dtype=self._compute_dtype)
+        # embeddings = tf.matmul(a=one_hot_data, b=self.token_type_embeddings)
+        # embeddings = tf.reshape(
+        #     tensor=embeddings, shape=tf.concat(values=[shape_list(token_type_ids), [self.hidden_size]], axis=0)
+        # )
+        #
+        # embeddings.set_shape(token_type_ids.shape.as_list() + [self.hidden_size])
+        #
+        # return embeddings
 
-        embeddings.set_shape(token_type_ids.shape.as_list() + [self.hidden_size])
-
-        return embeddings
+        return tf.gather(self.token_type_embeddings, token_type_ids)
 
 
 class TFBertPositionEmbeddings(tf.keras.layers.Layer):
