@@ -17,7 +17,7 @@
 
 import warnings
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union, List
 
 import numpy as np
 import tensorflow as tf
@@ -236,11 +236,13 @@ class TFBertPositionEmbeddings(tf.keras.layers.Layer):
 
         return dict(list(base_config.items()) + list(config.items()))
 
-    def call(self, position_ids: tf.Tensor) -> tf.Tensor:
-        input_shape = shape_list(position_ids)
-        position_embeddings = self.position_embeddings[: input_shape[1], :]
+    # def call(self, position_ids: tf.Tensor) -> tf.Tensor:
+    def call(self, input_shape: List[int]) -> tf.Tensor:
+        # input_shape = shape_list(position_ids)
+        # position_embeddings = self.position_embeddings[: input_shape[1], :]
 
-        return tf.broadcast_to(input=position_embeddings, shape=input_shape)
+        position_embeddings = self.position_embeddings[:input_shape[1]][None]
+        return tf.repeat(input=position_embeddings, repeats=input_shape[0], axis=0)
 
 
 class TFBertEmbeddings(tf.keras.layers.Layer):
@@ -290,14 +292,18 @@ class TFBertEmbeddings(tf.keras.layers.Layer):
         if input_ids is not None:
             inputs_embeds = self.word_embeddings(input_ids)
 
+        # Store the shape of the inputs
+        input_shape = shape_list(inputs_embeds)[:-1]
+
         if token_type_ids is None:
-            input_shape = shape_list(inputs_embeds)[:-1]
-            token_type_ids = tf.fill(dims=input_shape, value=0)
+            token_type_ids = tf.zeros(input_shape)
 
         if position_ids is None:
-            position_embeds = self.position_embeddings(inputs_embeds)
+            # position_embeds = self.position_embeddings(inputs_embeds)
+            position_embeds = self.position_embeddings(input_shape)
         else:
-            position_embeds = self.position_embeddings(position_ids)
+            # position_embeds = self.position_embeddings(position_ids)
+            position_embeds = self.position_embeddings(input_shape)
 
         token_type_embeds = self.token_type_embeddings(token_type_ids)
         final_embeddings = self.embeddings_sum(inputs=[inputs_embeds, position_embeds, token_type_embeds])
