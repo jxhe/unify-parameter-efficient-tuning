@@ -29,6 +29,7 @@ if is_torch_available():
 
     from transformers import (
         LukeConfig,
+        LukeForMaskedLM,
         LukeModel,
         LukeEntityAwareAttentionModel,
     )
@@ -139,6 +140,49 @@ class LukeModelTester:
         result = model(input_ids)
         self.parent.assertEqual(result.last_hidden_state.shape, (self.batch_size, self.seq_length, self.hidden_size))
 
+    def create_and_check_for_causal_lm(
+            self,
+            config,
+            input_ids,
+            token_type_ids,
+            input_mask,
+            sequence_labels,
+            token_labels,
+            choice_labels,
+            encoder_hidden_states,
+            encoder_attention_mask,
+    ):
+        model = LukeForCausalLM(config=config)
+        model.to(torch_device)
+        model.eval()
+        result = model(input_ids, attention_mask=input_mask, token_type_ids=token_type_ids, labels=token_labels)
+        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.seq_length, self.vocab_size))
+
+    def create_and_check_for_masked_lm(
+            self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
+    ):
+        model = LukeForMaskedLM(config=config)
+        model.to(torch_device)
+        model.eval()
+        result = model(input_ids, attention_mask=input_mask, token_type_ids=token_type_ids, labels=token_labels)
+        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.seq_length, self.vocab_size))
+
+    def create_and_check_for_question_answering(
+            self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
+    ):
+        model = LukeForQuestionAnswering(config=config)
+        model.to(torch_device)
+        model.eval()
+        result = model(
+            input_ids,
+            attention_mask=input_mask,
+            token_type_ids=token_type_ids,
+            start_positions=sequence_labels,
+            end_positions=sequence_labels,
+        )
+        self.parent.assertEqual(result.start_logits.shape, (self.batch_size, self.seq_length))
+        self.parent.assertEqual(result.end_logits.shape, (self.batch_size, self.seq_length))
+
     def prepare_config_and_inputs_for_common(self):
         config_and_inputs = self.prepare_config_and_inputs()
         (
@@ -160,11 +204,13 @@ class LukeModelTest(ModelTesterMixin, unittest.TestCase):
     all_model_classes = (
         (
             LukeModel,
+            LukeForMaskedLM,
             LukeEntityAwareAttentionModel,
         )
         if is_torch_available()
         else ()
     )
+    all_generative_model_classes = (LukeForCausalLM,) if is_torch_available() else ()
 
     def setUp(self):
         self.model_tester = LukeModelTester(self)
@@ -177,6 +223,16 @@ class LukeModelTest(ModelTesterMixin, unittest.TestCase):
         config_and_inputs = self.model_tester.prepare_config_and_inputs()
         self.model_tester.create_and_check_model(*config_and_inputs)
 
+    def test_model_various_embeddings(self):
+        config_and_inputs = self.model_tester.prepare_config_and_inputs()
+        for type in ["absolute", "relative_key", "relative_key_query"]:
+            config_and_inputs[0].position_embedding_type = type
+            self.model_tester.create_and_check_model(*config_and_inputs)
+
+    def test_for_masked_lm(self):
+        config_and_inputs = self.model_tester.prepare_config_and_inputs()
+        self.model_tester.create_and_check_for_masked_lm(*config_and_inputs)
+
     @slow
     def test_model_from_pretrained(self):
         for model_name in LUKE_PRETRAINED_MODEL_ARCHIVE_LIST[:1]:
@@ -185,87 +241,37 @@ class LukeModelTest(ModelTesterMixin, unittest.TestCase):
 
 
 def prepare_luke_batch_inputs():
-        # Taken from Open Entity dev set
-        text = """Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."""
-        span = (39,42)
-        
-        ENTITY_TOKEN = '[ENT]'
-        max_mention_length = 30
-        
-        conv_tables = (
-            ("-LRB-", "("),
-            ("-LCB-", "("),
-            ("-LSB-", "("),
-            ("-RRB-", ")"),
-            ("-RCB-", ")"),
-            ("-RSB-", ")"),
-        )
-        
-        def preprocess_and_tokenize(text, start, end=None):
-                target_text = text[start:end]
-                for a, b in conv_tables:
-                    target_text = target_text.replace(a, b)
+    # Here we prepare a batch of 2 sequences to test a Luke forward pass on:
+    input_ids = torch.tensor([[0, 1308, 408, 8, 38, 58, 11, 10, 929, 11, 84, 3537, 15, 5, 200, 1929, 2156, 37, 161, 2156,
+            53, 77, 50265, 5, 14211, 50265, 554, 2156, 52, 439, 28239, 7, 5, 78, 1929, 479, 2],
+            [0, 50265, 925, 4, 1608, 4781, 50265, 2156, 16, 65, 9, 5, 144, 8055, 7601, 11, 5, 247, 479, 2,
+             1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]])
 
-                if isinstance(tokenizer, RobertaTokenizer):
-                    return tokenizer.tokenize(target_text, add_prefix_space=True)
-                else:
-                    return tokenizer.tokenize(target_text)
+    entity_ids = torch.tensor([[1, 0], [1, 0]])
 
-        tokens = [tokenizer.cls_token]
-        tokens += preprocess_and_tokenize(text, 0, span[0])
-        mention_start = len(tokens)
-        tokens.append(ENTITY_TOKEN)
-        tokens += preprocess_and_tokenize(text, span[0], span[1])
-        tokens.append(ENTITY_TOKEN)
-        mention_end = len(tokens)
-
-        tokens += preprocess_and_tokenize(text, span[1])
-        tokens.append(tokenizer.sep_token)
-
-        encoding = {}
-        encoding['input_ids'] = tokenizer.convert_tokens_to_ids(tokens)
-        encoding['attention_mask'] = [1] * len(tokens)
-        encoding['token_type_ids'] = [0] * len(tokens)
-
-        encoding['entity_ids'] = [1, 0]
-        encoding['entity_attention_mask'] = [1, 0]
-        encoding['entity_token_type_ids'] = [0, 0]
-        entity_position_ids = list(range(mention_start, mention_end))[:max_mention_length]
-        entity_position_ids += [-1] * (max_mention_length - mention_end + mention_start)
-        entity_position_ids = [entity_position_ids, [-1] * max_mention_length]
-        encoding['entity_position_ids'] = entity_position_ids
-
-        return encoding
+    return input_ids, entity_ids
 
 
 @require_torch
-class LukeModelIntegrationTests(unittest.TestCase):
+class LukeModelIntegrationTest(unittest.TestCase):
     @slow
     def test_inference_no_head(self):
-        model = LukeEntityAwareAttentionModel.from_pretrained("nielsr/luke-large").to(torch_device)
+        model = LukeEntityAwareAttentionModel.from_pretrained("luke-large")
         
-        encoding = prepare_luke_batch_inputs()
-        # convert all values to PyTorch tensors
-        for key, value in encoding.items():
-            encoding[key] = torch.as_tensor(encoding[key]).unsqueeze(0).to(torch_device)
+        input_ids, entity_ids = prepare_layoutlm_batch_inputs()
 
-        outputs = model(**encoding)
-        
+        encoder_outputs = model(input_ids=input_ids, entity_ids=entity_ids)
+
         # Verify word hidden states
-        expected_shape = torch.Size((1, 42, 1024))
-        self.assertEqual(outputs.last_hidden_state.shape, expected_shape)
-        
-        expected_slice = torch.tensor([[ 0.0301,  0.0980,  0.0092],
-            [ 0.2718, -0.2413, -0.9446],
-            [-0.1382, -0.2608, -0.3927]])
-            
-        self.assertTrue(torch.allclose(outputs.last_hidden_state[0, :3, :3], expected_slice, atol=1e-4))
+        expected_shape = torch.Size((2, 37, 1024))
+        self.assertEqual(encoder_outputs[0].shape, expected_shape)
+
+        expected_slice = torch.tensor(([[[-0.0165,  0.9100,  0.5504]]])
+        self.assertTrue(torch.allclose(output[0, 0, :3], expected_slice, atol=1e-4))
 
         # Verify entity hidden states
-        expected_shape = torch.Size((1, 2, 1024))
-        self.assertEqual(outputs.entity_last_hidden_state.shape == expected_shape)
-        
-        expected_slice = torch.tensor([[ 0.3251,  0.3981, -0.0689],
-            [-0.0098,  0.1215,  0.3544]])
-            
-        self.assertTrue(torch.allclose(outputs.entity_last_hidden_state[0, :3, :3], expected_slice, atol=1e-4))
+        expected_shape = torch.Size((2, 2, 1024))
+        self.assertEqual(encoder_outputs[1].shape, expected_shape)
+
+        expected_slice = torch.tensor(([[[1.8408,  0.7898, -0.1181]]])
+        self.assertTrue(torch.allclose(output[1, 1, :3], expected_slice, atol=1e-4))

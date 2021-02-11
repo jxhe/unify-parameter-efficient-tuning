@@ -126,6 +126,7 @@ _import_structure = {
     ],
     "models": [],
     # Models
+    "models.luke": ["LUKE_PRETRAINED_CONFIG_ARCHIVE_MAP", "LukeConfig", "LukeTokenizer"],
     "models.wav2vec2": [
         "WAV_2_VEC_2_PRETRAINED_CONFIG_ARCHIVE_MAP",
         "Wav2Vec2Config",
@@ -289,6 +290,7 @@ else:
 # tokenziers-backed objects
 if is_tokenizers_available():
     # Fast tokenizers
+    _import_structure["models.luke"].append("LukeTokenizerFast")
     _import_structure["models.convbert"].append("ConvBertTokenizerFast")
     _import_structure["models.albert"].append("AlbertTokenizerFast")
     _import_structure["models.bart"].append("BartTokenizerFast")
@@ -380,9 +382,14 @@ if is_torch_available():
     _import_structure["models.luke"].extend(
         [
             "LUKE_PRETRAINED_MODEL_ARCHIVE_LIST",
+            "LukeForMaskedLM",
+            "LukeForCausalLM",
+            "LukeForMultipleChoice",
+            "LukeForQuestionAnswering",
+            "LukeForSequenceClassification",
+            "LukeForTokenClassification",
             "LukeLayer",
             "LukeModel",
-            "LukeEntityAwareAttentionModel",
             "LukePreTrainedModel",
             "load_tf_weights_in_luke",
         ]
@@ -1465,6 +1472,7 @@ if TYPE_CHECKING:
         from .utils.dummy_sentencepiece_objects import *
 
     if is_tokenizers_available():
+        from .models.luke import LukeTokenizerFast
         from .models.albert import AlbertTokenizerFast
         from .models.bart import BartTokenizerFast
         from .models.barthez import BarthezTokenizerFast
@@ -1506,7 +1514,6 @@ if TYPE_CHECKING:
 
         from .models.luke import (
             LUKE_PRETRAINED_MODEL_ARCHIVE_LIST,
-            LukeEntityAwareAttentionModel,
             LukeForMaskedLM,
             LukeForCausalLM,
             LukeForMultipleChoice,

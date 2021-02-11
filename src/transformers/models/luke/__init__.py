@@ -26,12 +26,12 @@ from ...file_utils import (
 
 _import_structure = {
     "configuration_luke": ["LUKE_PRETRAINED_CONFIG_ARCHIVE_MAP", "LukeConfig"],
-    "tokenization_luke": ["LukeTokenizer"],
 }
 
 if is_torch_available():
     _import_structure["modeling_luke"] = [
         "LUKE_PRETRAINED_MODEL_ARCHIVE_LIST",
+        "LukeForMaskedLM",
         "LukeModel",
         "LukeEntityAwareAttentionModel",
     ]
@@ -41,9 +41,10 @@ if TYPE_CHECKING:
     from .configuration_luke import LUKE_PRETRAINED_CONFIG_ARCHIVE_MAP, LukeConfig
 
     if is_torch_available():
-        from .modeling_luke import (
+        from .modeling_roberta import (
             LUKE_PRETRAINED_MODEL_ARCHIVE_LIST,
             LukeModel,
+            LukeForMaskedLM,
             LukeEntityAwareAttentionModel,
         )
 
