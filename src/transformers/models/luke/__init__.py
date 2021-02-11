@@ -31,7 +31,6 @@ _import_structure = {
 if is_torch_available():
     _import_structure["modeling_luke"] = [
         "LUKE_PRETRAINED_MODEL_ARCHIVE_LIST",
-        "LukeForMaskedLM",
         "LukeModel",
         "LukeEntityAwareAttentionModel",
     ]
@@ -41,10 +40,9 @@ if TYPE_CHECKING:
     from .configuration_luke import LUKE_PRETRAINED_CONFIG_ARCHIVE_MAP, LukeConfig
 
     if is_torch_available():
-        from .modeling_roberta import (
+        from .modeling_luke import (
             LUKE_PRETRAINED_MODEL_ARCHIVE_LIST,
             LukeModel,
-            LukeForMaskedLM,
             LukeEntityAwareAttentionModel,
         )
 
