@@ -242,10 +242,10 @@ class LukeModelTest(ModelTesterMixin, unittest.TestCase):
 
 def prepare_luke_batch_inputs():
         # Taken from Open Entity dev set
-        text = """Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord 
-        helped the new world number one avoid a humiliating second- round exit at Wimbledon ."""
+        text = """Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."""
         span = (39,42)
         
+        ENTITY_TOKEN = '[ENT]'
         max_mention_length = 30
         
         conv_tables = (
@@ -279,13 +279,13 @@ def prepare_luke_batch_inputs():
         tokens.append(tokenizer.sep_token)
 
         encoding = {}
-        encoding['word_ids'] = tokenizer.convert_tokens_to_ids(tokens)
-        encoding['word_attention_mask'] = [1] * len(tokens)
-        encoding['word_segment_ids'] = [0] * len(tokens)
+        encoding['input_ids'] = tokenizer.convert_tokens_to_ids(tokens)
+        encoding['attention_mask'] = [1] * len(tokens)
+        encoding['token_type_ids'] = [0] * len(tokens)
 
         encoding['entity_ids'] = [1, 0]
         encoding['entity_attention_mask'] = [1, 0]
-        encoding['entity_segment_ids'] = [0, 0]
+        encoding['entity_token_type_ids'] = [0, 0]
         entity_position_ids = list(range(mention_start, mention_end))[:max_mention_length]
         entity_position_ids += [-1] * (max_mention_length - mention_end + mention_start)
         entity_position_ids = [entity_position_ids, [-1] * max_mention_length]
@@ -312,7 +312,7 @@ class LukeModelIntegrationTest(unittest.TestCase):
         expected_shape = torch.Size((1, 42, 1024))
         self.assertEqual(encoder_outputs[0].shape, expected_shape)
 
-        expected_slice = torch.tensor(([[-0.0035,  0.0314, -0.0110],
+        expected_slice = torch.tensor([[-0.0035,  0.0314, -0.0110],
                                         [ 0.0785, -0.3041, -2.2792],
                                         [-0.1808, -0.1102, -0.2041]])
         self.assertTrue(torch.allclose(output[0, :3, :3], expected_slice, atol=1e-4))
@@ -321,6 +321,6 @@ class LukeModelIntegrationTest(unittest.TestCase):
         expected_shape = torch.Size((1, 2, 1024))
         self.assertEqual(encoder_outputs[1].shape, expected_shape)
 
-        expected_slice = torch.tensor(([[ 1.1192,  0.4065, -0.3914],
+        expected_slice = torch.tensor([[ 1.1192,  0.4065, -0.3914],
                                         [ 0.0182,  0.0654,  0.4022]])
         self.assertTrue(torch.allclose(output[0, :3, :3], expected_slice, atol=1e-4))

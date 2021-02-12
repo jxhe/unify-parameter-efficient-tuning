@@ -382,14 +382,9 @@ if is_torch_available():
     _import_structure["models.luke"].extend(
         [
             "LUKE_PRETRAINED_MODEL_ARCHIVE_LIST",
-            "LukeForMaskedLM",
-            "LukeForCausalLM",
-            "LukeForMultipleChoice",
-            "LukeForQuestionAnswering",
-            "LukeForSequenceClassification",
-            "LukeForTokenClassification",
             "LukeLayer",
             "LukeModel",
+            "LukeEntityAwareAttentionModel",
             "LukePreTrainedModel",
             "load_tf_weights_in_luke",
         ]
@@ -1514,6 +1509,7 @@ if TYPE_CHECKING:
 
         from .models.luke import (
             LUKE_PRETRAINED_MODEL_ARCHIVE_LIST,
+            LukeEntityAwareAttentionModel,
             LukeForMaskedLM,
             LukeForCausalLM,
             LukeForMultipleChoice,
