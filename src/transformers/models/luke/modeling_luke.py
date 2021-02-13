@@ -145,7 +145,7 @@ class LukeEmbeddings(nn.Module):
 
     def forward(
         self, input_ids=None, token_type_ids=None, position_ids=None, inputs_embeds=None, past_key_values_length=0
-    ):
+    ):   
         if position_ids is None:
             if input_ids is not None:
                 # Create the position ids from the input token ids. Any padded tokens remain padded.
@@ -1028,7 +1028,7 @@ class LukeEntityAwareAttentionModel(LukeModel):
         word_embeddings = self.embeddings(input_ids, token_type_ids)
         entity_embeddings = self.entity_embeddings(entity_ids, entity_position_ids, entity_token_type_ids)
         attention_mask = self._compute_extended_attention_mask(attention_mask, entity_attention_mask)
-
+        
         return self.encoder(word_embeddings, entity_embeddings, attention_mask)
 
 
@@ -1135,8 +1135,9 @@ class EntityAwareEncoder(nn.Module):
         self.layer = nn.ModuleList([EntityAwareLayer(config) for _ in range(config.num_hidden_layers)])
 
     def forward(self, word_hidden_states, entity_hidden_states, attention_mask):
-        for layer_module in self.layer:
+        for idx, layer_module in enumerate(self.layer):
             word_hidden_states, entity_hidden_states = layer_module(
                 word_hidden_states, entity_hidden_states, attention_mask
             )
+
         return word_hidden_states, entity_hidden_states

@@ -14,7 +14,7 @@
 # limitations under the License.
 """Tokenization classes for LUKE."""
 from ...utils import logging
-from ..bert.tokenization_bert import BertTokenizer
+from ..roberta.tokenization_roberta import RobertaTokenizer
 
 
 logger = logging.get_logger(__name__)
@@ -37,14 +37,14 @@ PRETRAINED_INIT_CONFIGURATION = {
 }
 
 
-class LukeTokenizer(BertTokenizer):
+class LukeTokenizer(RobertaTokenizer):
     r"""
     Construct a LUKE tokenizer.
 
-    :class:`~transformers.LukeTokenizer` is identical to :class:`~transformers.BertTokenizer` and runs end-to-end
+    :class:`~transformers.LukeTokenizer` is almost identical to :class:`~transformers.RobertaTokenizer` and runs end-to-end
     tokenization: punctuation splitting and wordpiece.
 
-    Refer to superclass :class:`~transformers.BertTokenizer` for usage examples and documentation concerning
+    Refer to superclass :class:`~transformers.RobertaTokenizer` for usage examples and documentation concerning
     parameters.
     """
 
