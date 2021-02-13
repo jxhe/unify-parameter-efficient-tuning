@@ -64,7 +64,6 @@ def prepare_luke_batch_inputs(tokenizer):
         tokens.append(tokenizer.sep_token)
 
         encoding = {}
-        print(tokens)
         encoding['input_ids'] = tokenizer.convert_tokens_to_ids(tokens)
         encoding['attention_mask'] = [1] * len(tokens)
         encoding['token_type_ids'] = [0] * len(tokens)
@@ -108,25 +107,23 @@ def convert_luke_checkpoint(checkpoint_path, metadata_path, entity_vocab_path, p
     state_dict["embeddings.word_embeddings.weight"] = torch.cat([word_emb, ent_emb, ent2_emb])
 
     # Initialize the query layers of the entity-aware self-attention mechanism
-    # for layer_index in range(config.num_hidden_layers):
-    #     for matrix_name in ["query.weight", "query.bias"]:
-    #         prefix = "encoder.layer." + str(layer_index) + ".attention.self."
-    #         state_dict[prefix + "w2e_" + matrix_name] = state_dict[prefix + matrix_name]
-    #         state_dict[prefix + "e2w_" + matrix_name] = state_dict[prefix + matrix_name]
-    #         state_dict[prefix + "e2e_" + matrix_name] = state_dict[prefix + matrix_name]
+    for layer_index in range(config.num_hidden_layers):
+        for matrix_name in ["query.weight", "query.bias"]:
+            prefix = "encoder.layer." + str(layer_index) + ".attention.self."
+            state_dict[prefix + "w2e_" + matrix_name] = state_dict[prefix + matrix_name]
+            state_dict[prefix + "e2w_" + matrix_name] = state_dict[prefix + matrix_name]
+            state_dict[prefix + "e2e_" + matrix_name] = state_dict[prefix + matrix_name]
 
     # Initialize the embedding of the [MASK2] entity using that of the [MASK] entity for downstream tasks
     entity_emb = state_dict["entity_embeddings.entity_embeddings.weight"]
     entity_emb[entity_vocab["[MASK2]"]] = entity_emb[entity_vocab["[MASK]"]]
 
-    model = LukeEntityAwareAttentionModel(config=config)
-    model.load_state_dict(state_dict, strict=False)
-    model.eval()
+    model = LukeEntityAwareAttentionModel(config=config).eval()
 
-    # missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
-    # assert len(missing_keys) == 1 and missing_keys[0] == 'embeddings.position_ids'
-    # # NOTE: maybe LukeEntityAwareAttentionModel should have the pretraining heads?
-    # assert all(key.startswith('entity_predictions') or key.startswith('lm_head') for key in unexpected_keys)
+    missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
+    assert len(missing_keys) == 1 and missing_keys[0] == 'embeddings.position_ids'
+    # NOTE: maybe LukeEntityAwareAttentionModel should have the pretraining heads?
+    assert all(key.startswith('entity_predictions') or key.startswith('lm_head') for key in unexpected_keys)
     
     # Check outputs 
     encoding = prepare_luke_batch_inputs(tokenizer)
@@ -134,26 +131,32 @@ def convert_luke_checkpoint(checkpoint_path, metadata_path, entity_vocab_path, p
     for key, value in encoding.items():
         encoding[key] = torch.as_tensor(encoding[key]).unsqueeze(0)
     
-    # for id in encoding['input_ids'].squeeze().tolist():
-    #     print(id, tokenizer.decode([id]))
-    
     # Currently the model still returns a tuple
     encoder_outputs = model(**encoding)
 
     # Verify word hidden states
     expected_shape = torch.Size((1, 42, 1024))
     assert encoder_outputs[0].shape == expected_shape
-
+    
     expected_slice = torch.tensor([[ 0.0301,  0.0980,  0.0092],
         [ 0.2718, -0.2413, -0.9446],
         [-0.1382, -0.2608, -0.3927]])
         
     assert torch.allclose(encoder_outputs[0][0, :3, :3], expected_slice, atol=1e-4)
+
+    # Verify entity hidden states
+    expected_shape = torch.Size((1, 2, 1024))
+    assert encoder_outputs[1].shape == expected_shape
+    
+    expected_slice = torch.tensor([[ 0.3251,  0.3981, -0.0689],
+        [-0.0098,  0.1215,  0.3544]])
+        
+    assert torch.allclose(encoder_outputs[1][0, :3, :3], expected_slice, atol=1e-4)
     
     # Finally, save our PyTorch model and tokenizer
     print("Saving PyTorch model and tokenizer to {}".format(pytorch_dump_folder_path))
-    #model.save_pretrained(pytorch_dump_folder_path)
-    #tokenizer.save_pretrained(pytorch_dump_folder_path)
+    model.save_pretrained(pytorch_dump_folder_path)
+    tokenizer.save_pretrained(pytorch_dump_folder_path)
 
 
 def load_entity_vocab(entity_vocab_path):
