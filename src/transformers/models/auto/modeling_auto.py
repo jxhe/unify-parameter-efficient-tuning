@@ -21,12 +21,6 @@ from collections import OrderedDict
 from ...configuration_utils import PretrainedConfig
 from ...file_utils import add_start_docstrings
 from ...utils import logging
-
-# Add modeling imports here
-from ..speech_to_text_transformer.modeling_speech_to_text_transformer import (
-    SpeechToTextTransformerForConditionalGeneration,
-    SpeechToTextTransformerModel,
-)
 from ..albert.modeling_albert import (
     AlbertForMaskedLM,
     AlbertForMultipleChoice,
@@ -69,12 +63,6 @@ from ..camembert.modeling_camembert import (
     CamembertForSequenceClassification,
     CamembertForTokenClassification,
     CamembertModel,
-)
-
-# Add modeling imports here
-from ..speech_to_text_transformer.modeling_speech_to_text_transformer import (
-    SpeechToTextTransformerForConditionalGeneration,
-    SpeechToTextTransformerModel,
 )
 from ..convbert.modeling_convbert import (
     ConvBertForMaskedLM,
@@ -218,6 +206,13 @@ from ..roberta.modeling_roberta import (
     RobertaForTokenClassification,
     RobertaModel,
 )
+
+# Add modeling imports here
+# Add modeling imports here
+from ..speech_to_text_transformer.modeling_speech_to_text_transformer import (
+    SpeechToTextTransformerForConditionalGeneration,
+    SpeechToTextTransformerModel,
+)
 from ..squeezebert.modeling_squeezebert import (
     SqueezeBertForMaskedLM,
     SqueezeBertForMultipleChoice,
@@ -266,7 +261,6 @@ from ..xlnet.modeling_xlnet import (
     XLNetModel,
 )
 from .configuration_auto import (
-    SpeechToTextTransformerConfig,
     AlbertConfig,
     AutoConfig,
     BartConfig,
@@ -303,6 +297,7 @@ from .configuration_auto import (
     ReformerConfig,
     RetriBertConfig,
     RobertaConfig,
+    SpeechToTextTransformerConfig,
     SqueezeBertConfig,
     T5Config,
     TapasConfig,
@@ -406,7 +401,6 @@ MODEL_FOR_PRETRAINING_MAPPING = OrderedDict(
 MODEL_WITH_LM_HEAD_MAPPING = OrderedDict(
     [
         # Model with LM heads mapping
-
         (SpeechToTextTransformerConfig, SpeechToTextTransformerForConditionalGeneration),
         (Wav2Vec2Config, Wav2Vec2ForMaskedLM),
         (ConvBertConfig, ConvBertForMaskedLM),
@@ -507,7 +501,6 @@ MODEL_FOR_MASKED_LM_MAPPING = OrderedDict(
 MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING = OrderedDict(
     [
         # Model for Seq2Seq Causal LM mapping
-
         (SpeechToTextTransformerConfig, SpeechToTextTransformerForConditionalGeneration),
         (LEDConfig, LEDForConditionalGeneration),
         (BlenderbotSmallConfig, BlenderbotSmallForConditionalGeneration),

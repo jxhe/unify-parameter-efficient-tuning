@@ -17,7 +17,6 @@
 # limitations under the License.
 
 from . import (
-    speech_to_text_transformer,
     albert,
     auto,
     bart,
@@ -60,6 +59,7 @@ from . import (
     reformer,
     retribert,
     roberta,
+    speech_to_text_transformer,
     squeezebert,
     t5,
     tapas,
