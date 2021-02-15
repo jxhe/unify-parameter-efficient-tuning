@@ -19,25 +19,63 @@ import os
 import unittest
 
 from transformers import AddedToken, LukeTokenizer
-from transformers.models.luke.tokenization_luke import VOCAB_FILES_NAMES
+from transformers.models.roberta.tokenization_roberta import VOCAB_FILES_NAMES
 from transformers.testing_utils import require_tokenizers, slow
 
 from .test_tokenization_common import TokenizerTesterMixin
 
 
-class Luke(TokenizerTesterMixin, unittest.TestCase):
-    tokenizer_class = LukeTokenizer
+@require_tokenizers
+class RobertaTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
+    tokenizer_class = RobertaTokenizer
+    rust_tokenizer_class = RobertaTokenizerFast
+    test_rust_tokenizer = True
     from_pretrained_kwargs = {"cls_token": "<s>"}
 
     def setUp(self):
         super().setUp()
 
-        # to be updated once files are on the hub
-        self.vocab_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\vocab.json")
-        self.merges_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\merges.txt")
+        # Adapted from Sennrich et al. 2015 and https://github.com/rsennrich/subword-nmt
+        vocab = [
+            "l",
+            "o",
+            "w",
+            "e",
+            "r",
+            "s",
+            "t",
+            "i",
+            "d",
+            "n",
+            "\u0120",
+            "\u0120l",
+            "\u0120n",
+            "\u0120lo",
+            "\u0120low",
+            "er",
+            "\u0120lowest",
+            "\u0120newer",
+            "\u0120wider",
+            "<unk>",
+        ]
+        vocab_tokens = dict(zip(vocab, range(len(vocab))))
+        merges = ["#version: 0.2", "\u0120 l", "\u0120l o", "\u0120lo w", "e r", ""]
+        self.special_tokens_map = {"unk_token": "<unk>"}
 
-    def get_tokenizer(self):
-        return self.tokenizer_class(vocab_file=self.vocab_file, merges_file=self.merges_file)
+        self.vocab_file = os.path.join(self.tmpdirname, VOCAB_FILES_NAMES["vocab_file"])
+        self.merges_file = os.path.join(self.tmpdirname, VOCAB_FILES_NAMES["merges_file"])
+        with open(self.vocab_file, "w", encoding="utf-8") as fp:
+            fp.write(json.dumps(vocab_tokens) + "\n")
+        with open(self.merges_file, "w", encoding="utf-8") as fp:
+            fp.write("\n".join(merges))
+
+    def get_tokenizer(self, **kwargs):
+        kwargs.update(self.special_tokens_map)
+        return self.tokenizer_class.from_pretrained(self.tmpdirname, **kwargs)
+
+    def get_rust_tokenizer(self, **kwargs):
+        kwargs.update(self.special_tokens_map)
+        return RobertaTokenizerFast.from_pretrained(self.tmpdirname, **kwargs)
 
     def get_input_output_texts(self, tokenizer):
         input_text = "lower newer"
@@ -55,7 +93,7 @@ class Luke(TokenizerTesterMixin, unittest.TestCase):
         input_bpe_tokens = [0, 1, 2, 15, 10, 9, 3, 2, 15, 19]
         self.assertListEqual(tokenizer.convert_tokens_to_ids(input_tokens), input_bpe_tokens)
 
-    def luke_dict_integration_testing(self):
+    def roberta_dict_integration_testing(self):
         tokenizer = self.get_tokenizer()
 
         self.assertListEqual(tokenizer.encode("Hello world!", add_special_tokens=False), [0, 31414, 232, 328, 2])
@@ -130,8 +168,10 @@ class Luke(TokenizerTesterMixin, unittest.TestCase):
     def test_embeded_special_tokens(self):
         for tokenizer, pretrained_name, kwargs in self.tokenizers_list:
             with self.subTest("{} ({})".format(tokenizer.__class__.__name__, pretrained_name)):
+                tokenizer_r = self.rust_tokenizer_class.from_pretrained(pretrained_name, **kwargs)
                 tokenizer_p = self.tokenizer_class.from_pretrained(pretrained_name, **kwargs)
                 sentence = "A, <mask> AllenNLP sentence."
+                tokens_r = tokenizer_r.encode_plus(sentence, add_special_tokens=True, return_token_type_ids=True)
                 tokens_p = tokenizer_p.encode_plus(sentence, add_special_tokens=True, return_token_type_ids=True)
 
                 # token_type_ids should put 0 everywhere
@@ -139,75 +179,20 @@ class Luke(TokenizerTesterMixin, unittest.TestCase):
 
                 # attention_mask should put 1 everywhere, so sum over length should be 1
                 self.assertEqual(
+                    sum(tokens_r["attention_mask"]) / len(tokens_r["attention_mask"]),
                     sum(tokens_p["attention_mask"]) / len(tokens_p["attention_mask"]),
                 )
 
+                tokens_r_str = tokenizer_r.convert_ids_to_tokens(tokens_r["input_ids"])
                 tokens_p_str = tokenizer_p.convert_ids_to_tokens(tokens_p["input_ids"])
 
                 # Rust correctly handles the space before the mask while python doesnt
                 self.assertSequenceEqual(tokens_p["input_ids"], [0, 250, 6, 50264, 3823, 487, 21992, 3645, 4, 2])
+                self.assertSequenceEqual(tokens_r["input_ids"], [0, 250, 6, 50264, 3823, 487, 21992, 3645, 4, 2])
 
                 self.assertSequenceEqual(
                     tokens_p_str, ["<s>", "A", ",", "<mask>", "ĠAllen", "N", "LP", "Ġsentence", ".", "</s>"]
                 )
-
-    
-class LukeTokenizerIntegrationTests(unittest.TestCase):    
-    tokenizer_class = LukeTokenizer
-    from_pretrained_kwargs = {"cls_token": "<s>"}
-
-    def setUp(self):
-        super().setUp()
-
-        # to be updated once files are on the hub
-        self.vocab_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\vocab.json")
-        self.merges_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\merges.txt")
-
-    def get_tokenizer(self):
-        return self.tokenizer_class(vocab_file=self.vocab_file, merges_file=self.merges_file)
-    
-    def test_entity_linking_no_padding_or_truncation(self):
-        tokenizer = self.get_tokenizer()
-        sentence = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."
-        span = (39,42)
-        
-        encoding = tokenizer(sentence, task="entity_typing", additional_info=span)
-
-        self.assertEqual(tokenizer.decode(encoding["input_ids"]), "<s>Top seed Ana Ivanovic said on Thursday <ent>she<ent> could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon.</s>")
-        self.assertEqual(encoding["entity_ids"], [1])
-        self.assertEqual(encoding["entity_attention_mask"], [1])
-        self.assertEqual(encoding["entity_token_type_ids"], [0])
-        self.assertEqual(encoding["entity_position_ids"], [[9, 10, 11, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]])
-
-    def test_entity_linking_padding_pytorch_tensors(self):
-        tokenizer = self.get_tokenizer()
-        sentence = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."
-        # entity information
-        span = (39,42)
-        
-        encoding = tokenizer(sentence, task="entity_typing", additional_info=span, padding="max_length", return_tensors="pt")
-
-        # test words
-        self.assertEqual(encoding["input_ids"].shape, (1,512))
-        self.assertEqual(encoding["attention_mask"].shape, (1,512))
-        self.assertEqual(encoding["token_type_ids"].shape, (1,512))
-
-        # test entities
-        self.assertEqual(encoding["entity_ids"].shape, (1,1))
-        self.assertEqual(encoding["entity_attention_mask"].shape, (1,1))
-        self.assertEqual(encoding["entity_token_type_ids"].shape, (1,1))
-        self.assertEqual(encoding["entity_position_ids"].shape, (1, tokenizer.max_entity_length, tokenizer.max_mention_length))
-
-    def test_relation_classification_no_padding_or_truncation(self):
-        tokenizer = self.get_tokenizer()
-        sentence = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck."
-        # head and tail information
-        spans = [(9,21), (39,42)]
-        
-        encoding = tokenizer(sentence, task="relation_classification", additional_info=spans)
-
-        self.assertEqual(tokenizer.decode(encoding["input_ids"]), "<s>Top seed <ent>Ana Ivanovic<ent> said on Thursday <ent2>she<ent2> could hardly believe her luck.</s>")
-        self.assertEqual(encoding["entity_ids"], [1, 2])
-        self.assertEqual(encoding["entity_attention_mask"], [1, 1])
-        self.assertEqual(encoding["entity_token_type_ids"], [0, 0])
-        self.assertEqual(encoding["entity_position_ids"], )
+                self.assertSequenceEqual(
+                    tokens_r_str, ["<s>", "A", ",", "<mask>", "ĠAllen", "N", "LP", "Ġsentence", ".", "</s>"]
+                )
