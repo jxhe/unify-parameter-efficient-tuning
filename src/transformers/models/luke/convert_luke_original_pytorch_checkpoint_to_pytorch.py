@@ -131,27 +131,26 @@ def convert_luke_checkpoint(checkpoint_path, metadata_path, entity_vocab_path, p
     for key, value in encoding.items():
         encoding[key] = torch.as_tensor(encoding[key]).unsqueeze(0)
     
-    # Currently the model still returns a tuple
-    encoder_outputs = model(**encoding)
+    outputs = model(**encoding)
 
     # Verify word hidden states
     expected_shape = torch.Size((1, 42, 1024))
-    assert encoder_outputs[0].shape == expected_shape
+    assert outputs.last_hidden_state.shape == expected_shape
     
     expected_slice = torch.tensor([[ 0.0301,  0.0980,  0.0092],
         [ 0.2718, -0.2413, -0.9446],
         [-0.1382, -0.2608, -0.3927]])
         
-    assert torch.allclose(encoder_outputs[0][0, :3, :3], expected_slice, atol=1e-4)
+    assert torch.allclose(outputs.last_hidden_state[0, :3, :3], expected_slice, atol=1e-4)
 
     # Verify entity hidden states
     expected_shape = torch.Size((1, 2, 1024))
-    assert encoder_outputs[1].shape == expected_shape
+    assert outputs.entity_last_hidden_state.shape == expected_shape
     
     expected_slice = torch.tensor([[ 0.3251,  0.3981, -0.0689],
         [-0.0098,  0.1215,  0.3544]])
         
-    assert torch.allclose(encoder_outputs[1][0, :3, :3], expected_slice, atol=1e-4)
+    assert torch.allclose(outputs.entity_last_hidden_state[0, :3, :3], expected_slice, atol=1e-4)
     
     # Finally, save our PyTorch model and tokenizer
     print("Saving PyTorch model and tokenizer to {}".format(pytorch_dump_folder_path))

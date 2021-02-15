@@ -1024,12 +1024,22 @@ class LukeEntityAwareAttentionModel(LukeModel):
         entity_attention_mask,
         entity_token_type_ids,
         entity_position_ids,
+        return_dict=True,
     ):
         word_embeddings = self.embeddings(input_ids, token_type_ids)
         entity_embeddings = self.entity_embeddings(entity_ids, entity_position_ids, entity_token_type_ids)
         attention_mask = self._compute_extended_attention_mask(attention_mask, entity_attention_mask)
         
-        return self.encoder(word_embeddings, entity_embeddings, attention_mask)
+        word_hidden_states, entity_hidden_states = self.encoder(word_embeddings, entity_embeddings, attention_mask)
+
+        if not return_dict:
+            return (word_hidden_states, entity_hidden_states)
+
+        return BaseLukeEntityAwareAttentionModelOutputWithPoolingAndCrossAttentions(
+            last_hidden_state=word_hidden_states,
+            entity_last_hidden_state=entity_hidden_states,
+        )
+
 
 
 class EntityAwareSelfAttention(nn.Module):

@@ -26,6 +26,7 @@ from ...file_utils import (
 
 _import_structure = {
     "configuration_luke": ["LUKE_PRETRAINED_CONFIG_ARCHIVE_MAP", "LukeConfig"],
+    "tokenization_luke": ["LukeTokenizer"],
 }
 
 if is_torch_available():
