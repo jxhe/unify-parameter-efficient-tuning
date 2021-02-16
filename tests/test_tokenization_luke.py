@@ -25,7 +25,6 @@ from transformers.testing_utils import require_tokenizers, slow
 from .test_tokenization_common import TokenizerTesterMixin
 
 
-@require_tokenizers
 class Luke(TokenizerTesterMixin, unittest.TestCase):
     tokenizer_class = LukeTokenizer
     from_pretrained_kwargs = {"cls_token": "<s>"}
@@ -33,43 +32,12 @@ class Luke(TokenizerTesterMixin, unittest.TestCase):
     def setUp(self):
         super().setUp()
 
-        # Adapted from Sennrich et al. 2015 and https://github.com/rsennrich/subword-nmt
-        vocab = [
-            "l",
-            "o",
-            "w",
-            "e",
-            "r",
-            "s",
-            "t",
-            "i",
-            "d",
-            "n",
-            "\u0120",
-            "\u0120l",
-            "\u0120n",
-            "\u0120lo",
-            "\u0120low",
-            "er",
-            "\u0120lowest",
-            "\u0120newer",
-            "\u0120wider",
-            "<unk>",
-        ]
-        vocab_tokens = dict(zip(vocab, range(len(vocab))))
-        merges = ["#version: 0.2", "\u0120 l", "\u0120l o", "\u0120lo w", "e r", ""]
-        self.special_tokens_map = {"unk_token": "<unk>"}
+        # to be updated once files are on the hub
+        self.vocab_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\vocab.json")
+        self.merges_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\merges.txt")
 
-        self.vocab_file = os.path.join(self.tmpdirname, VOCAB_FILES_NAMES["vocab_file"])
-        self.merges_file = os.path.join(self.tmpdirname, VOCAB_FILES_NAMES["merges_file"])
-        with open(self.vocab_file, "w", encoding="utf-8") as fp:
-            fp.write(json.dumps(vocab_tokens) + "\n")
-        with open(self.merges_file, "w", encoding="utf-8") as fp:
-            fp.write("\n".join(merges))
-
-    def get_tokenizer(self, **kwargs):
-        kwargs.update(self.special_tokens_map)
-        return self.tokenizer_class.from_pretrained(self.tmpdirname, **kwargs)
+    def get_tokenizer(self):
+        return self.tokenizer_class(vocab_file=self.vocab_file, merges_file=self.merges_file)
 
     def get_input_output_texts(self, tokenizer):
         input_text = "lower newer"
@@ -182,3 +150,16 @@ class Luke(TokenizerTesterMixin, unittest.TestCase):
                 self.assertSequenceEqual(
                     tokens_p_str, ["<s>", "A", ",", "<mask>", "ĠAllen", "N", "LP", "Ġsentence", ".", "</s>"]
                 )
+
+    def test_entity_linking(self):
+        tokenizer = self.get_tokenizer()
+        sentence = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."
+        span = (39,42)
+        
+        encoding = tokenizer(sentence, task="entity_typing", additional_info=span)
+
+        self.assertEqual(tokenizer.decode(encoding["input_ids"]), "<s>Top seed Ana Ivanovic said on Thursday [ENT]she[ENT] could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon.</s>")
+        self.assertEqual(encoding["entity_ids"], [1])
+        self.assertEqual(encoding["entity_attention_mask"], [1])
+        self.assertEqual(encoding["entity_token_type_ids"], [0])
+
