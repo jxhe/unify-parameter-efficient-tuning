@@ -210,8 +210,8 @@ from ..roberta.modeling_roberta import (
 # Add modeling imports here
 # Add modeling imports here
 from ..speech_to_text_transformer.modeling_speech_to_text_transformer import (
-    SpeechToTextTransformerForConditionalGeneration,
-    SpeechToTextTransformerModel,
+    Speech2TextTransformerForConditionalGeneration,
+    Speech2TextTransformerModel,
 )
 from ..squeezebert.modeling_squeezebert import (
     SqueezeBertForMaskedLM,
@@ -297,7 +297,7 @@ from .configuration_auto import (
     ReformerConfig,
     RetriBertConfig,
     RobertaConfig,
-    SpeechToTextTransformerConfig,
+    Speech2TextTransformerConfig,
     SqueezeBertConfig,
     T5Config,
     TapasConfig,
@@ -317,7 +317,7 @@ logger = logging.get_logger(__name__)
 MODEL_MAPPING = OrderedDict(
     [
         # Base model mapping
-        (SpeechToTextTransformerConfig, SpeechToTextTransformerModel),
+        (Speech2TextTransformerConfig, Speech2TextTransformerModel),
         (Wav2Vec2Config, Wav2Vec2Model),
         (ConvBertConfig, ConvBertModel),
         (LEDConfig, LEDModel),
@@ -401,7 +401,7 @@ MODEL_FOR_PRETRAINING_MAPPING = OrderedDict(
 MODEL_WITH_LM_HEAD_MAPPING = OrderedDict(
     [
         # Model with LM heads mapping
-        (SpeechToTextTransformerConfig, SpeechToTextTransformerForConditionalGeneration),
+        (Speech2TextTransformerConfig, Speech2TextTransformerForConditionalGeneration),
         (Wav2Vec2Config, Wav2Vec2ForMaskedLM),
         (ConvBertConfig, ConvBertForMaskedLM),
         (LEDConfig, LEDForConditionalGeneration),
@@ -501,7 +501,7 @@ MODEL_FOR_MASKED_LM_MAPPING = OrderedDict(
 MODEL_FOR_SEQ_TO_SEQ_CAUSAL_LM_MAPPING = OrderedDict(
     [
         # Model for Seq2Seq Causal LM mapping
-        (SpeechToTextTransformerConfig, SpeechToTextTransformerForConditionalGeneration),
+        (Speech2TextTransformerConfig, Speech2TextTransformerForConditionalGeneration),
         (LEDConfig, LEDForConditionalGeneration),
         (BlenderbotSmallConfig, BlenderbotSmallForConditionalGeneration),
         (MT5Config, MT5ForConditionalGeneration),
