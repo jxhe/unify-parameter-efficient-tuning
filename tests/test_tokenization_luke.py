@@ -19,17 +19,15 @@ import os
 import unittest
 
 from transformers import AddedToken, LukeTokenizer
-from transformers.models.roberta.tokenization_roberta import VOCAB_FILES_NAMES
+from transformers.models.luke.tokenization_luke import VOCAB_FILES_NAMES
 from transformers.testing_utils import require_tokenizers, slow
 
 from .test_tokenization_common import TokenizerTesterMixin
 
 
 @require_tokenizers
-class RobertaTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
-    tokenizer_class = RobertaTokenizer
-    rust_tokenizer_class = RobertaTokenizerFast
-    test_rust_tokenizer = True
+class Luke(TokenizerTesterMixin, unittest.TestCase):
+    tokenizer_class = LukeTokenizer
     from_pretrained_kwargs = {"cls_token": "<s>"}
 
     def setUp(self):
@@ -73,10 +71,6 @@ class RobertaTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
         kwargs.update(self.special_tokens_map)
         return self.tokenizer_class.from_pretrained(self.tmpdirname, **kwargs)
 
-    def get_rust_tokenizer(self, **kwargs):
-        kwargs.update(self.special_tokens_map)
-        return RobertaTokenizerFast.from_pretrained(self.tmpdirname, **kwargs)
-
     def get_input_output_texts(self, tokenizer):
         input_text = "lower newer"
         output_text = "lower newer"
@@ -93,7 +87,7 @@ class RobertaTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
         input_bpe_tokens = [0, 1, 2, 15, 10, 9, 3, 2, 15, 19]
         self.assertListEqual(tokenizer.convert_tokens_to_ids(input_tokens), input_bpe_tokens)
 
-    def roberta_dict_integration_testing(self):
+    def luke_dict_integration_testing(self):
         tokenizer = self.get_tokenizer()
 
         self.assertListEqual(tokenizer.encode("Hello world!", add_special_tokens=False), [0, 31414, 232, 328, 2])
@@ -168,10 +162,8 @@ class RobertaTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
     def test_embeded_special_tokens(self):
         for tokenizer, pretrained_name, kwargs in self.tokenizers_list:
             with self.subTest("{} ({})".format(tokenizer.__class__.__name__, pretrained_name)):
-                tokenizer_r = self.rust_tokenizer_class.from_pretrained(pretrained_name, **kwargs)
                 tokenizer_p = self.tokenizer_class.from_pretrained(pretrained_name, **kwargs)
                 sentence = "A, <mask> AllenNLP sentence."
-                tokens_r = tokenizer_r.encode_plus(sentence, add_special_tokens=True, return_token_type_ids=True)
                 tokens_p = tokenizer_p.encode_plus(sentence, add_special_tokens=True, return_token_type_ids=True)
 
                 # token_type_ids should put 0 everywhere
@@ -179,20 +171,14 @@ class RobertaTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
 
                 # attention_mask should put 1 everywhere, so sum over length should be 1
                 self.assertEqual(
-                    sum(tokens_r["attention_mask"]) / len(tokens_r["attention_mask"]),
                     sum(tokens_p["attention_mask"]) / len(tokens_p["attention_mask"]),
                 )
 
-                tokens_r_str = tokenizer_r.convert_ids_to_tokens(tokens_r["input_ids"])
                 tokens_p_str = tokenizer_p.convert_ids_to_tokens(tokens_p["input_ids"])
 
                 # Rust correctly handles the space before the mask while python doesnt
                 self.assertSequenceEqual(tokens_p["input_ids"], [0, 250, 6, 50264, 3823, 487, 21992, 3645, 4, 2])
-                self.assertSequenceEqual(tokens_r["input_ids"], [0, 250, 6, 50264, 3823, 487, 21992, 3645, 4, 2])
 
                 self.assertSequenceEqual(
                     tokens_p_str, ["<s>", "A", ",", "<mask>", "ĠAllen", "N", "LP", "Ġsentence", ".", "</s>"]
-                )
-                self.assertSequenceEqual(
-                    tokens_r_str, ["<s>", "A", ",", "<mask>", "ĠAllen", "N", "LP", "Ġsentence", ".", "</s>"]
                 )
