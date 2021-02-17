@@ -90,12 +90,16 @@ class LukeTokenizer(RobertaTokenizer):
         model_max_length=512,
         max_entity_length=32,
         max_mention_length=30,
-        additional_special_tokens: Optional[List[str]] = None,
+        entity_token_1="<ent>",
+        entity_token_2="<ent2>",
         **kwargs
     ):
-        
-        # we add 2 special tokens for downstream tasks
-        additional_special_tokens = ["<ent>", "<ent2>"]
+
+        # we add 2 special tokens for downstream tasks        
+        entity_token_1 = AddedToken(entity_token_1, lstrip=True, rstrip=True) if isinstance(entity_token_1, str) else entity_token_1
+        entity_token_2 = AddedToken(entity_token_2, lstrip=True, rstrip=True) if isinstance(entity_token_2, str) else entity_token_2
+        additional_special_tokens = [entity_token_1, entity_token_2]
+
         super().__init__(vocab_file=vocab_file,
                         merges_file=merges_file,
                         model_max_length=model_max_length,

@@ -139,49 +139,6 @@ class LukeModelTester:
         result = model(input_ids)
         self.parent.assertEqual(result.last_hidden_state.shape, (self.batch_size, self.seq_length, self.hidden_size))
 
-    def create_and_check_for_causal_lm(
-            self,
-            config,
-            input_ids,
-            token_type_ids,
-            input_mask,
-            sequence_labels,
-            token_labels,
-            choice_labels,
-            encoder_hidden_states,
-            encoder_attention_mask,
-    ):
-        model = LukeForCausalLM(config=config)
-        model.to(torch_device)
-        model.eval()
-        result = model(input_ids, attention_mask=input_mask, token_type_ids=token_type_ids, labels=token_labels)
-        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.seq_length, self.vocab_size))
-
-    def create_and_check_for_masked_lm(
-            self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
-    ):
-        model = LukeForMaskedLM(config=config)
-        model.to(torch_device)
-        model.eval()
-        result = model(input_ids, attention_mask=input_mask, token_type_ids=token_type_ids, labels=token_labels)
-        self.parent.assertEqual(result.logits.shape, (self.batch_size, self.seq_length, self.vocab_size))
-
-    def create_and_check_for_question_answering(
-            self, config, input_ids, token_type_ids, input_mask, sequence_labels, token_labels, choice_labels
-    ):
-        model = LukeForQuestionAnswering(config=config)
-        model.to(torch_device)
-        model.eval()
-        result = model(
-            input_ids,
-            attention_mask=input_mask,
-            token_type_ids=token_type_ids,
-            start_positions=sequence_labels,
-            end_positions=sequence_labels,
-        )
-        self.parent.assertEqual(result.start_logits.shape, (self.batch_size, self.seq_length))
-        self.parent.assertEqual(result.end_logits.shape, (self.batch_size, self.seq_length))
-
     def prepare_config_and_inputs_for_common(self):
         config_and_inputs = self.prepare_config_and_inputs()
         (
@@ -203,13 +160,11 @@ class LukeModelTest(ModelTesterMixin, unittest.TestCase):
     all_model_classes = (
         (
             LukeModel,
-            LukeForMaskedLM,
             LukeEntityAwareAttentionModel,
         )
         if is_torch_available()
         else ()
     )
-    all_generative_model_classes = (LukeForCausalLM,) if is_torch_available() else ()
 
     def setUp(self):
         self.model_tester = LukeModelTester(self)
@@ -221,16 +176,6 @@ class LukeModelTest(ModelTesterMixin, unittest.TestCase):
     def test_model(self):
         config_and_inputs = self.model_tester.prepare_config_and_inputs()
         self.model_tester.create_and_check_model(*config_and_inputs)
-
-    def test_model_various_embeddings(self):
-        config_and_inputs = self.model_tester.prepare_config_and_inputs()
-        for type in ["absolute", "relative_key", "relative_key_query"]:
-            config_and_inputs[0].position_embedding_type = type
-            self.model_tester.create_and_check_model(*config_and_inputs)
-
-    def test_for_masked_lm(self):
-        config_and_inputs = self.model_tester.prepare_config_and_inputs()
-        self.model_tester.create_and_check_for_masked_lm(*config_and_inputs)
 
     @slow
     def test_model_from_pretrained(self):
