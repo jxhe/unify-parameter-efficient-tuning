@@ -196,7 +196,7 @@ class LukeTokenizerIntegrationTests(unittest.TestCase):
         self.assertEqual(encoding["entity_ids"].shape, (1,1))
         self.assertEqual(encoding["entity_attention_mask"].shape, (1,1))
         self.assertEqual(encoding["entity_token_type_ids"].shape, (1,1))
-        self.assertEqual(encoding["entity_position_ids"].shape, (1,30))
+        self.assertEqual(encoding["entity_position_ids"].shape, (1, tokenizer.max_entity_length, tokenizer.max_mention_length))
 
     def test_relation_classification_no_padding_or_truncation(self):
         tokenizer = self.get_tokenizer()
