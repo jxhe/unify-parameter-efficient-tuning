@@ -427,6 +427,7 @@ class LukeTokenizer(RobertaTokenizer):
             entity_ids = [1]
             entity_position_ids = list(range(mention_start, mention_end))[:self.max_mention_length]
             entity_position_ids += [-1] * (self.max_mention_length - mention_end + mention_start)
+            entity_position_ids = [entity_position_ids]
             #entity_position_ids = [entity_position_ids, [-1] * self.max_mention_length]
 
         elif task == "relation_classification":
