@@ -29,7 +29,6 @@ if is_torch_available():
 
     from transformers import (
         LukeConfig,
-        LukeForMaskedLM,
         LukeModel,
         LukeEntityAwareAttentionModel,
     )
@@ -295,7 +294,7 @@ def prepare_luke_batch_inputs():
 
 
 @require_torch
-class LukeModelIntegrationTest(unittest.TestCase):
+class LukeModelIntegrationTests(unittest.TestCase):
     @slow
     def test_inference_no_head(self):
         model = LukeEntityAwareAttentionModel.from_pretrained("nielsr/luke-large").to(torch_device)
@@ -305,22 +304,23 @@ class LukeModelIntegrationTest(unittest.TestCase):
         for key, value in encoding.items():
             encoding[key] = torch.as_tensor(encoding[key]).unsqueeze(0).to(torch_device)
 
-        # Currently the model still returns a tuple
-        encoder_outputs = model(**encoding)
-
+        outputs = model(**encoding)
+        
         # Verify word hidden states
         expected_shape = torch.Size((1, 42, 1024))
-        self.assertEqual(encoder_outputs[0].shape, expected_shape)
-
-        expected_slice = torch.tensor([[-0.0035,  0.0314, -0.0110],
-                                        [ 0.0785, -0.3041, -2.2792],
-                                        [-0.1808, -0.1102, -0.2041]])
-        self.assertTrue(torch.allclose(output[0, :3, :3], expected_slice, atol=1e-4))
+        self.assertEqual(outputs.last_hidden_state.shape, expected_shape)
+        
+        expected_slice = torch.tensor([[ 0.0301,  0.0980,  0.0092],
+            [ 0.2718, -0.2413, -0.9446],
+            [-0.1382, -0.2608, -0.3927]])
+            
+        self.assertTrue(torch.allclose(outputs.last_hidden_state[0, :3, :3], expected_slice, atol=1e-4))
 
         # Verify entity hidden states
         expected_shape = torch.Size((1, 2, 1024))
-        self.assertEqual(encoder_outputs[1].shape, expected_shape)
-
-        expected_slice = torch.tensor([[ 1.1192,  0.4065, -0.3914],
-                                        [ 0.0182,  0.0654,  0.4022]])
-        self.assertTrue(torch.allclose(output[0, :3, :3], expected_slice, atol=1e-4))
+        self.assertEqual(outputs.entity_last_hidden_state.shape == expected_shape)
+        
+        expected_slice = torch.tensor([[ 0.3251,  0.3981, -0.0689],
+            [-0.0098,  0.1215,  0.3544]])
+            
+        self.assertTrue(torch.allclose(outputs.entity_last_hidden_state[0, :3, :3], expected_slice, atol=1e-4))

@@ -738,8 +738,8 @@ LUKE_INPUTS_DOCSTRING = r"""
             - 0 corresponds to a `portion A` entity token,
             - 1 corresponds to a `portion B` entity token.
         
-        entity_position_ids (:obj:`torch.LongTensor` of shape :obj:`({0})`, `optional`):
-            Indices of positions of each input entity token in the position embeddings. Selected in the range ``[0,
+        entity_position_ids (:obj:`torch.LongTensor` of shape :obj:`(batch_size, max_entity_length, max_mention_length)`, `optional`):
+            Indices of positions of each input entity in the position embeddings. Selected in the range ``[0,
             config.max_position_embeddings - 1]``.
         
         inputs_embeds (:obj:`torch.FloatTensor` of shape :obj:`({0}, hidden_size)`, `optional`):
