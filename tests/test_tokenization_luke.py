@@ -33,11 +33,11 @@ class Luke(TokenizerTesterMixin, unittest.TestCase):
         super().setUp()
 
         # to be updated once files are on the hub
-        self.vocab_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\vocab.json")
-        self.merges_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\merges.txt")
+        #self.vocab_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\vocab.json")
+        #self.merges_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\merges.txt")
 
     def get_tokenizer(self):
-        return self.tokenizer_class(vocab_file=self.vocab_file, merges_file=self.merges_file)
+        return self.tokenizer_class.from_pretrained(r"C:\Users\niels.rogge\Documents\LUKE\luke-large")
 
     def get_input_output_texts(self, tokenizer):
         input_text = "lower newer"
@@ -210,4 +210,23 @@ class LukeTokenizerIntegrationTests(unittest.TestCase):
         self.assertEqual(encoding["entity_ids"], [1, 2])
         self.assertEqual(encoding["entity_attention_mask"], [1, 1])
         self.assertEqual(encoding["entity_token_type_ids"], [0, 0])
-        self.assertEqual(encoding["entity_position_ids"], )
+        self.assertEqual(encoding["entity_position_ids"], [[3, 4, 5, 6, 7, 8, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1], [13, 14, 15, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]])
+
+    def test_relation_classification_padding_pytorch_tensors(self):
+        tokenizer = self.get_tokenizer()
+        sentence = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck."
+        # head and tail information
+        spans = [(9,21), (39,42)]
+        
+        encoding = tokenizer(sentence, task="relation_classification", additional_info=spans, padding="max_length", return_tensors="pt")
+
+        # test words
+        self.assertEqual(encoding["input_ids"].shape, (1,512))
+        self.assertEqual(encoding["attention_mask"].shape, (1,512))
+        self.assertEqual(encoding["token_type_ids"].shape, (1,512))
+
+        # test entities
+        self.assertEqual(encoding["entity_ids"].shape, (1,2))
+        self.assertEqual(encoding["entity_attention_mask"].shape, (1,2))
+        self.assertEqual(encoding["entity_token_type_ids"].shape, (1,2))
+        self.assertEqual(encoding["entity_position_ids"].shape, (1, tokenizer.max_entity_length, tokenizer.max_mention_length))

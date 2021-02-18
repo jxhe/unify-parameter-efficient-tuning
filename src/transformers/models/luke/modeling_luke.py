@@ -115,6 +115,37 @@ class BaseLukeEntityAwareAttentionModelOutputWithPoolingAndCrossAttentions(Model
     entity_last_hidden_state: torch.FloatTensor = None
 
 
+@dataclass
+class EntityTypingOutput(ModelOutput):
+    """
+    Outputs of entity typing models.
+    Args:
+        loss (:obj:`torch.FloatTensor` of shape :obj:`(1,)`, `optional`, returned when :obj:`labels` is provided):
+            Classification (or regression if config.num_labels==1) loss.
+        logits (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, config.num_labels)`):
+            Classification (or regression if config.num_labels==1) scores (before SoftMax).
+        hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_hidden_states=True`` is passed or when ``config.output_hidden_states=True``):
+            Tuple of :obj:`torch.FloatTensor` (one for the output of the embeddings + one for the output of each layer)
+            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
+            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
+        entity_hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_entity_hidden_states=True`` is passed or when ``config.output_entity_hidden_states=True``):
+            Tuple of :obj:`torch.FloatTensor` (one for the output of the embeddings + one for the output of each layer)
+            of shape :obj:`(batch_size, max_entity_length, hidden_size)`.
+            Entity hidden-states of the model at the output of each layer plus the initial embedding outputs.
+        attentions (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_attentions=True`` is passed or when ``config.output_attentions=True``):
+            Tuple of :obj:`torch.FloatTensor` (one for each layer) of shape :obj:`(batch_size, num_heads,
+            sequence_length, sequence_length)`.
+            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
+            heads.
+    """
+
+    loss: Optional[torch.FloatTensor] = None
+    logits: torch.FloatTensor = None
+    hidden_states: Optional[Tuple[torch.FloatTensor]] = None
+    entity_hidden_states: Optional[Tuple[torch.FloatTensor]] = None
+    attentions: Optional[Tuple[torch.FloatTensor]] = None
+
+
 # Copied from transformers.models.roberta.modeling_bert.RobertaEmbeddings with Roberta -> Luke
 class LukeEmbeddings(nn.Module):
     """
@@ -1024,8 +1055,10 @@ class LukeEntityAwareAttentionModel(LukeModel):
         entity_attention_mask,
         entity_token_type_ids,
         entity_position_ids,
-        return_dict=True,
+        return_dict=None,
     ):
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
         word_embeddings = self.embeddings(input_ids, token_type_ids)
         entity_embeddings = self.entity_embeddings(entity_ids, entity_position_ids, entity_token_type_ids)
         attention_mask = self._compute_extended_attention_mask(attention_mask, entity_attention_mask)
@@ -1151,3 +1184,70 @@ class EntityAwareEncoder(nn.Module):
             )
 
         return word_hidden_states, entity_hidden_states
+
+
+@add_start_docstrings(
+    """The LUKE Model with a classification head on top (a linear layer on top of the hidden state of the 
+    <mask> entity token) for entity typing tasks, such as Open Entity.""",
+    LUKE_START_DOCSTRING,
+)
+class LukeForEntityTyping(nn.Module):
+    def __init__(self, config):
+        super().__init__(config)
+
+        self.luke = LukeEntityAwareAttentionModel(config)
+        
+        self.num_labels = config.num_labels
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.typing = nn.Linear(config.hidden_size, config.num_labels)
+
+        self.init_weights()
+
+    def forward(
+        self,
+        input_ids,
+        attention_mask,
+        token_type_ids,
+        entity_ids,
+        entity_attention_mask,
+        entity_token_type_ids,
+        entity_position_ids,
+        labels=None,
+        return_dict=None,
+    ):
+        r"""
+        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
+            Labels for computing the classification loss. Indices should be in :obj:`[0, ...,
+            config.num_labels - 1]`. 
+        """
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        
+        outputs = self.luke(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            entity_ids=entity_ids,
+            entity_attention_mask=entity_attention_mask,
+            entity_token_type_ids=entity_token_type_ids,
+            entity_position_ids=entity_position_ids,
+            return_dict=return_dict,
+        )
+
+        feature_vector = outputs.entity_last_hidden_state[:,0,:]
+        feature_vector = self.dropout(feature_vector)
+        logits = self.typing(feature_vector)
+        
+        if labels is not None:
+            loss = F.binary_cross_entropy_with_logits(logits.view(-1), labels.view(-1).type_as(logits))
+
+        if not return_dict:
+            output = (logits,) + outputs[2:]
+            return ((loss,) + output) if loss is not None else output
+
+        return EntityTypingOutput(
+            loss=loss,
+            logits=logits,
+            hidden_states=None, # currently not supported
+            entity_hidden_states=None, # currently not supported
+            attentions=None, # currently not supported
+        )

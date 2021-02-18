@@ -95,9 +95,10 @@ class LukeTokenizer(RobertaTokenizer):
         **kwargs
     ):
 
-        # we add 2 special tokens for downstream tasks        
-        entity_token_1 = AddedToken(entity_token_1, lstrip=True, rstrip=True) if isinstance(entity_token_1, str) else entity_token_1
-        entity_token_2 = AddedToken(entity_token_2, lstrip=True, rstrip=True) if isinstance(entity_token_2, str) else entity_token_2
+        # we add 2 special tokens for downstream tasks 
+        # for more information about lstrip and rstrip, see https://github.com/huggingface/transformers/pull/2778       
+        entity_token_1 = AddedToken(entity_token_1, lstrip=True, rstrip=False) if isinstance(entity_token_1, str) else entity_token_1
+        entity_token_2 = AddedToken(entity_token_2, lstrip=True, rstrip=False) if isinstance(entity_token_2, str) else entity_token_2
         additional_special_tokens = [entity_token_1, entity_token_2]
 
         super().__init__(vocab_file=vocab_file,
