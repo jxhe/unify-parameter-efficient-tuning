@@ -172,8 +172,14 @@ class LukeTokenizerIntegrationTests(unittest.TestCase):
         span = (39,42)
         
         encoding = tokenizer(sentence, task="entity_typing", additional_info=span)
-
+        
+        # test words
+        self.assertEqual(len(encoding["input_ids"]), 42)
+        self.assertEqual(len(encoding["attention_mask"]), 42)
+        self.assertEqual(len(encoding["token_type_ids"]), 42)
         self.assertEqual(tokenizer.decode(encoding["input_ids"]), "<s>Top seed Ana Ivanovic said on Thursday <ent>she<ent> could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon.</s>")
+        
+        # test entities
         self.assertEqual(encoding["entity_ids"], [1])
         self.assertEqual(encoding["entity_attention_mask"], [1])
         self.assertEqual(encoding["entity_token_type_ids"], [0])

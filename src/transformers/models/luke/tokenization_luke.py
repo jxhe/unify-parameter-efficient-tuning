@@ -92,13 +92,14 @@ class LukeTokenizer(RobertaTokenizer):
         max_mention_length=30,
         entity_token_1="<ent>",
         entity_token_2="<ent2>",
+        additional_special_tokens: Optional[List[str]] = None,
         **kwargs
     ):
 
         # we add 2 special tokens for downstream tasks 
         # for more information about lstrip and rstrip, see https://github.com/huggingface/transformers/pull/2778       
-        entity_token_1 = AddedToken(entity_token_1, lstrip=True, rstrip=False) if isinstance(entity_token_1, str) else entity_token_1
-        entity_token_2 = AddedToken(entity_token_2, lstrip=True, rstrip=False) if isinstance(entity_token_2, str) else entity_token_2
+        entity_token_1 = AddedToken(entity_token_1, lstrip=False, rstrip=False) if isinstance(entity_token_1, str) else entity_token_1
+        entity_token_2 = AddedToken(entity_token_2, lstrip=False, rstrip=False) if isinstance(entity_token_2, str) else entity_token_2
         additional_special_tokens = [entity_token_1, entity_token_2]
 
         super().__init__(vocab_file=vocab_file,
@@ -411,7 +412,7 @@ class LukeTokenizer(RobertaTokenizer):
                 for a, b in conv_tables:
                     target_text = target_text.replace(a, b)
 
-                return self.tokenize(target_text)
+                return self.tokenize(target_text.strip(), add_prefix_space=True)
 
             tokens = []
             tokens += preprocess_and_tokenize(text, 0, span[0])
