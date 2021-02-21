@@ -255,17 +255,13 @@ def prepare_luke_batch_inputs():
 class LukeModelIntegrationTests(unittest.TestCase):
     @slow
     def test_inference_no_head(self):
-        model = LukeEntityAwareAttentionModel.from_pretrained("nielsr/luke-large").to(torch_device)
+        model = LukeEntityAwareAttentionModel.from_pretrained("nielsr/luke-large").eval()
+        model.to(torch_device)
         
         encoding = prepare_luke_batch_inputs()
         # move all values to device
         for key, value in encoding.items():
             encoding[key] = encoding[key].to(torch_device)
-
-        tokenizer = LukeTokenizer.from_pretrained("nielsr/luke-large")
-        
-        for id in encoding['input_ids'].squeeze().tolist():
-            print(id, tokenizer.decode([id]))
         
         outputs = model(**encoding)
         
