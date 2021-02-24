@@ -32,6 +32,7 @@ if is_torch_available():
         LukeModel,
         LukeEntityAwareAttentionModel,
         LukeTokenizer,
+        LukeTokenizer
     )
     from transformers.models.luke.modeling_luke import (
         LUKE_PRETRAINED_MODEL_ARCHIVE_LIST,
@@ -185,13 +186,13 @@ class LukeModelTest(ModelTesterMixin, unittest.TestCase):
             self.assertIsNotNone(model)
 
 
-# def prepare_luke_batch_inputs():
-#         # Taken from Open Entity dev set
-#         text = """Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."""
-#         span = (39,42)
+def prepare_luke_batch_inputs(tokenizer):
+        # Taken from Open Entity dev set
+        text = """Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."""
+        span = (39,42)
         
-#         ENTITY_TOKEN = '[ENT]'
-#         max_mention_length = 30
+        ENTITY_TOKEN = '<ent>'
+        max_mention_length = 30
         
 #         conv_tables = (
 #             ("-LRB-", "("),
@@ -207,10 +208,7 @@ class LukeModelTest(ModelTesterMixin, unittest.TestCase):
 #                 for a, b in conv_tables:
 #                     target_text = target_text.replace(a, b)
 
-#                 if isinstance(tokenizer, RobertaTokenizer):
-#                     return tokenizer.tokenize(target_text, add_prefix_space=True)
-#                 else:
-#                     return tokenizer.tokenize(target_text)
+                return tokenizer.tokenize(target_text.strip(), add_prefix_space=True)
 
 #         tokens = [tokenizer.cls_token]
 #         tokens += preprocess_and_tokenize(text, 0, span[0])
@@ -258,8 +256,9 @@ class LukeModelIntegrationTests(unittest.TestCase):
         model = LukeEntityAwareAttentionModel.from_pretrained("nielsr/luke-large").eval()
         model.to(torch_device)
         
-        encoding = prepare_luke_batch_inputs()
-        # move all values to device
+        tokenizer = LukeTokenizer.from_pretrained("nielsr/luke-large")
+        encoding = prepare_luke_batch_inputs(tokenizer)
+        # convert all values to PyTorch tensors
         for key, value in encoding.items():
             encoding[key] = encoding[key].to(torch_device)
         
@@ -276,10 +275,10 @@ class LukeModelIntegrationTests(unittest.TestCase):
         self.assertTrue(torch.allclose(outputs.last_hidden_state[0, :3, :3], expected_slice, atol=1e-4))
 
         # Verify entity hidden states
-        expected_shape = torch.Size((1, 1, 1024))
-        self.assertEqual(outputs.entity_last_hidden_state.shape == expected_shape)
+        expected_shape = torch.Size((1, 2, 1024))
         
+        self.assertTrue(outputs.entity_last_hidden_state.shape == expected_shape)
         expected_slice = torch.tensor([[ 0.3251,  0.3981, -0.0689],
             [-0.0098,  0.1215,  0.3544]])
-            
+
         self.assertTrue(torch.allclose(outputs.entity_last_hidden_state[0, :3, :3], expected_slice, atol=1e-4))
