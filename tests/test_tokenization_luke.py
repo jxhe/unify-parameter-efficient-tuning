@@ -32,12 +32,12 @@ class Luke(TokenizerTesterMixin, unittest.TestCase):
     def setUp(self):
         super().setUp()
 
-        # to be updated once files are on the hub
+        # commented out since files are on the hub
         #self.vocab_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\vocab.json")
         #self.merges_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\merges.txt")
 
     def get_tokenizer(self):
-        return self.tokenizer_class.from_pretrained(r"C:\Users\niels.rogge\Documents\LUKE\luke-large")
+        return self.tokenizer_class.from_pretrained("nielsr/luke-large")
 
     def get_input_output_texts(self, tokenizer):
         input_text = "lower newer"
@@ -45,7 +45,7 @@ class Luke(TokenizerTesterMixin, unittest.TestCase):
         return input_text, output_text
 
     def test_full_tokenizer(self):
-        tokenizer = self.tokenizer_class(self.vocab_file, self.merges_file, **self.special_tokens_map)
+        tokenizer = self.tokenizer_class.from_pretrained("nielsr/luke-large")
         text = "lower newer"
         bpe_tokens = ["l", "o", "w", "er", "\u0120", "n", "e", "w", "er"]
         tokens = tokenizer.tokenize(text)  # , add_prefix_space=True)
@@ -66,7 +66,7 @@ class Luke(TokenizerTesterMixin, unittest.TestCase):
 
     @slow
     def test_sequence_builders(self):
-        tokenizer = self.tokenizer_class.from_pretrained("roberta-base")
+        tokenizer = self.tokenizer_class.from_pretrained("nielsr/luke-large")
 
         text = tokenizer.encode("sequence builders", add_special_tokens=False)
         text_2 = tokenizer.encode("multi-sequence build", add_special_tokens=False)
@@ -159,12 +159,12 @@ class LukeTokenizerIntegrationTests(unittest.TestCase):
     def setUp(self):
         super().setUp()
 
-        # to be updated once files are on the hub
-        self.vocab_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\vocab.json")
-        self.merges_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\merges.txt")
+        # commented out since files are on the hub
+        #self.vocab_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\vocab.json")
+        #self.merges_file = os.path.join(r"C:\Users\niels.rogge\Documents\LUKE\tokenizer_files\merges.txt")
 
     def get_tokenizer(self):
-        return self.tokenizer_class(vocab_file=self.vocab_file, merges_file=self.merges_file)
+        return self.tokenizer_class.from_pretrained("nielsr/luke-large")
     
     def test_entity_linking_no_padding_or_truncation(self):
         tokenizer = self.get_tokenizer()
@@ -224,12 +224,13 @@ class LukeTokenizerIntegrationTests(unittest.TestCase):
         # head and tail information
         spans = [(9,21), (39,42)]
         
-        encoding = tokenizer(sentence, task="relation_classification", additional_info=spans, padding="max_length", return_tensors="pt")
+        encoding = tokenizer(sentence, task="relation_classification", additional_info=spans, padding="max_length", 
+                                max_length=30, return_tensors="pt")
 
         # test words
-        self.assertEqual(encoding["input_ids"].shape, (1,512))
-        self.assertEqual(encoding["attention_mask"].shape, (1,512))
-        self.assertEqual(encoding["token_type_ids"].shape, (1,512))
+        self.assertEqual(encoding["input_ids"].shape, (1,30))
+        self.assertEqual(encoding["attention_mask"].shape, (1,30))
+        self.assertEqual(encoding["token_type_ids"].shape, (1,30))
 
         # test entities
         self.assertEqual(encoding["entity_ids"].shape, (1,2))
