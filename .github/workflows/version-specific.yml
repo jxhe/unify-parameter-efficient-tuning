@@ -33,7 +33,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install torch==1.3
-          pip install .[dev]
+          pip install .[sklearn,torch,sentencepiece,testing]
 
       - name: Run all non-slow tests
         run: |
@@ -75,7 +75,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install torch==1.4
-          pip install .[dev]
+          pip install .[sklearn,torch,sentencepiece,testing]
 
       - name: Run all non-slow tests
         run: |
@@ -117,7 +117,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install torch==1.5
-          pip install .[dev]
+          pip install .[sklearn,torch,sentencepiece,testing]
 
       - name: Run all non-slow tests
         run: |
@@ -159,7 +159,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install torch==1.6
-          pip install .[dev]
+          pip install .[sklearn,torch,sentencepiece,testing]
 
       - name: Run all non-slow tests
         run: |
@@ -201,7 +201,49 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install torch==1.7
-          pip install .[dev]
+          pip install .[sklearn,torch,sentencepiece,testing]
+
+      - name: Run all non-slow tests
+        run: |
+          python -m pytest -n 1 --dist=loadfile -s --make-reports=tests_torch-1_7 tests
+
+      - name: Failure short reports
+        if: ${{ always() }}
+        run: cat reports/tests_torch-1_7_failures_short.txt
+
+      - name: Test suite reports artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: run_all_tests_torch-1_7_test_reports
+          path: reports
+
+  run_tests_tf-2_3:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v1
+
+      - name: Install Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: 3.6
+
+      - name: Loading cache.
+        uses: actions/cache@v2
+        id: cache
+        with:
+          path: ~/.cache/pip
+          key: v1.2-tf-2_3
+          restore-keys: |
+            v1.2-tf-2_3-${{ hashFiles('setup.py') }}
+            v1.2-tf-2_3
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install tensorflow==2.3
+          pip install .[sklearn,tensorflow,sentencepiece,testing]
 
       - name: Run all non-slow tests
         run: |
