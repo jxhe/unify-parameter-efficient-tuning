@@ -24,59 +24,59 @@ from transformers import LukeConfig, LukeEntityAwareAttentionModel, RobertaToken
 
 
 def prepare_luke_batch_inputs(tokenizer):
-        # Taken from Open Entity dev set
-        # Very important to put on one line!
-        text = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."
-        span = (39,42)
-        
-        ENTITY_TOKEN = "[ENT]"
-        max_mention_length = 30
-        
-        conv_tables = (
-            ("-LRB-", "("),
-            ("-LCB-", "("),
-            ("-LSB-", "("),
-            ("-RRB-", ")"),
-            ("-RCB-", ")"),
-            ("-RSB-", ")"),
-        )
-        
-        def preprocess_and_tokenize(text, start, end=None):
-                target_text = text[start:end]
-                for a, b in conv_tables:
-                    target_text = target_text.replace(a, b)
+    # Taken from Open Entity dev set
+    # Very important to put on one line!
+    text = "Top seed Ana Ivanovic said on Thursday she could hardly believe her luck as a fortuitous netcord helped the new world number one avoid a humiliating second- round exit at Wimbledon ."
+    span = (39, 42)
 
-                if isinstance(tokenizer, RobertaTokenizer):
-                    # for some reason, I had to add .strip() here (otherwise there's an additional token with id 1437 added)
-                    return tokenizer.tokenize(target_text.strip(), add_prefix_space=True)
-                else:
-                    return tokenizer.tokenize(target_text)
+    ENTITY_TOKEN = "[ENT]"
+    max_mention_length = 30
 
-        tokens = [tokenizer.cls_token]
-        tokens += preprocess_and_tokenize(text, 0, span[0])
-        mention_start = len(tokens)
-        tokens.append(ENTITY_TOKEN)
-        tokens += preprocess_and_tokenize(text, span[0], span[1])
-        tokens.append(ENTITY_TOKEN)
-        mention_end = len(tokens)
+    conv_tables = (
+        ("-LRB-", "("),
+        ("-LCB-", "("),
+        ("-LSB-", "("),
+        ("-RRB-", ")"),
+        ("-RCB-", ")"),
+        ("-RSB-", ")"),
+    )
 
-        tokens += preprocess_and_tokenize(text, span[1])
-        tokens.append(tokenizer.sep_token)
+    def preprocess_and_tokenize(text, start, end=None):
+        target_text = text[start:end]
+        for a, b in conv_tables:
+            target_text = target_text.replace(a, b)
 
-        encoding = {}
-        encoding['input_ids'] = tokenizer.convert_tokens_to_ids(tokens)
-        encoding['attention_mask'] = [1] * len(tokens)
-        encoding['token_type_ids'] = [0] * len(tokens)
+        if isinstance(tokenizer, RobertaTokenizer):
+            # for some reason, I had to add .strip() here (otherwise there's an additional token with id 1437 added)
+            return tokenizer.tokenize(target_text.strip(), add_prefix_space=True)
+        else:
+            return tokenizer.tokenize(target_text)
 
-        encoding['entity_ids'] = [1, 0]
-        encoding['entity_attention_mask'] = [1, 0]
-        encoding['entity_token_type_ids'] = [0, 0]
-        entity_position_ids = list(range(mention_start, mention_end))[:max_mention_length]
-        entity_position_ids += [-1] * (max_mention_length - mention_end + mention_start)
-        entity_position_ids = [entity_position_ids, [-1] * max_mention_length]
-        encoding['entity_position_ids'] = entity_position_ids
+    tokens = [tokenizer.cls_token]
+    tokens += preprocess_and_tokenize(text, 0, span[0])
+    mention_start = len(tokens)
+    tokens.append(ENTITY_TOKEN)
+    tokens += preprocess_and_tokenize(text, span[0], span[1])
+    tokens.append(ENTITY_TOKEN)
+    mention_end = len(tokens)
 
-        return encoding
+    tokens += preprocess_and_tokenize(text, span[1])
+    tokens.append(tokenizer.sep_token)
+
+    encoding = {}
+    encoding["input_ids"] = tokenizer.convert_tokens_to_ids(tokens)
+    encoding["attention_mask"] = [1] * len(tokens)
+    encoding["token_type_ids"] = [0] * len(tokens)
+
+    encoding["entity_ids"] = [1, 0]
+    encoding["entity_attention_mask"] = [1, 0]
+    encoding["entity_token_type_ids"] = [0, 0]
+    entity_position_ids = list(range(mention_start, mention_end))[:max_mention_length]
+    entity_position_ids += [-1] * (max_mention_length - mention_end + mention_start)
+    entity_position_ids = [entity_position_ids, [-1] * max_mention_length]
+    encoding["entity_position_ids"] = entity_position_ids
+
+    return encoding
 
 
 @torch.no_grad()
@@ -121,37 +121,34 @@ def convert_luke_checkpoint(checkpoint_path, metadata_path, entity_vocab_path, p
     model = LukeEntityAwareAttentionModel(config=config).eval()
 
     missing_keys, unexpected_keys = model.load_state_dict(state_dict, strict=False)
-    assert len(missing_keys) == 1 and missing_keys[0] == 'embeddings.position_ids'
+    assert len(missing_keys) == 1 and missing_keys[0] == "embeddings.position_ids"
     # NOTE: maybe LukeEntityAwareAttentionModel should have the pretraining heads?
-    assert all(key.startswith('entity_predictions') or key.startswith('lm_head') for key in unexpected_keys)
-    
-    # Check outputs 
+    assert all(key.startswith("entity_predictions") or key.startswith("lm_head") for key in unexpected_keys)
+
+    # Check outputs
     encoding = prepare_luke_batch_inputs(tokenizer)
     # convert all values to PyTorch tensors
     for key, value in encoding.items():
         encoding[key] = torch.as_tensor(encoding[key]).unsqueeze(0)
-    
+
     outputs = model(**encoding)
 
     # Verify word hidden states
     expected_shape = torch.Size((1, 42, 1024))
     assert outputs.last_hidden_state.shape == expected_shape
-    
-    expected_slice = torch.tensor([[ 0.0301,  0.0980,  0.0092],
-        [ 0.2718, -0.2413, -0.9446],
-        [-0.1382, -0.2608, -0.3927]])
-        
+
+    expected_slice = torch.tensor([[0.0301, 0.0980, 0.0092], [0.2718, -0.2413, -0.9446], [-0.1382, -0.2608, -0.3927]])
+
     assert torch.allclose(outputs.last_hidden_state[0, :3, :3], expected_slice, atol=1e-4)
 
     # Verify entity hidden states
     expected_shape = torch.Size((1, 2, 1024))
     assert outputs.entity_last_hidden_state.shape == expected_shape
-    
-    expected_slice = torch.tensor([[ 0.3251,  0.3981, -0.0689],
-        [-0.0098,  0.1215,  0.3544]])
-        
+
+    expected_slice = torch.tensor([[0.3251, 0.3981, -0.0689], [-0.0098, 0.1215, 0.3544]])
+
     assert torch.allclose(outputs.entity_last_hidden_state[0, :3, :3], expected_slice, atol=1e-4)
-    
+
     # Finally, save our PyTorch model and tokenizer
     print("Saving PyTorch model and tokenizer to {}".format(pytorch_dump_folder_path))
     model.save_pretrained(pytorch_dump_folder_path)
@@ -171,11 +168,20 @@ def load_entity_vocab(entity_vocab_path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # Required parameters
+    parser.add_argument("--checkpoint_path", type=str, help="Path to a pytorch_model.bin file.")
     parser.add_argument(
-        "--checkpoint_path", type=str, help="Path to a pytorch_model.bin file."
+        "--metadata_path", default=None, type=str, help="Path to a metadata.json file, defining the configuration."
     )
-    parser.add_argument("--metadata_path", default=None, type=str, help="Path to a metadata.json file, defining the configuration.")
-    parser.add_argument("--entity_vocab_path", default=None, type=str, help="Path to an entity_vocab.tsv file, containing the entity vocabulary.")
-    parser.add_argument("--pytorch_dump_folder_path", default=None, type=str, help="Path to where to dump the output PyTorch model.")
+    parser.add_argument(
+        "--entity_vocab_path",
+        default=None,
+        type=str,
+        help="Path to an entity_vocab.tsv file, containing the entity vocabulary.",
+    )
+    parser.add_argument(
+        "--pytorch_dump_folder_path", default=None, type=str, help="Path to where to dump the output PyTorch model."
+    )
     args = parser.parse_args()
-    convert_luke_checkpoint(args.checkpoint_path, args.metadata_path, args.entity_vocab_path, args.pytorch_dump_folder_path)
+    convert_luke_checkpoint(
+        args.checkpoint_path, args.metadata_path, args.entity_vocab_path, args.pytorch_dump_folder_path
+    )

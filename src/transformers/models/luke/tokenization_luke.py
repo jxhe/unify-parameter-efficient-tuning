@@ -13,10 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Tokenization classes for LUKE."""
-from ...utils import logging
-from transformers import RobertaTokenizer
+from typing import Dict, List, Optional, Tuple, Union
 
-from typing import Optional, Union, Tuple, List, Dict
+from transformers import RobertaTokenizer
 
 from ...file_utils import add_end_docstrings
 from ...tokenization_utils_base import (
@@ -36,6 +35,7 @@ from ...tokenization_utils_base import (
     TextInputPair,
     TruncationStrategy,
 )
+from ...utils import logging
 
 
 logger = logging.get_logger(__name__)
@@ -70,12 +70,13 @@ PRETRAINED_INIT_CONFIGURATION = {
 
 class LukeTokenizer(RobertaTokenizer):
     r"""
-    Construct a LUKE tokenizer.  
+    Construct a LUKE tokenizer.
 
-    This tokenizer inherits from :class:`~transformers.RobertaTokenizer` which contains most of the main methods.
-    Users should refer to this superclass for more information regarding those methods. Compared to :class:`~transformers.RobertaTokenizer`,
-     :class:`~transformers.LukeTokenizer` also creates :obj:`entity_ids`, :obj:`entity_attention_mask`, :obj:`entity_token_type_ids` 
-     and :obj:`entity_position_ids` to be used by the entity-aware attention mechanism of LUKE. 
+    This tokenizer inherits from :class:`~transformers.RobertaTokenizer` which contains most of the main methods. Users
+    should refer to this superclass for more information regarding those methods. Compared to
+    :class:`~transformers.RobertaTokenizer`, :class:`~transformers.LukeTokenizer` also creates :obj:`entity_ids`,
+    :obj:`entity_attention_mask`, :obj:`entity_token_type_ids` and :obj:`entity_position_ids` to be used by the
+    entity-aware attention mechanism of LUKE.
     """
 
     vocab_files_names = VOCAB_FILES_NAMES
@@ -96,22 +97,31 @@ class LukeTokenizer(RobertaTokenizer):
         **kwargs
     ):
 
-        # we add 2 special tokens for downstream tasks 
-        # for more information about lstrip and rstrip, see https://github.com/huggingface/transformers/pull/2778       
-        entity_token_1 = AddedToken(entity_token_1, lstrip=False, rstrip=False) if isinstance(entity_token_1, str) else entity_token_1
-        entity_token_2 = AddedToken(entity_token_2, lstrip=False, rstrip=False) if isinstance(entity_token_2, str) else entity_token_2
+        # we add 2 special tokens for downstream tasks
+        # for more information about lstrip and rstrip, see https://github.com/huggingface/transformers/pull/2778
+        entity_token_1 = (
+            AddedToken(entity_token_1, lstrip=False, rstrip=False)
+            if isinstance(entity_token_1, str)
+            else entity_token_1
+        )
+        entity_token_2 = (
+            AddedToken(entity_token_2, lstrip=False, rstrip=False)
+            if isinstance(entity_token_2, str)
+            else entity_token_2
+        )
         additional_special_tokens = [entity_token_1, entity_token_2]
 
-        super().__init__(vocab_file=vocab_file,
-                        merges_file=merges_file,
-                        model_max_length=model_max_length,
-                        additional_special_tokens=additional_special_tokens,
-                        **kwargs)
+        super().__init__(
+            vocab_file=vocab_file,
+            merges_file=merges_file,
+            model_max_length=model_max_length,
+            additional_special_tokens=additional_special_tokens,
+            **kwargs,
+        )
 
         self.max_entity_length = max_entity_length
         self.max_mention_length = max_mention_length
-    
-    
+
     @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
     def __call__(
         self,
@@ -141,6 +151,7 @@ class LukeTokenizer(RobertaTokenizer):
         """
         Main method to tokenize and prepare for the model one or several sequence(s) or one or several pair(s) of
         sequences, depending on the task you want to prepare them for.
+
         Args:
             text (:obj:`str`, :obj:`List[str]`, :obj:`List[List[str]]`):
                 The sequence or batch of sequences to be encoded. Each sequence can be a string or a list of strings
@@ -152,10 +163,10 @@ class LukeTokenizer(RobertaTokenizer):
                 :obj:`is_split_into_words=True` (to lift the ambiguity with a batch of sequences).
             task (:obj:`str`, `optional`):
                 Task for which you want to prepare sequences for. One of 'entity typing' or 'relation classification'.
-                If no task is provided, then no :obj:`entity_ids`, :obj:`entity_attention_mask`, :obj:`entity_token_type_ids` 
-                and :obj:`entity_position_ids` will be created.
+                If no task is provided, then no :obj:`entity_ids`, :obj:`entity_attention_mask`,
+                :obj:`entity_token_type_ids` and :obj:`entity_position_ids` will be created.
             additional_info (:obj:`Tuple`, :obj:`List[Tuple]`, :obj:`List[List[Tuple]]`, `optional`):
-                Additional information regarding entities to provide to prepare sequences. 
+                Additional information regarding entities to provide to prepare sequences.
         """
         # Input type checking for clearer error
         assert isinstance(text, str) or (
@@ -278,9 +289,9 @@ class LukeTokenizer(RobertaTokenizer):
         **kwargs
     ) -> BatchEncoding:
         """
-        Tokenize and prepare for the model a sequence or a pair of sequences.
-        .. warning::
-            This method is deprecated, ``__call__`` should be used instead.
+        Tokenize and prepare for the model a sequence or a pair of sequences. .. warning:: This method is deprecated,
+        ``__call__`` should be used instead.
+
         Args:
             text (:obj:`str`, :obj:`List[str]` or :obj:`List[int]` (the latter only for not-fast tokenizers)):
                 The first sequence to be encoded. This can be a string, a list of strings (tokenized string using the
@@ -375,7 +386,7 @@ class LukeTokenizer(RobertaTokenizer):
                     raise ValueError(
                         f"Input {text} is not valid. Should be a string, a list/tuple of strings or a list/tuple of integers."
                     )
-        
+
         if return_offsets_mapping:
             raise NotImplementedError(
                 "return_offset_mapping is not available when using Python tokenizers."
@@ -389,15 +400,17 @@ class LukeTokenizer(RobertaTokenizer):
         if task is None:
             first_ids = get_input_ids(text)
             second_ids = get_input_ids(text_pair) if text_pair is not None else None
-        
+
         elif task == "entity_typing":
             self.max_entity_length = 1
             # additional information: span, which is a tuple (begin, end)
-            assert isinstance(additional_info, tuple), "Additional info should be provided as a tuple containing the start and end character indices of an entity"
+            assert isinstance(
+                additional_info, tuple
+            ), "Additional info should be provided as a tuple containing the start and end character indices of an entity"
             span = additional_info
-            
+
             ENTITY_TOKEN = self.additional_special_tokens[0]
-            
+
             conv_tables = (
                 ("-LRB-", "("),
                 ("-LCB-", "("),
@@ -406,7 +419,7 @@ class LukeTokenizer(RobertaTokenizer):
                 ("-RCB-", ")"),
                 ("-RSB-", ")"),
             )
-            
+
             def preprocess_and_tokenize(text, start, end=None):
                 target_text = text[start:end]
                 for a, b in conv_tables:
@@ -421,27 +434,31 @@ class LukeTokenizer(RobertaTokenizer):
             tokens += preprocess_and_tokenize(text, span[0], span[1])
             tokens.append(ENTITY_TOKEN)
             mention_end = len(tokens)
- 
+
             tokens += preprocess_and_tokenize(text, span[1])
 
             first_ids, second_ids = self.convert_tokens_to_ids(tokens), None
 
             entity_ids = [1]
-            entity_position_ids = list(range(mention_start, mention_end))[:self.max_mention_length]
+            entity_position_ids = list(range(mention_start, mention_end))[: self.max_mention_length]
             entity_position_ids += [-1] * (self.max_mention_length - mention_end + mention_start)
             entity_position_ids = [entity_position_ids]
-            #entity_position_ids = [entity_position_ids, [-1] * self.max_mention_length]
+            # entity_position_ids = [entity_position_ids, [-1] * self.max_mention_length]
 
         elif task == "relation_classification":
             self.max_entity_length = 2
             # additional information: span_a and span_b (both should be tuples of begin and end)
-            assert isinstance(additional_info, list) and isinstance(additional_info[0], tuple) and isinstance(additional_info[1], tuple), "Additional info should be provided as a list of tuples, each tuple containing the start and end character indices of an entity"
+            assert (
+                isinstance(additional_info, list)
+                and isinstance(additional_info[0], tuple)
+                and isinstance(additional_info[1], tuple)
+            ), "Additional info should be provided as a list of tuples, each tuple containing the start and end character indices of an entity"
             span_a = additional_info[0]
             span_b = additional_info[1]
 
             HEAD_TOKEN = self.additional_special_tokens[0]
             TAIL_TOKEN = self.additional_special_tokens[1]
-            
+
             if span_a[1] < span_b[1]:
                 span_order = [("span_a", span_a), ("span_b", span_b)]
             else:
@@ -469,7 +486,7 @@ class LukeTokenizer(RobertaTokenizer):
             entity_position_ids = []
             for span_name in ("span_a", "span_b"):
                 span = token_spans[span_name]
-                position_ids = list(range(span[0], span[1]))[:self.max_mention_length]
+                position_ids = list(range(span[0], span[1]))[: self.max_mention_length]
                 position_ids += [-1] * (self.max_mention_length - span[1] + span[0])
                 entity_position_ids.append(position_ids)
 
@@ -621,6 +638,7 @@ class LukeTokenizer(RobertaTokenizer):
         Prepares a sequence of input id, or a pair of sequences of inputs ids so that it can be used by the model. It
         adds special tokens, truncates sequences if overflowing while taking into account the special tokens and
         manages a moving window (with user defined stride) for overflowing tokens
+
         Args:
             batch_ids_pairs: list of tokenized input ids or input ids pairs
         """
@@ -667,7 +685,6 @@ class LukeTokenizer(RobertaTokenizer):
 
         return batch_outputs
 
-
     @add_end_docstrings(ENCODE_KWARGS_DOCSTRING, ENCODE_PLUS_ADDITIONAL_KWARGS_DOCSTRING)
     def prepare_for_model(
         self,
@@ -695,9 +712,10 @@ class LukeTokenizer(RobertaTokenizer):
         **kwargs
     ) -> BatchEncoding:
         """
-        Prepares a sequence of input id, or a pair of sequences of inputs ids together with entity ids so that it can be used 
-        by the model. It adds special tokens, truncates sequences if overflowing while taking into account the special tokens and
-        manages a moving window (with user defined stride) for overflowing tokens
+        Prepares a sequence of input id, or a pair of sequences of inputs ids together with entity ids so that it can
+        be used by the model. It adds special tokens, truncates sequences if overflowing while taking into account the
+        special tokens and manages a moving window (with user defined stride) for overflowing tokens
+
         Args:
             ids (:obj:`List[int]`):
                 Tokenized input ids of the first sequence. Can be obtained from a string by chaining the ``tokenize``
@@ -742,12 +760,12 @@ class LukeTokenizer(RobertaTokenizer):
         encoded_inputs = {}
 
         # Compute the total size of the returned word encodings
-        total_len = len_ids + len_pair_ids + (self.num_special_tokens_to_add(pair=pair) if add_special_tokens else 0) 
+        total_len = len_ids + len_pair_ids + (self.num_special_tokens_to_add(pair=pair) if add_special_tokens else 0)
 
         # Set max entity length
         if not max_entity_length:
             max_entity_length = self.max_entity_length
-        
+
         # Truncation: Handle max sequence length and max_entity_length
         overflowing_tokens = []
         if truncation_strategy != TruncationStrategy.DO_NOT_TRUNCATE and max_length and total_len > max_length:
@@ -762,13 +780,13 @@ class LukeTokenizer(RobertaTokenizer):
 
             # truncate entities up to max_entity_length
             if entities_provided:
-               entity_ids, overflowing_entity_tokens = self.truncate_sequences(
+                entity_ids, overflowing_entity_tokens = self.truncate_sequences(
                     entity_ids,
                     pair_ids=None,
                     num_tokens_to_remove=len_entity_ids - max_entity_length,
                     truncation_strategy=truncation_strategy,
                     stride=stride,
-               )
+                )
 
         if return_overflowing_tokens:
             encoded_inputs["overflowing_tokens"] = overflowing_tokens
@@ -818,7 +836,7 @@ class LukeTokenizer(RobertaTokenizer):
                 pad_to_multiple_of=pad_to_multiple_of,
                 return_attention_mask=return_attention_mask,
             )
-        
+
         if return_length:
             encoded_inputs["length"] = len(encoded_inputs["input_ids"])
 
@@ -836,18 +854,21 @@ class LukeTokenizer(RobertaTokenizer):
         padding_strategy: PaddingStrategy = PaddingStrategy.DO_NOT_PAD,
         pad_to_multiple_of: Optional[int] = None,
         return_attention_mask: Optional[bool] = None,
-        ) -> dict:
+    ) -> dict:
         """
         Pad encoded inputs (on left/right and up to predefined length or max length in the batch)
+
         Args:
             encoded_inputs: Dictionary of tokenized inputs (`List[int]`) or batch of tokenized inputs (`List[List[int]]`).
             max_length: maximum length of the returned list and optionally padding length (see below).
                 Will truncate by taking into account the special tokens.
             padding_strategy: PaddingStrategy to use for padding.
+
                 - PaddingStrategy.LONGEST Pad to the longest sequence in the batch
                 - PaddingStrategy.MAX_LENGTH: Pad to the max length (default)
                 - PaddingStrategy.DO_NOT_PAD: Do not pad
                 The tokenizer padding sides are defined in self.padding_side:
+
                     - 'left': pads on the left of the sequences
                     - 'right': pads on the right of the sequences
             pad_to_multiple_of: (optional) Integer if set will pad the sequence to a multiple of the provided value.
@@ -869,26 +890,29 @@ class LukeTokenizer(RobertaTokenizer):
         # Set max entity length
         if not max_entity_length:
             max_entity_length = self.max_entity_length
-        
-        needs_to_be_padded = (
-            padding_strategy != PaddingStrategy.DO_NOT_PAD and 
-                (len(encoded_inputs["input_ids"]) != max_length or len(encoded_inputs["entity_ids"]) != max_entity_length)
+
+        needs_to_be_padded = padding_strategy != PaddingStrategy.DO_NOT_PAD and (
+            len(encoded_inputs["input_ids"]) != max_length or len(encoded_inputs["entity_ids"]) != max_entity_length
         )
 
-        entities_provided = bool("entity_ids" in encoded_inputs)        
+        entities_provided = bool("entity_ids" in encoded_inputs)
         if needs_to_be_padded:
-            difference = max_length - len(encoded_inputs["input_ids"]) 
+            difference = max_length - len(encoded_inputs["input_ids"])
             if entities_provided:
                 entity_difference = max_entity_length - len(encoded_inputs["entity_ids"])
             if self.padding_side == "right":
                 if return_attention_mask:
                     encoded_inputs["attention_mask"] = [1] * len(encoded_inputs["input_ids"]) + [0] * difference
                     if entities_provided:
-                        encoded_inputs["entity_attention_mask"] = [1] * len(encoded_inputs["entity_ids"]) + [0] * entity_difference
+                        encoded_inputs["entity_attention_mask"] = [1] * len(encoded_inputs["entity_ids"]) + [
+                            0
+                        ] * entity_difference
                 if "token_type_ids" in encoded_inputs:
                     encoded_inputs["token_type_ids"] = encoded_inputs["token_type_ids"] + [0] * difference
                     if entities_provided:
-                        encoded_inputs["entity_token_type_ids"] = encoded_inputs["entity_token_type_ids"] + [0] * entity_difference
+                        encoded_inputs["entity_token_type_ids"] = (
+                            encoded_inputs["entity_token_type_ids"] + [0] * entity_difference
+                        )
                 if "special_tokens_mask" in encoded_inputs:
                     encoded_inputs["special_tokens_mask"] = encoded_inputs["special_tokens_mask"] + [1] * difference
                 encoded_inputs["input_ids"] = encoded_inputs["input_ids"] + [self.pad_token_id] * difference
@@ -906,6 +930,6 @@ class LukeTokenizer(RobertaTokenizer):
             if return_attention_mask:
                 encoded_inputs["attention_mask"] = [1] * len(encoded_inputs["input_ids"])
                 if entities_provided:
-                   encoded_inputs["entity_attention_mask"] = [1] * len(encoded_inputs["entity_ids"])
+                    encoded_inputs["entity_attention_mask"] = [1] * len(encoded_inputs["entity_ids"])
 
         return encoded_inputs

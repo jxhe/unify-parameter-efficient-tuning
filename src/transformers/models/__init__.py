@@ -17,7 +17,6 @@
 # limitations under the License.
 
 from . import (
-    luke,
     albert,
     auto,
     bart,
@@ -45,6 +44,7 @@ from . import (
     layoutlm,
     led,
     longformer,
+    luke,
     lxmert,
     marian,
     mbart,

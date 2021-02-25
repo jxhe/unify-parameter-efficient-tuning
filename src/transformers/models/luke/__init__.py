@@ -18,10 +18,7 @@
 
 from typing import TYPE_CHECKING
 
-from ...file_utils import (
-    _BaseLazyModule,
-    is_torch_available,
-)
+from ...file_utils import _BaseLazyModule, is_torch_available
 
 
 _import_structure = {
@@ -41,11 +38,7 @@ if TYPE_CHECKING:
     from .configuration_luke import LUKE_PRETRAINED_CONFIG_ARCHIVE_MAP, LukeConfig
 
     if is_torch_available():
-        from .modeling_luke import (
-            LUKE_PRETRAINED_MODEL_ARCHIVE_LIST,
-            LukeModel,
-            LukeEntityAwareAttentionModel,
-        )
+        from .modeling_luke import LUKE_PRETRAINED_MODEL_ARCHIVE_LIST, LukeEntityAwareAttentionModel, LukeModel
 
 else:
     import importlib

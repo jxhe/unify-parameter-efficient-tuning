@@ -19,8 +19,8 @@ from dataclasses import dataclass
 from typing import Optional, Tuple
 
 import torch
-import torch.nn.functional as F
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.utils.checkpoint
 from torch.nn import CrossEntropyLoss, MSELoss
 
@@ -57,6 +57,7 @@ LUKE_PRETRAINED_MODEL_ARCHIVE_LIST = [
     # See all LUKE models at https://huggingface.co/models?filter=luke
 ]
 
+
 @dataclass
 class BaseLukeModelOutputWithPoolingAndCrossAttentions(BaseModelOutputWithPoolingAndCrossAttentions):
     """
@@ -73,27 +74,24 @@ class BaseLukeModelOutputWithPoolingAndCrossAttentions(BaseModelOutputWithPoolin
             prediction (classification) objective during pretraining.
         hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_hidden_states=True`` is passed or when ``config.output_hidden_states=True``):
             Tuple of :obj:`torch.FloatTensor` (one for the output of the embeddings + one for the output of each layer)
-            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
-            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
+            of shape :obj:`(batch_size, sequence_length, hidden_size)`. Hidden-states of the model at the output of
+            each layer plus the initial embedding outputs.
         attentions (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_attentions=True`` is passed or when ``config.output_attentions=True``):
             Tuple of :obj:`torch.FloatTensor` (one for each layer) of shape :obj:`(batch_size, num_heads,
-            sequence_length, sequence_length)`.
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
-            heads.
+            sequence_length, sequence_length)`. Attentions weights after the attention softmax, used to compute the
+            weighted average in the self-attention heads.
         cross_attentions (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_attentions=True`` and ``config.add_cross_attention=True`` is passed or when ``config.output_attentions=True``):
             Tuple of :obj:`torch.FloatTensor` (one for each layer) of shape :obj:`(batch_size, num_heads,
-            sequence_length, sequence_length)`.
-            Attentions weights of the decoder's cross-attention layer, after the attention softmax, used to compute the
-            weighted average in the cross-attention heads.
+            sequence_length, sequence_length)`. Attentions weights of the decoder's cross-attention layer, after the
+            attention softmax, used to compute the weighted average in the cross-attention heads.
         past_key_values (:obj:`tuple(tuple(torch.FloatTensor))`, `optional`, returned when ``use_cache=True`` is passed or when ``config.use_cache=True``):
             Tuple of :obj:`tuple(torch.FloatTensor)` of length :obj:`config.n_layers`, with each tuple having 2 tensors
             of shape :obj:`(batch_size, num_heads, sequence_length, embed_size_per_head)`) and optionally if
             ``config.is_encoder_decoder=True`` 2 additional tensors of shape :obj:`(batch_size, num_heads,
-            encoder_sequence_length, embed_size_per_head)`.
-            Contains pre-computed hidden-states (key and values in the self-attention blocks and optionally if
-            ``config.is_encoder_decoder=True`` in the cross-attention blocks) that can be used (see
-            :obj:`past_key_values` input) to speed up sequential decoding.
-    
+            encoder_sequence_length, embed_size_per_head)`. Contains pre-computed hidden-states (key and values in the
+            self-attention blocks and optionally if ``config.is_encoder_decoder=True`` in the cross-attention blocks)
+            that can be used (see :obj:`past_key_values` input) to speed up sequential decoding.
+
     """
 
     entity_last_hidden_state: torch.FloatTensor = None
@@ -119,6 +117,7 @@ class BaseLukeEntityAwareAttentionModelOutputWithPoolingAndCrossAttentions(Model
 class EntityTypingOutput(ModelOutput):
     """
     Outputs of entity typing models.
+
     Args:
         loss (:obj:`torch.FloatTensor` of shape :obj:`(1,)`, `optional`, returned when :obj:`labels` is provided):
             Classification (or regression if config.num_labels==1) loss.
@@ -126,17 +125,16 @@ class EntityTypingOutput(ModelOutput):
             Classification (or regression if config.num_labels==1) scores (before SoftMax).
         hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_hidden_states=True`` is passed or when ``config.output_hidden_states=True``):
             Tuple of :obj:`torch.FloatTensor` (one for the output of the embeddings + one for the output of each layer)
-            of shape :obj:`(batch_size, sequence_length, hidden_size)`.
-            Hidden-states of the model at the output of each layer plus the initial embedding outputs.
+            of shape :obj:`(batch_size, sequence_length, hidden_size)`. Hidden-states of the model at the output of
+            each layer plus the initial embedding outputs.
         entity_hidden_states (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_entity_hidden_states=True`` is passed or when ``config.output_entity_hidden_states=True``):
             Tuple of :obj:`torch.FloatTensor` (one for the output of the embeddings + one for the output of each layer)
-            of shape :obj:`(batch_size, max_entity_length, hidden_size)`.
-            Entity hidden-states of the model at the output of each layer plus the initial embedding outputs.
+            of shape :obj:`(batch_size, max_entity_length, hidden_size)`. Entity hidden-states of the model at the
+            output of each layer plus the initial embedding outputs.
         attentions (:obj:`tuple(torch.FloatTensor)`, `optional`, returned when ``output_attentions=True`` is passed or when ``config.output_attentions=True``):
             Tuple of :obj:`torch.FloatTensor` (one for each layer) of shape :obj:`(batch_size, num_heads,
-            sequence_length, sequence_length)`.
-            Attentions weights after the attention softmax, used to compute the weighted average in the self-attention
-            heads.
+            sequence_length, sequence_length)`. Attentions weights after the attention softmax, used to compute the
+            weighted average in the self-attention heads.
     """
 
     loss: Optional[torch.FloatTensor] = None
@@ -176,7 +174,7 @@ class LukeEmbeddings(nn.Module):
 
     def forward(
         self, input_ids=None, token_type_ids=None, position_ids=None, inputs_embeds=None, past_key_values_length=0
-    ):   
+    ):
         if position_ids is None:
             if input_ids is not None:
                 # Create the position ids from the input token ids. Any padded tokens remain padded.
@@ -225,7 +223,6 @@ class LukeEmbeddings(nn.Module):
 
 
 class EntityEmbeddings(nn.Module):
-    
     def __init__(self, config: LukeConfig):
         super(EntityEmbeddings, self).__init__()
         self.config = config
@@ -761,18 +758,18 @@ LUKE_INPUTS_DOCSTRING = r"""
 
             - 1 for entity tokens that are **not masked**,
             - 0 for entity tokens that are **masked**.
-        
+
         entity_token_type_ids (:obj:`torch.LongTensor` of shape :obj:`({0})`, `optional`):
-            Segment token indices to indicate first and second portions of the entity token inputs. Indices are selected in ``[0,
-            1]``:
+            Segment token indices to indicate first and second portions of the entity token inputs. Indices are
+            selected in ``[0, 1]``:
 
             - 0 corresponds to a `portion A` entity token,
             - 1 corresponds to a `portion B` entity token.
-        
+
         entity_position_ids (:obj:`torch.LongTensor` of shape :obj:`(batch_size, max_entity_length, max_mention_length)`, `optional`):
             Indices of positions of each input entity in the position embeddings. Selected in the range ``[0,
             config.max_position_embeddings - 1]``.
-        
+
         inputs_embeds (:obj:`torch.FloatTensor` of shape :obj:`({0}, hidden_size)`, `optional`):
             Optionally, instead of passing :obj:`input_ids` you can choose to directly pass an embedded representation.
             This is useful if you want more control over how to convert :obj:`input_ids` indices into associated
@@ -967,7 +964,7 @@ class LukeModel(LukePreTrainedModel):
             entity_embedding_output = self.entity_embeddings(entity_ids, entity_position_ids, entity_token_type_ids)
             embedding_output = torch.cat([embedding_output, entity_embedding_output], dim=1)
 
-        # Fourth, send embeddings through the model 
+        # Fourth, send embeddings through the model
         encoder_outputs = self.encoder(
             embedding_output,
             attention_mask=extended_attention_mask,
@@ -980,10 +977,10 @@ class LukeModel(LukePreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-        
+
         # Fifth, get the output. LukeModel outputs the same as BertModel, namely sequence_output of shape (batch_size, seq_len, hidden_size)
         sequence_output = encoder_outputs[0]
-        
+
         # Sixth, we compute the pooled_output, word_sequence_output and entity_sequence_output based on the sequence_output
         pooled_output = self.pooler(sequence_output) if self.pooler is not None else None
         word_seq_len = input_ids.shape[1]
@@ -991,9 +988,13 @@ class LukeModel(LukePreTrainedModel):
         entity_sequence_output = None
         if entity_ids is not None:
             entity_sequence_output = sequence_output[:, word_seq_len:, :]
-        
+
         if not return_dict:
-            return (word_sequence_output, entity_sequence_output, pooled_output,) + encoder_outputs[1:]
+            return (
+                word_sequence_output,
+                entity_sequence_output,
+                pooled_output,
+            ) + encoder_outputs[1:]
 
         return BaseLukeModelOutputWithPoolingAndCrossAttentions(
             last_hidden_state=word_sequence_output,
@@ -1004,7 +1005,6 @@ class LukeModel(LukePreTrainedModel):
             attentions=encoder_outputs.attentions,
             cross_attentions=encoder_outputs.cross_attentions,
         )
-
 
     def _compute_extended_attention_mask(
         self, word_attention_mask: torch.LongTensor, entity_attention_mask: torch.LongTensor
@@ -1036,8 +1036,10 @@ def create_position_ids_from_input_ids(input_ids, padding_idx, past_key_values_l
 
 
 @add_start_docstrings(
-    """The bare LUKE Model transformer with an entity aware self-attention mechanism outputting raw hidden-states 
-    for both word tokens and entities without any specific head on top.""",
+    """
+    The bare LUKE Model transformer with an entity aware self-attention mechanism outputting raw hidden-states for both
+    word tokens and entities without any specific head on top.
+    """,
     LUKE_START_DOCSTRING,
 )
 class LukeEntityAwareAttentionModel(LukeModel):
@@ -1058,11 +1060,11 @@ class LukeEntityAwareAttentionModel(LukeModel):
         return_dict=None,
     ):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-        
+
         word_embeddings = self.embeddings(input_ids, token_type_ids)
         entity_embeddings = self.entity_embeddings(entity_ids, entity_position_ids, entity_token_type_ids)
         attention_mask = self._compute_extended_attention_mask(attention_mask, entity_attention_mask)
-        
+
         word_hidden_states, entity_hidden_states = self.encoder(word_embeddings, entity_embeddings, attention_mask)
 
         if not return_dict:
@@ -1072,7 +1074,6 @@ class LukeEntityAwareAttentionModel(LukeModel):
             last_hidden_state=word_hidden_states,
             entity_last_hidden_state=entity_hidden_states,
         )
-
 
 
 class EntityAwareSelfAttention(nn.Module):
@@ -1187,8 +1188,10 @@ class EntityAwareEncoder(nn.Module):
 
 
 @add_start_docstrings(
-    """The LUKE Model with a classification head on top (a linear layer on top of the hidden state of the 
-    <mask> entity token) for entity typing tasks, such as Open Entity.""",
+    """
+    The LUKE Model with a classification head on top (a linear layer on top of the hidden state of the <mask> entity
+    token) for entity typing tasks, such as Open Entity.
+    """,
     LUKE_START_DOCSTRING,
 )
 class LukeForEntityTyping(nn.Module):
@@ -1196,7 +1199,7 @@ class LukeForEntityTyping(nn.Module):
         super().__init__(config)
 
         self.luke = LukeEntityAwareAttentionModel(config)
-        
+
         self.num_labels = config.num_labels
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.typing = nn.Linear(config.hidden_size, config.num_labels)
@@ -1217,11 +1220,10 @@ class LukeForEntityTyping(nn.Module):
     ):
         r"""
         labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
-            Labels for computing the classification loss. Indices should be in :obj:`[0, ...,
-            config.num_labels - 1]`. 
+            Labels for computing the classification loss. Indices should be in :obj:`[0, ..., config.num_labels - 1]`.
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-        
+
         outputs = self.luke(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -1233,10 +1235,10 @@ class LukeForEntityTyping(nn.Module):
             return_dict=return_dict,
         )
 
-        feature_vector = outputs.entity_last_hidden_state[:,0,:]
+        feature_vector = outputs.entity_last_hidden_state[:, 0, :]
         feature_vector = self.dropout(feature_vector)
         logits = self.typing(feature_vector)
-        
+
         if labels is not None:
             loss = F.binary_cross_entropy_with_logits(logits.view(-1), labels.view(-1).type_as(logits))
 
@@ -1247,7 +1249,7 @@ class LukeForEntityTyping(nn.Module):
         return EntityTypingOutput(
             loss=loss,
             logits=logits,
-            hidden_states=None, # currently not supported
-            entity_hidden_states=None, # currently not supported
-            attentions=None, # currently not supported
+            hidden_states=None,  # currently not supported
+            entity_hidden_states=None,  # currently not supported
+            attentions=None,  # currently not supported
         )

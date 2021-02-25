@@ -27,12 +27,13 @@ LUKE_PRETRAINED_CONFIG_ARCHIVE_MAP = {
 
 class LukeConfig(RobertaConfig):
     r"""
-    This is the configuration class to store the configuration of a :class:`~transformers.LukeModel`. It is used 
-    to instantiate a LUKE model according to the specified arguments, defining the model architecture.
-    Configuration objects inherit from :class:`~transformers.PretrainedConfig` and can be used to control the model
-    outputs. Read the documentation from :class:`~transformers.PretrainedConfig` for more information.
-    The :class:`~transformers.LukeConfig` class directly inherits :class:`~transformers.RobertaConfig`. It reuses the
-    same defaults. Please check the parent class for more information.
+    This is the configuration class to store the configuration of a :class:`~transformers.LukeModel`. It is used to
+    instantiate a LUKE model according to the specified arguments, defining the model architecture. Configuration
+    objects inherit from :class:`~transformers.PretrainedConfig` and can be used to control the model outputs. Read the
+    documentation from :class:`~transformers.PretrainedConfig` for more information. The
+    :class:`~transformers.LukeConfig` class directly inherits :class:`~transformers.RobertaConfig`. It reuses the same
+    defaults. Please check the parent class for more information.
+
     Examples::
         >>> from transformers import LukeConfig, LukeModel
         >>> # Initializing a LUKE configuration
