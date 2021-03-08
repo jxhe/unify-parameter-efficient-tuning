@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Launcher docker
         run: |
-          docker run --gpus all -it --ipc=host --shm-size="4g" --rm -v /home/github_actions/actions-runner/_work/transformers/transformers:/home/github_actions/transformers nvcr.io/nvidia/pytorch:21.02-py3
+          sudo docker run --gpus all --ipc=host --shm-size="4g" --rm -v /home/github_actions/actions-runner/_work/transformers/transformers:/home/github_actions/transformers nvcr.io/nvidia/pytorch:21.02-py3
           cd /home/github_actions/transformers
 
       - name: Python version
