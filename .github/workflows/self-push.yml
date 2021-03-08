@@ -13,7 +13,6 @@ on:
   # pull_request:
   repository_dispatch:
 
-
 jobs:
   run_tests_torch_gpu:
     runs-on: [self-hosted, docker-gpu]
@@ -34,7 +33,7 @@ jobs:
         run: pwd
 
       - name: NVIDIA-SMI
-      - run: nvidia-smi
+        run: nvidia-smi
 
       - name: Kill any run-away pytest processes
         run: (pkill -f tests; pkill -f examples) || echo "no zombies"
