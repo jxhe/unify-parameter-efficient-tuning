@@ -16,13 +16,15 @@ on:
 jobs:
   run_tests_torch_gpu:
     runs-on: [self-hosted, docker-gpu]
+    container: nvcr.io/nvidia/pytorch:21.02-py3
     steps:
-      - uses: actions/checkout@v2
       - name: Launcher docker
-        run: |
-          docker run --gpus all -t nvidia/cuda:11.2.1-cudnn8-runtime-ubuntu20.04 nvidia-smi
-#          sudo docker run --gpus all -it --entrypoint /bin/bash --ipc=host --shm-size="4g" --rm -v /home/github_actions/actions-runner/_work/transformers/transformers:/home/github_actions/transformers nvcr.io/nvidia/pytorch:21.02-py3
+      - uses: actions/checkout@v2
+#        run: |
+#          docker run --gpus all -t nvidia/cuda:11.2.1-cudnn8-runtime-ubuntu20.04 nvidia-smi
+#           docker run --gpus all -t --ipc=host --shm-size="4g" --rm -v /home/github_actions/actions-runner/_work/transformers/transformers:/home/github_actions/transformers nvcr.io/nvidia/pytorch:21.02-py3
 #          cd /home/github_actions/transformers
+
 
 
 #      - name: Python version
