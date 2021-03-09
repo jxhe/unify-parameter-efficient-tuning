@@ -115,6 +115,7 @@ _deps = [
     "psutil",
     "pydantic",
     "pytest",
+    "pytest-sugar",
     "pytest-xdist",
     "python>=3.6.0",
     "recommonmark",
@@ -231,7 +232,7 @@ extras["speech"] = deps_list("soundfile")
 
 extras["sentencepiece"] = deps_list("sentencepiece", "protobuf")
 extras["testing"] = (
-    deps_list("pytest", "pytest-xdist", "timeout-decorator", "parameterized", "psutil", "datasets")
+    deps_list("pytest", "pytest-xdist", "timeout-decorator", "parameterized", "psutil", "datasets", "pytest-sugar")
     + extras["retrieval"]
     + extras["modelcreation"]
     + extras["speech"]
