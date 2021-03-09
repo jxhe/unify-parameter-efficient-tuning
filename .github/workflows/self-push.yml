@@ -17,17 +17,22 @@ jobs:
   run_tests_torch_gpu:
     runs-on: [self-hosted, docker-gpu]
     steps:
-      - uses: actions/checkout@v2
-      - name: Launcher docker
-        run: |
-          sudo docker run --gpus all -t --entrypoint /bin/bash --ipc=host --shm-size="4g" --rm -v /home/github_actions/actions-runner/_work/transformers/transformers:/home/github_actions/transformers nvcr.io/nvidia/pytorch:21.02-py3
-          cd /home/github_actions/transformers
+      - uses: addnab/docker-run-action@v2
+        with:
+          registry: nvcr.io
+          image: nvidia/pytorch:21.02-py3
+          options: --gpus all -t --entrypoint /bin/bash --ipc=host --shm-size="4g" --rm -v /home/github_actions/actions-runner/_work/transformers/transformers:/home/github_actions/transformers
 
-#      - name: Python version
-#        run: |
-#          which python
-#          python --version
-#          pip --version
+      - name: pwd
+        run: |
+          cd /home/github_actions/transformers
+          pwd
+
+      - name: Python version
+        run: |
+          which python
+          python --version
+          pip --version
 
       - name: Current dir
         run: pwd
