@@ -14,7 +14,7 @@ on:
 
 jobs:
   run_tests_torch_gpu:
-    runs-on: [self-hosted, docker-gpu]
+    runs-on: [self-hosted, docker-gpu, single-gpu]
     container:
       image: nvcr.io/nvidia/pytorch:21.02-py3
       options: --shm-size "16gb" --ipc host
@@ -65,7 +65,7 @@ jobs:
           path: reports
 
   run_tests_tf_gpu:
-    runs-on: [self-hosted, docker-gpu]
+    runs-on: [self-hosted, docker-gpu, single-gpu]
     container:
       image: nvcr.io/nvidia/tensorflow:21.02-tf2-py3
       options: --shm-size "16gb" --ipc host
@@ -116,7 +116,7 @@ jobs:
 
 
   run_tests_torch_multi_gpu:
-    runs-on: [self-hosted, docker-gpu]
+    runs-on: [self-hosted, docker-gpu, multi-gpu]
     container:
       image: nvcr.io/nvidia/pytorch:21.02-py3
       options: --shm-size "16gb" --ipc host
@@ -163,7 +163,7 @@ jobs:
           path: reports
 
   run_tests_tf_multi_gpu:
-    runs-on: [self-hosted, docker-gpu]
+    runs-on: [self-hosted, docker-gpu, multi-gpu]
     container:
       image: nvcr.io/nvidia/tensorflow:21.02-tf2-py3
       options: --shm-size "16gb" --ipc host
