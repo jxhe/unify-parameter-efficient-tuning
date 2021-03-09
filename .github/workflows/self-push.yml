@@ -23,12 +23,14 @@ jobs:
           options: --gpus all -t --entrypoint /bin/bash --rm -v /home/github_actions/actions-runner/_work/transformers/transformers:/home/github_actions/transformers
 
       - name: pwd
+      - uses: addnab/docker-run-action@v2
         run: |
           pwd
           cd /home/github_actions/transformers
           pwd
 
       - name: Python version
+      - uses: addnab/docker-run-action@v2
         run: |
           which python
           python --version
