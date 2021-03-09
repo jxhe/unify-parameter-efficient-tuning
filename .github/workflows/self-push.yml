@@ -68,6 +68,7 @@ jobs:
         run: |
           source .env/bin/activate
           python -c "import torch; print('Cuda available:', torch.cuda.is_available())"
+          python -c "import torch; print('Cuda version:', torch.version.cuda)"
           python -c "import torch; print('Number of GPUs available:', torch.cuda.device_count())"
 
       - name: Run all non-slow tests on GPU
