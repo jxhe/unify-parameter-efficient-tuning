@@ -21,7 +21,7 @@ jobs:
         with:
           registry: nvcr.io
           image: nvidia/pytorch:21.02-py3
-          options: --gpus all -t --entrypoint /bin/bash --ipc=host --shm-size="4g" --rm -v /home/github_actions/actions-runner/_work/transformers/transformers:/home/github_actions/transformers
+          options: --gpus all -t --entrypoint /bin/bash --rm -v /home/github_actions/actions-runner/_work/transformers/transformers:/home/github_actions/transformers
 
       - name: pwd
         run: |
