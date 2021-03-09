@@ -15,7 +15,9 @@ on:
 jobs:
   run_tests_torch_gpu:
     runs-on: [self-hosted, docker-gpu]
-    container: nvcr.io/nvidia/pytorch:21.02-py3
+    container:
+      image: nvcr.io/nvidia/pytorch:21.02-py3
+      options: --shm-size "16gb" --ipc host
     steps:
       - name: Launcher docker
         uses: actions/checkout@v2
@@ -49,7 +51,7 @@ jobs:
           OMP_NUM_THREADS: 1
           CUDA_VISIBLE_DEVICES: 0
         run: |
-          python -m pytest -n 2 --dist=loadfile -s --make-reports=tests_torch_gpu tests
+          python -m pytest -n 2 --dist=loadfile --make-reports=tests_torch_gpu tests
 
       - name: Failure short reports
         if: ${{ always() }}
@@ -64,7 +66,9 @@ jobs:
 
   run_tests_tf_gpu:
     runs-on: [self-hosted, docker-gpu]
-    container: nvcr.io/nvidia/tensorflow:21.02-tf2-py3
+    container:
+      image: nvcr.io/nvidia/tensorflow:21.02-tf2-py3
+      options: --shm-size "16gb" --ipc host
     steps:
       - name: Launcher docker
         uses: actions/checkout@v2
@@ -97,7 +101,7 @@ jobs:
           OMP_NUM_THREADS: 1
           CUDA_VISIBLE_DEVICES: 0
         run: |
-          python -m pytest -n 2 --dist=loadfile -s --make-reports=tests_tf_gpu tests
+          python -m pytest -n 2 --dist=loadfile --make-reports=tests_tf_gpu tests
 
       - name: Failure short reports
         if: ${{ always() }}
@@ -113,7 +117,9 @@ jobs:
 
   run_tests_torch_multi_gpu:
     runs-on: [self-hosted, docker-gpu]
-    container: nvcr.io/nvidia/pytorch:21.02-py3
+    container:
+      image: nvcr.io/nvidia/pytorch:21.02-py3
+      options: --shm-size "16gb" --ipc host
     steps:
       - name: Launcher docker
         uses: actions/checkout@v2
@@ -143,7 +149,7 @@ jobs:
         env:
           OMP_NUM_THREADS: 1
         run: |
-          python -m pytest -n 2 --dist=loadfile -s --make-reports=tests_torch_gpu tests
+          python -m pytest -n 2 --dist=loadfile --make-reports=tests_torch_multi_gpu tests
 
       - name: Failure short reports
         if: ${{ always() }}
@@ -158,7 +164,9 @@ jobs:
 
   run_tests_tf_multi_gpu:
     runs-on: [self-hosted, docker-gpu]
-    container: nvcr.io/nvidia/tensorflow:21.02-tf2-py3
+    container:
+      image: nvcr.io/nvidia/tensorflow:21.02-tf2-py3
+      options: --shm-size "16gb" --ipc host
     steps:
       - name: Launcher docker
         uses: actions/checkout@v2
@@ -187,7 +195,7 @@ jobs:
         env:
           OMP_NUM_THREADS: 1
         run: |
-          python -m pytest -n 2 --dist=loadfile -s --make-reports=tests_tf_gpu tests
+          python -m pytest -n 2 --dist=loadfile --make-reports=tests_tf_multi_gpu tests
 
       - name: Failure short reports
         if: ${{ always() }}
