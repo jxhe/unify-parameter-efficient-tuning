@@ -10,7 +10,6 @@ on:
       - "tests/**"
       - ".github/**"
       - "templates/**"
-  # pull_request:
   repository_dispatch:
 
 jobs:
@@ -20,27 +19,9 @@ jobs:
     steps:
       - name: Launcher docker
         uses: actions/checkout@v2
-#        run: |
-#          docker run --gpus all -t nvidia/cuda:11.2.1-cudnn8-runtime-ubuntu20.04 nvidia-smi
-#           docker run --gpus all -t --ipc=host --shm-size="4g" --rm -v /home/github_actions/actions-runner/_work/transformers/transformers:/home/github_actions/transformers nvcr.io/nvidia/pytorch:21.02-py3
-#          cd /home/github_actions/transformers
-
-
-
-#      - name: Python version
-#        run: |
-#          which python
-#          python --version
-#          pip --version
-
-      - name: Current dir
-        run: pwd
 
       - name: NVIDIA-SMI
         run: nvidia-smi
-
-      - name: Kill any run-away pytest processes
-        run: (pkill -f tests; pkill -f examples) || echo "no zombies"
 
       - name: Loading cache.
         uses: actions/cache@v2
@@ -53,9 +34,11 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install .[sklearn,testing,onnxruntime,sentencepiece]
-          pip install git+https://github.com/huggingface/datasets
 
       - name: Are GPUs recognized by our DL frameworks
+        env:
+          OMP_NUM_THREADS: 1
+          CUDA_VISIBLE_DEVICES: 0
         run: |
           python -c "import torch; print('Cuda available:', torch.cuda.is_available())"
           python -c "import torch; print('Cuda version:', torch.version.cuda)"
@@ -77,6 +60,51 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: run_all_tests_torch_gpu_test_reports
+          path: reports
+
+  run_tests_torch_multi_gpu:
+    runs-on: [self-hosted, docker-gpu]
+    container: nvcr.io/nvidia/pytorch:21.02-py3
+    steps:
+      - name: Launcher docker
+        uses: actions/checkout@v2
+
+      - name: NVIDIA-SMI
+        run: nvidia-smi
+
+      - name: Loading cache.
+        uses: actions/cache@v2
+        id: cache
+        with:
+          path: .env
+          key: v1.2-tests_torch_gpu-${{ hashFiles('setup.py') }}
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install .[sklearn,testing,onnxruntime,sentencepiece]
+
+      - name: Are GPUs recognized by our DL frameworks
+        run: |
+          python -c "import torch; print('Cuda available:', torch.cuda.is_available())"
+          python -c "import torch; print('Cuda version:', torch.version.cuda)"
+          python -c "import torch; print('Number of GPUs available:', torch.cuda.device_count())"
+
+      - name: Run all non-slow tests on GPU
+        env:
+          OMP_NUM_THREADS: 1
+        run: |
+          python -m pytest -n 2 --dist=loadfile -s --make-reports=tests_torch_gpu tests
+
+      - name: Failure short reports
+        if: ${{ always() }}
+        run: cat reports/tests_torch_multi_gpu_failures_short.txt
+
+      - name: Test suite reports artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: run_all_tests_torch_multi_gpu_test_reports
           path: reports
 
 
