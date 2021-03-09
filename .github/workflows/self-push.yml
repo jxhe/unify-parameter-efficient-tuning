@@ -24,6 +24,7 @@ jobs:
 
       - name: pwd
         run: |
+          pwd
           cd /home/github_actions/transformers
           pwd
 
