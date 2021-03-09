@@ -49,14 +49,6 @@ jobs:
           path: .env
           key: v1.1-tests_torch_gpu-${{ hashFiles('setup.py') }}
 
-      - name: Create new python env (on self-hosted runners we have to handle isolation ourselves)
-        run: |
-          python -m venv .env
-          source .env/bin/activate
-          which python
-          python --version
-          pip --version
-
       - name: Install dependencies
         run: |
           source .env/bin/activate
@@ -66,7 +58,6 @@ jobs:
 
       - name: Are GPUs recognized by our DL frameworks
         run: |
-          source .env/bin/activate
           python -c "import torch; print('Cuda available:', torch.cuda.is_available())"
           python -c "import torch; print('Cuda version:', torch.version.cuda)"
           python -c "import torch; print('Number of GPUs available:', torch.cuda.device_count())"
@@ -76,7 +67,6 @@ jobs:
           OMP_NUM_THREADS: 1
           CUDA_VISIBLE_DEVICES: 0
         run: |
-          source .env/bin/activate
           python -m pytest -n 2 --dist=loadfile -s --make-reports=tests_torch_gpu tests
 
       - name: Failure short reports
