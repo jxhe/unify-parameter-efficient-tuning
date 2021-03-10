@@ -44,7 +44,9 @@ jobs:
         env:
           OMP_NUM_THREADS: 8
           CUDA_VISIBLE_DEVICES: 0
+          TRANSFORMERS_VERBOSITY: info
         run: |
+          python -c "from transformers import AlbertModel; AlbertModel.from_pretrained("albert-base-v1")
           python -c "from transformers.file_utils import hf_cache_home; print(hf_cache_home)"
 #          python -m pytest -n 2 --dist=loadfile --make-reports=tests_torch_gpu tests
 #
