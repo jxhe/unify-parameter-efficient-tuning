@@ -37,9 +37,10 @@ jobs:
         env:
           OMP_NUM_THREADS: 16
           RUN_SLOW: yes
+          TRANSFORMERS_VERBOSITY: info
         run: |
           python -c "from transformers.file_utils import hf_cache_home; print(hf_cache_home)"
-          python -c "from transformers import AlbertForMaskedLM; AlbertForMaskedLM.from_pretrained('albert-base-v1')"
+          python -c "from transformers import AlbertForMaskedLM; AlbertForMaskedLM.from_pretrained('albert-base-v2')"
 #          python -m pytest -n 1 --dist=loadfile -s --make-reports=tests_torch_gpu tests
 #
 #      - name: Failure short reports
