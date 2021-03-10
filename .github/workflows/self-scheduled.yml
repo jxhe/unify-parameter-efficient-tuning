@@ -37,48 +37,103 @@ jobs:
         env:
           OMP_NUM_THREADS: 16
           RUN_SLOW: yes
-          TRANSFORMERS_VERBOSITY: info
         run: |
-          python -c "from transformers.file_utils import hf_cache_home; print(hf_cache_home)"
-          python -c "from transformers import AlbertForMaskedLM; AlbertForMaskedLM.from_pretrained('albert-base-v2')"
-#          python -m pytest -n 1 --dist=loadfile -s --make-reports=tests_torch_gpu tests
-#
-#      - name: Failure short reports
-#        if: ${{ always() }}
-#        run: cat reports/tests_torch_gpu_failures_short.txt
-#
-#      - name: Run examples tests on GPU
-#        if: ${{ always() }}
-#        env:
-#          OMP_NUM_THREADS: 16
-#          RUN_SLOW: yes
-#        run: |
-#          pip install -r examples/_tests_requirements.txt
-#          python -m pytest -n 1 --dist=loadfile -s --make-reports=examples_torch_gpu examples
-#
-#      - name: Failure short reports
-#        if: ${{ always() }}
-#        run: cat reports/examples_torch_gpu_failures_short.txt
-#
-#      - name: Run all pipeline tests on GPU
-#        if: ${{ always() }}
-#        env:
-#          OMP_NUM_THREADS: 16
-#          RUN_SLOW: yes
-#          RUN_PIPELINE_TESTS: yes
-#        run: |
-#          python -m pytest -n 1 --dist=loadfile -s -m is_pipeline_test --make-reports=tests_torch_pipeline_gpu tests
-#
-#      - name: Failure short reports
-#        if: ${{ always() }}
-#        run: cat reports/tests_torch_pipeline_gpu_failures_short.txt
-#
-#      - name: Test suite reports artifacts
-#        if: ${{ always() }}
-#        uses: actions/upload-artifact@v2
-#        with:
-#          name: run_all_tests_torch_gpu_test_reports
-#          path: reports
+          python -m pytest -n 1 --dist=loadfile -s --make-reports=tests_torch_gpu tests
+
+      - name: Failure short reports
+        if: ${{ always() }}
+        run: cat reports/tests_torch_gpu_failures_short.txt
+
+      - name: Run examples tests on GPU
+        if: ${{ always() }}
+        env:
+          OMP_NUM_THREADS: 16
+          RUN_SLOW: yes
+        run: |
+          pip install -r examples/_tests_requirements.txt
+          python -m pytest -n 1 --dist=loadfile -s --make-reports=examples_torch_gpu examples
+
+      - name: Failure short reports
+        if: ${{ always() }}
+        run: cat reports/examples_torch_gpu_failures_short.txt
+
+      - name: Run all pipeline tests on GPU
+        if: ${{ always() }}
+        env:
+          OMP_NUM_THREADS: 16
+          RUN_SLOW: yes
+          RUN_PIPELINE_TESTS: yes
+        run: |
+          python -m pytest -n 1 --dist=loadfile -s -m is_pipeline_test --make-reports=tests_torch_pipeline_gpu tests
+
+      - name: Failure short reports
+        if: ${{ always() }}
+        run: cat reports/tests_torch_pipeline_gpu_failures_short.txt
+
+      - name: Test suite reports artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: run_all_tests_torch_gpu_test_reports
+          path: reports
+
+  run_all_tests_tf_multi_gpu:
+    runs-on: [self-hosted, docker-gpu, multi-gpu]
+    container:
+      image: nvcr.io/nvidia/tensorflow:21.02-tf2-py3
+      options: --gpus all --shm-size "16gb" --ipc host
+    steps:
+      - name: Launcher docker
+        uses: actions/checkout@v2
+
+      - name: NVIDIA-SMI
+        run: |
+          nvidia-smi
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install .[sklearn,testing,onnxruntime,sentencepiece]
+
+      - name: Are GPUs recognized by our DL frameworks
+        run: |
+          TF_CPP_MIN_LOG_LEVEL=3 python -c "import tensorflow as tf; print('TF GPUs available:', bool(tf.config.list_physical_devices('GPU')))"
+          TF_CPP_MIN_LOG_LEVEL=3 python -c "import tensorflow as tf; print('Number of TF GPUs available:', len(tf.config.list_physical_devices('GPU')))"
+
+      - name: Run all tests on GPU
+        env:
+          OMP_NUM_THREADS: 16
+          RUN_SLOW: yes
+          TF_NUM_INTEROP_THREADS: 1
+          TF_NUM_INTRAOP_THREADS: 16
+        run: |
+          python -m pytest -n 1 --dist=loadfile -s --make-reports=tests_tf_multi_gpu tests
+
+      - name: Failure short reports
+        if: ${{ always() }}
+        run: cat reports/tests_tf_multi_gpu_failures_short.txt
+
+      - name: Run all pipeline tests on GPU
+        if: ${{ always() }}
+        env:
+          OMP_NUM_THREADS: 16
+          RUN_SLOW: yes
+          RUN_PIPELINE_TESTS: yes
+          TF_NUM_INTEROP_THREADS: 1
+          TF_NUM_INTRAOP_THREADS: 16
+        run: |
+          python -m pytest -n 1 --dist=loadfile -s -m is_pipeline_test --make-reports=tests_tf_pipeline_multi_gpu tests
+
+      - name: Failure short reports
+        if: ${{ always() }}
+        run: cat reports/tests_tf_pipeline_multi_gpu_failures_short.txt
+
+      - name: Test suite reports artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: run_all_tests_tf_multi_gpu_test_reports
+          path: reports
 #
 #
 #  run_all_tests_tf_gpu:
