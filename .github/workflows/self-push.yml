@@ -14,7 +14,7 @@ on:
 
 jobs:
   run_tests_torch_gpu:
-    runs-on: [self-hosted, docker-gpu, multi-gpu]
+    runs-on: [self-hosted, docker-gpu, single-gpu]
     container:
       image: nvcr.io/nvidia/pytorch:21.02-py3
       options: --gpus all --shm-size "16gb" --ipc host -v /mnt/cache:/mnt/cache
