@@ -38,7 +38,6 @@ jobs:
           OMP_NUM_THREADS: 16
           RUN_SLOW: yes
         run: |
-          source .env/bin/activate
           python -m pytest -n 1 --dist=loadfile -s --make-reports=tests_torch_gpu tests
 
       - name: Failure short reports
