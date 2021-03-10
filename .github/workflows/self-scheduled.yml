@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - multi_ci_*
+      - ci_*
   repository_dispatch:
   schedule:
     - cron: "0 0 * * *"
@@ -13,7 +14,7 @@ jobs:
     runs-on: [self-hosted, docker-gpu, single-gpu]
     container:
       image: nvcr.io/nvidia/pytorch:21.02-py3
-      options: --gpus all --shm-size "16gb" --ipc host
+      options: --gpus all --shm-size "16gb" --ipc host -v /mnt/cache/.cache/huggingface:/mnt/cache/
     steps:
       - name: Launcher docker
         uses: actions/checkout@v2
@@ -36,6 +37,7 @@ jobs:
         env:
           OMP_NUM_THREADS: 16
           RUN_SLOW: yes
+          HF_HOME: /mnt/cache
         run: |
           python -m pytest -n 1 --dist=loadfile --make-reports=tests_torch_gpu tests
 
@@ -48,6 +50,7 @@ jobs:
         env:
           OMP_NUM_THREADS: 16
           RUN_SLOW: yes
+          HF_HOME: /mnt/cache
         run: |
           pip install -r examples/_tests_requirements.txt
           python -m pytest -n 1 --dist=loadfile --make-reports=examples_torch_gpu examples
@@ -62,6 +65,7 @@ jobs:
           OMP_NUM_THREADS: 16
           RUN_SLOW: yes
           RUN_PIPELINE_TESTS: yes
+          HF_HOME: /mnt/cache
         run: |
           python -m pytest -n 1 --dist=loadfile -m is_pipeline_test --make-reports=tests_torch_pipeline_gpu tests
 
@@ -80,7 +84,7 @@ jobs:
     runs-on: [self-hosted, docker-gpu, single-gpu]
     container:
       image: nvcr.io/nvidia/tensorflow:21.02-tf2-py3
-      options: --gpus all --shm-size "16gb" --ipc host
+      options: --gpus all --shm-size "16gb" --ipc host -v /mnt/cache/.cache/huggingface:/mnt/cache/
     steps:
       - name: Launcher docker
         uses: actions/checkout@v2
@@ -105,6 +109,7 @@ jobs:
           RUN_SLOW: yes
           TF_NUM_INTEROP_THREADS: 1
           TF_NUM_INTRAOP_THREADS: 16
+          HF_HOME: /mnt/cache
         run: |
           python -m pytest -n 1 --dist=loadfile --make-reports=tests_tf_gpu tests
 
@@ -120,6 +125,7 @@ jobs:
           RUN_PIPELINE_TESTS: yes
           TF_NUM_INTEROP_THREADS: 1
           TF_NUM_INTRAOP_THREADS: 16
+          HF_HOME: /mnt/cache
         run: |
           python -m pytest -n 1 --dist=loadfile -m is_pipeline_test --make-reports=tests_tf_pipeline_gpu tests
 
@@ -138,7 +144,7 @@ jobs:
     runs-on: [self-hosted, docker-gpu, multi-gpu]
     container:
       image: nvcr.io/nvidia/pytorch:21.02-py3
-      options: --gpus all --shm-size "16gb" --ipc host
+      options: --gpus all --shm-size "16gb" --ipc host -v /mnt/cache/.cache/huggingface:/mnt/cache/
     steps:
       - name: Launcher docker
         uses: actions/checkout@v2
@@ -161,6 +167,7 @@ jobs:
         env:
           OMP_NUM_THREADS: 16
           RUN_SLOW: yes
+          HF_HOME: /mnt/cache
         run: |
           python -m pytest -n 1 --dist=loadfile --make-reports=tests_torch_multi_gpu tests
 
@@ -174,6 +181,7 @@ jobs:
           OMP_NUM_THREADS: 16
           RUN_SLOW: yes
           RUN_PIPELINE_TESTS: yes
+          HF_HOME: /mnt/cache
         run: |
           python -m pytest -n 1 --dist=loadfile -m is_pipeline_test --make-reports=tests_torch_pipeline_multi_gpu tests
 
@@ -192,7 +200,7 @@ jobs:
     runs-on: [self-hosted, docker-gpu, multi-gpu]
     container:
       image: nvcr.io/nvidia/tensorflow:21.02-tf2-py3
-      options: --gpus all --shm-size "16gb" --ipc host
+      options: --gpus all --shm-size "16gb" --ipc host -v /mnt/cache/.cache/huggingface:/mnt/cache/
     steps:
       - name: Launcher docker
         uses: actions/checkout@v2
@@ -217,6 +225,7 @@ jobs:
           RUN_SLOW: yes
           TF_NUM_INTEROP_THREADS: 1
           TF_NUM_INTRAOP_THREADS: 16
+          HF_HOME: /mnt/cache
         run: |
           python -m pytest -n 1 --dist=loadfile --make-reports=tests_tf_multi_gpu tests
 
@@ -232,6 +241,7 @@ jobs:
           RUN_PIPELINE_TESTS: yes
           TF_NUM_INTEROP_THREADS: 1
           TF_NUM_INTRAOP_THREADS: 16
+          HF_HOME: /mnt/cache
         run: |
           python -m pytest -n 1 --dist=loadfile -m is_pipeline_test --make-reports=tests_tf_pipeline_multi_gpu tests
 
