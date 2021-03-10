@@ -14,7 +14,7 @@ on:
 
 jobs:
   run_tests_torch_gpu:
-    runs-on: [self-hosted, docker-gpu, single-gpu]
+    runs-on: [self-hosted, docker-gpu, single-gpu, no-run]
     container:
       image: nvcr.io/nvidia/pytorch:21.02-py3
       options: --gpus all --shm-size "16gb" --ipc host
@@ -24,7 +24,6 @@ jobs:
 
       - name: NVIDIA-SMI
         run: |
-          pwd
           nvidia-smi
 
       - name: Install dependencies
@@ -35,7 +34,6 @@ jobs:
 
       - name: Are GPUs recognized by our DL frameworks
         env:
-          OMP_NUM_THREADS: 1
           CUDA_VISIBLE_DEVICES: 0
         run: |
           python -c "import torch; print('Cuda available:', torch.cuda.is_available())"
@@ -44,7 +42,7 @@ jobs:
 
       - name: Run all non-slow tests on GPU
         env:
-          OMP_NUM_THREADS: 1
+          OMP_NUM_THREADS: 8
           CUDA_VISIBLE_DEVICES: 0
         run: |
           python -m pytest -n 2 --dist=loadfile --make-reports=tests_torch_gpu tests
@@ -61,7 +59,7 @@ jobs:
           path: reports
 
   run_tests_tf_gpu:
-    runs-on: [self-hosted, docker-gpu, single-gpu]
+    runs-on: [self-hosted, docker-gpu, single-gpu, no-run]
     container:
       image: nvcr.io/nvidia/tensorflow:21.02-tf2-py3
       options: --gpus all --shm-size "16gb" --ipc host
@@ -71,7 +69,6 @@ jobs:
 
       - name: NVIDIA-SMI
         run: |
-          pwd
           nvidia-smi
 
       - name: Install dependencies
@@ -81,7 +78,6 @@ jobs:
 
       - name: Are GPUs recognized by our DL frameworks
         env:
-          OMP_NUM_THREADS: 1
           CUDA_VISIBLE_DEVICES: 0
         run: |
           TF_CPP_MIN_LOG_LEVEL=3 python -c "import tensorflow as tf; print('TF GPUs available:', bool(tf.config.list_physical_devices('GPU')))"
@@ -89,7 +85,7 @@ jobs:
 
       - name: Run all non-slow tests on GPU
         env:
-          OMP_NUM_THREADS: 1
+          OMP_NUM_THREADS: 8
           CUDA_VISIBLE_DEVICES: 0
         run: |
           python -m pytest -n 2 --dist=loadfile --make-reports=tests_tf_gpu tests
@@ -107,7 +103,7 @@ jobs:
 
 
   run_tests_torch_multi_gpu:
-    runs-on: [self-hosted, docker-gpu, multi-gpu]
+    runs-on: [self-hosted, docker-gpu, multi-gpu, no-run]
     container:
       image: nvcr.io/nvidia/pytorch:21.02-py3
       options: --gpus all --shm-size "16gb" --ipc host
@@ -117,7 +113,6 @@ jobs:
 
       - name: NVIDIA-SMI
         run: |
-          pwd
           nvidia-smi
 
       - name: Install dependencies
@@ -133,7 +128,7 @@ jobs:
 
       - name: Run all non-slow tests on GPU
         env:
-          OMP_NUM_THREADS: 1
+          OMP_NUM_THREADS: 8
         run: |
           python -m pytest -n 2 --dist=loadfile --make-reports=tests_torch_multi_gpu tests
 
@@ -149,7 +144,7 @@ jobs:
           path: reports
 
   run_tests_tf_multi_gpu:
-    runs-on: [self-hosted, docker-gpu, multi-gpu]
+    runs-on: [self-hosted, docker-gpu, multi-gpu, no-run]
     container:
       image: nvcr.io/nvidia/tensorflow:21.02-tf2-py3
       options: --gpus all --shm-size "16gb" --ipc host
@@ -159,7 +154,6 @@ jobs:
 
       - name: NVIDIA-SMI
         run: |
-          pwd
           nvidia-smi
 
       - name: Install dependencies
@@ -174,7 +168,7 @@ jobs:
 
       - name: Run all non-slow tests on GPU
         env:
-          OMP_NUM_THREADS: 1
+          OMP_NUM_THREADS: 8
         run: |
           python -m pytest -n 2 --dist=loadfile --make-reports=tests_tf_multi_gpu tests
 
