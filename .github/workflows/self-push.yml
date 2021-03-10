@@ -17,7 +17,7 @@ jobs:
     runs-on: [self-hosted, docker-gpu, single-gpu]
     container:
       image: nvcr.io/nvidia/pytorch:21.02-py3
-      options: --gpus all --shm-size "16gb" --ipc host -v /mnt/cache:/github/home/.cache
+      options: --gpus all --shm-size "16gb" --ipc host -v /github/home/.cache:/mnt/cache
     steps:
       - name: Launcher docker
         uses: actions/checkout@v2
