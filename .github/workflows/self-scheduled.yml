@@ -39,6 +39,7 @@ jobs:
           RUN_SLOW: yes
         run: |
           python -c "from transformers.file_utils import hf_cache_home; print(hf_cache_home)"
+          python -c "from transformers import AlbertForMaskedLM; AlbertForMaskedLM.from_pretrained('albert-base-v1')"
 #          python -m pytest -n 1 --dist=loadfile -s --make-reports=tests_torch_gpu tests
 #
 #      - name: Failure short reports
