@@ -429,6 +429,7 @@ TensorFlow and/or Flax.
     model_doc/prophetnet
     model_doc/rag
     model_doc/reformer
+    model_doc/rembert
     model_doc/retribert
     model_doc/roberta
     model_doc/squeezebert
