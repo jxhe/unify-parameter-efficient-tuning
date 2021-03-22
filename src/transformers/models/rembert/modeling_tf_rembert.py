@@ -46,7 +46,6 @@ from ...modeling_tf_utils import (
     TFPreTrainedModel,
     TFQuestionAnsweringLoss,
     TFSequenceClassificationLoss,
-    TFSequenceSummary,
     TFTokenClassificationLoss,
     get_initializer,
     input_processing,
@@ -789,7 +788,7 @@ class TFRemBertModel(TFRemBertPreTrainedModel):
             last_hidden_state=output.last_hidden_state,
             pooler_output=output.pooler_output,
             hidden_states=hs,
-            attentions=attns
+            attentions=attns,
         )
 
 

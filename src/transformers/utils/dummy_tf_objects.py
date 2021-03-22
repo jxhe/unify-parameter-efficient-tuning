@@ -1332,6 +1332,82 @@ class TFPegasusModel:
         requires_tf(self)
 
 
+TF_REMBERT_PRETRAINED_MODEL_ARCHIVE_LIST = None
+
+
+class TFRemBertForCausalLM:
+    def __init__(self, *args, **kwargs):
+        requires_tf(self)
+
+
+class TFRemBertForMaskedLM:
+    def __init__(self, *args, **kwargs):
+        requires_tf(self)
+
+    @classmethod
+    def from_pretrained(self, *args, **kwargs):
+        requires_tf(self)
+
+
+class TFRemBertForMultipleChoice:
+    def __init__(self, *args, **kwargs):
+        requires_tf(self)
+
+    @classmethod
+    def from_pretrained(self, *args, **kwargs):
+        requires_tf(self)
+
+
+class TFRemBertForQuestionAnswering:
+    def __init__(self, *args, **kwargs):
+        requires_tf(self)
+
+    @classmethod
+    def from_pretrained(self, *args, **kwargs):
+        requires_tf(self)
+
+
+class TFRemBertForSequenceClassification:
+    def __init__(self, *args, **kwargs):
+        requires_tf(self)
+
+    @classmethod
+    def from_pretrained(self, *args, **kwargs):
+        requires_tf(self)
+
+
+class TFRemBertForTokenClassification:
+    def __init__(self, *args, **kwargs):
+        requires_tf(self)
+
+    @classmethod
+    def from_pretrained(self, *args, **kwargs):
+        requires_tf(self)
+
+
+class TFRemBertLayer:
+    def __init__(self, *args, **kwargs):
+        requires_tf(self)
+
+
+class TFRemBertModel:
+    def __init__(self, *args, **kwargs):
+        requires_tf(self)
+
+    @classmethod
+    def from_pretrained(self, *args, **kwargs):
+        requires_tf(self)
+
+
+class TFRemBertPreTrainedModel:
+    def __init__(self, *args, **kwargs):
+        requires_tf(self)
+
+    @classmethod
+    def from_pretrained(self, *args, **kwargs):
+        requires_tf(self)
+
+
 TF_ROBERTA_PRETRAINED_MODEL_ARCHIVE_LIST = None
 
 

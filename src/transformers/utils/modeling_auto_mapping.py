@@ -6,6 +6,7 @@ from collections import OrderedDict
 
 MODEL_FOR_QUESTION_ANSWERING_MAPPING_NAMES = OrderedDict(
     [
+        ("RemBertConfig", "RemBertForQuestionAnswering"),
         ("ConvBertConfig", "ConvBertForQuestionAnswering"),
         ("LEDConfig", "LEDForQuestionAnswering"),
         ("DistilBertConfig", "DistilBertForQuestionAnswering"),

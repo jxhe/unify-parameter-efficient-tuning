@@ -2056,6 +2056,86 @@ class ReformerModelWithLMHead:
         requires_pytorch(self)
 
 
+REMBERT_PRETRAINED_MODEL_ARCHIVE_LIST = None
+
+
+class RemBertForCausalLM:
+    def __init__(self, *args, **kwargs):
+        requires_pytorch(self)
+
+
+class RemBertForMaskedLM:
+    def __init__(self, *args, **kwargs):
+        requires_pytorch(self)
+
+    @classmethod
+    def from_pretrained(self, *args, **kwargs):
+        requires_pytorch(self)
+
+
+class RemBertForMultipleChoice:
+    def __init__(self, *args, **kwargs):
+        requires_pytorch(self)
+
+    @classmethod
+    def from_pretrained(self, *args, **kwargs):
+        requires_pytorch(self)
+
+
+class RemBertForQuestionAnswering:
+    def __init__(self, *args, **kwargs):
+        requires_pytorch(self)
+
+    @classmethod
+    def from_pretrained(self, *args, **kwargs):
+        requires_pytorch(self)
+
+
+class RemBertForSequenceClassification:
+    def __init__(self, *args, **kwargs):
+        requires_pytorch(self)
+
+    @classmethod
+    def from_pretrained(self, *args, **kwargs):
+        requires_pytorch(self)
+
+
+class RemBertForTokenClassification:
+    def __init__(self, *args, **kwargs):
+        requires_pytorch(self)
+
+    @classmethod
+    def from_pretrained(self, *args, **kwargs):
+        requires_pytorch(self)
+
+
+class RemBertLayer:
+    def __init__(self, *args, **kwargs):
+        requires_pytorch(self)
+
+
+class RemBertModel:
+    def __init__(self, *args, **kwargs):
+        requires_pytorch(self)
+
+    @classmethod
+    def from_pretrained(self, *args, **kwargs):
+        requires_pytorch(self)
+
+
+class RemBertPreTrainedModel:
+    def __init__(self, *args, **kwargs):
+        requires_pytorch(self)
+
+    @classmethod
+    def from_pretrained(self, *args, **kwargs):
+        requires_pytorch(self)
+
+
+def load_tf_weights_in_rembert(*args, **kwargs):
+    requires_pytorch(load_tf_weights_in_rembert)
+
+
 RETRIBERT_PRETRAINED_MODEL_ARCHIVE_LIST = None
 
 
