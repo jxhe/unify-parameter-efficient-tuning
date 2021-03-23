@@ -199,7 +199,7 @@ jobs:
     name: Send results to webhook
     runs-on: ubuntu-latest
     if: always()
-    needs: [run_tests_torch_gpu, run_tests_tf_gpu, run_tests_torch_multi_gpu, run_tests_tf_multi_gpu]
+    needs: [run_tests_torch_multi_gpu]
     steps:
       - uses: actions/checkout@v2
 
