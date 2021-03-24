@@ -17,7 +17,7 @@
 import os
 import unittest
 
-from transformers import BigBirdTokenizer
+from transformers import BigBirdTokenizer, BigBirdTokenizerFast
 from transformers.file_utils import cached_property
 from transformers.testing_utils import require_sentencepiece, require_torch, slow
 
@@ -33,6 +33,8 @@ SAMPLE_VOCAB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixture
 class BigBirdTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
 
     tokenizer_class = BigBirdTokenizer
+    rust_tokenizer_class = BigBirdTokenizerFast
+    test_rust_tokenizer = True
 
     def setUp(self):
         super().setUp()
