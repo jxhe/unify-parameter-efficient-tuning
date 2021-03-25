@@ -27,14 +27,20 @@ from .tokenization_big_bird import BigBirdTokenizer
 
 logger = logging.get_logger(__name__)
 
-VOCAB_FILES_NAMES = {"vocab_file": "spiece.model"}
+VOCAB_FILES_NAMES = {"vocab_file": "spiece.model", "tokenizer_file": "tokenizer.json"}
 
 PRETRAINED_VOCAB_FILES_MAP = {
     "vocab_file": {
         "google/bigbird-roberta-base": "https://huggingface.co/google/bigbird-roberta-base/resolve/main/spiece.model",
         "google/bigbird-roberta-large": "https://huggingface.co/google/bigbird-roberta-large/resolve/main/spiece.model",
         "google/bigbird-base-trivia-itc": "https://huggingface.co/google/bigbird-base-trivia-itc/resolve/main/spiece.model",
-    }
+    },
+    "tokenizer_file": {
+        "google/bigbird-roberta-base": "https://huggingface.co/google/bigbird-roberta-base/resolve/main/tokenizer.json",
+        "google/bigbird-roberta-large": "https://huggingface.co/google/bigbird-roberta-large/resolve/main/tokenizer.json",
+        "google/bigbird-base-trivia-itc": "https://huggingface.co/google/bigbird-base-trivia-itc/resolve/main/tokenizer.json",
+        "t5-11b": "https://huggingface.co/t5-11b/resolve/main/tokenizer.json",
+    },
 }
 
 PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES = {
@@ -56,11 +62,13 @@ class BigBirdTokenizerFast(PreTrainedTokenizerFast):
     vocab_files_names = VOCAB_FILES_NAMES
     pretrained_vocab_files_map = PRETRAINED_VOCAB_FILES_MAP
     max_model_input_sizes = PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES
+    model_input_names = ["input_ids", "attention_mask"]
     slow_tokenizer_class = BigBirdTokenizer
 
     def __init__(
         self,
         vocab_file,
+        tokenizer_file=None,
         unk_token="<unk>",
         bos_token="</s>",
         eos_token="<s>",
@@ -81,6 +89,8 @@ class BigBirdTokenizerFast(PreTrainedTokenizerFast):
         mask_token = AddedToken(mask_token, lstrip=True, rstrip=False) if isinstance(mask_token, str) else mask_token
 
         super().__init__(
+            vocab_file,
+            tokenizer=tokenizer_file,
             bos_token=bos_token,
             eos_token=eos_token,
             unk_token=unk_token,

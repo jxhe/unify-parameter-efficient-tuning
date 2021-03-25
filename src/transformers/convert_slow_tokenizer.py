@@ -305,7 +305,9 @@ class SpmConverter(Converter):
         from .utils import sentencepiece_model_pb2 as model_pb2
 
         m = model_pb2.ModelProto()
+        vocab = open(self.original_tokenizer.vocab_file, "rb").read()
         m.ParseFromString(open(self.original_tokenizer.vocab_file, "rb").read())
+        m.ParseFromString(vocab)
         self.proto = m
 
     def vocab(self, proto):
@@ -340,6 +342,7 @@ class SpmConverter(Converter):
         return tokenizer
 
     def normalizer(self, proto):
+        import ipdb; ipdb.set_trace()
         precompiled_charsmap = proto.normalizer_spec.precompiled_charsmap
         return normalizers.Sequence(
             [normalizers.Precompiled(precompiled_charsmap), normalizers.Replace(Regex(" {2,}"), " ")]
@@ -650,20 +653,40 @@ class T5Converter(SpmConverter):
 class BigBirdConverter(SpmConverter):
     def vocab(self, proto):
         vocab = [
-            ("<s>", 0.0),
-            ("<pad>", 0.0),
-            ("</s>", 0.0),
-            ("<unk>", 0.0),
+            (self.original_tokenizer.pad_token, 0.0),
+            (self.original_tokenizer.eos_token, 0.0),
+            (self.original_tokenizer.bos_token, 0.0),
+            (self.original_tokenizer.eos_token, 0.0),
+            (self.original_tokenizer.sep_token, 0.0),
+            (self.original_tokenizer.mask_token, 0.0),
+            (self.original_tokenizer.unk_token, 0.0),
         ]
         vocab += [(piece.piece, piece.score) for piece in proto.pieces[3:]]
-        vocab += [("<mask>", 0.0)]
+#        vocab += [("[MASK]", 0.0)]
         return vocab
 
     def unk_id(self, proto):
-        unk_id = 3
-        return unk_id
+        return 100
+
+    def normalizer(self, proto):
+        list_normalizers = [
+            normalizers.Replace("``", '"'),
+            normalizers.Replace("''", '"'),
+            normalizers.Replace(Regex(" {2,}"), " "),
+        ]
+#        if not self.original_tokenizer.keep_accents:
+#            list_normalizers.append(normalizers.NFKD())
+#            list_normalizers.append(normalizers.StripAccents())
+#        if self.original_tokenizer.do_lower_case:
+#            list_normalizers.append(normalizers.Lowercase())
+
+        precompiled_charsmap = proto.normalizer_spec.precompiled_charsmap
+        import ipdb; ipdb.set_trace()
+        list_normalizers.append(normalizers.Precompiled(precompiled_charsmap))
+        return normalizers.Sequence(list_normalizers)
 
     def post_processor(self):
+        import ipdb; ipdb.set_trace()
         return processors.TemplateProcessing(
             single="<s> $A </s>",
             pair="<s> $A </s> </s> $B </s>",
