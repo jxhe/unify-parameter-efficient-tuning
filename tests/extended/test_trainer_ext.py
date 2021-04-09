@@ -89,6 +89,7 @@ class TestTrainerExt(TestCasePlus):
             assert not math.isnan(float(last_step_stats["eval_loss"])), "eval_loss must not be `nan`"
 
     @require_torch_non_multi_gpu
+    @slow
     def test_run_seq2seq_no_dist(self):
         self.run_seq2seq_quick()
 
