@@ -1,0 +1,14 @@
+============================================================================================= warnings summary (final) ==============================================================================================
+tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_torchscript
+tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_torchscript_output_attentions
+tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_torchscript_output_hidden_state
+  /home/sgugger/git/transformers/src/transformers/models/megatron_bert/modeling_megatron_bert.py:176: TracerWarning: Converting a tensor to a Python index might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+    position_ids = self.position_ids[:, past_key_values_length : seq_length + past_key_values_length]
+
+tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_torchscript
+tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_torchscript_output_attentions
+tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_torchscript_output_hidden_state
+  /home/sgugger/git/transformers/src/transformers/modeling_utils.py:1820: TracerWarning: Converting a tensor to a Python boolean might cause the trace to be incorrect. We can't record the data flow of Python values, so this value will be treated as a constant in the future. This means that the trace might not generalize to other inputs!
+    input_tensor.shape[chunk_dim] == tensor_shape for input_tensor in input_tensors
+
+-- Docs: https://docs.pytest.org/en/stable/warnings.html

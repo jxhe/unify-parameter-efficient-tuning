@@ -1,0 +1,27 @@
+slowest durations
+3.55s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_torchscript_output_attentions
+3.52s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_torchscript_output_hidden_state
+3.43s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_model_outputs_equivalence
+3.40s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_torchscript
+0.41s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_head_pruning_integration
+0.39s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_attention_outputs
+0.34s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_feed_forward_chunking
+0.30s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_save_load
+0.29s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_head_pruning_save_load_from_pretrained
+0.23s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_hidden_states_output
+0.21s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_training_gradient_checkpointing
+0.20s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_resize_tokens_embeddings
+0.18s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_correct_missing_keys
+0.17s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_training
+0.15s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_determinism
+0.14s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_tie_model_weights
+0.14s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_head_pruning_save_load_from_config_init
+0.13s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_head_pruning
+0.12s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_inputs_embeds
+0.11s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_resize_embeddings_untied
+0.09s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_initialization
+0.07s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_retain_grad_hidden_states_attentions
+0.06s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_forward_signature
+0.06s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_model_common_attributes
+0.06s call     tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_save_load__keys_to_ignore_on_save
+95 durations < 0.05 secs were omitted

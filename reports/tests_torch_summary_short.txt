@@ -1,0 +1,41 @@
+============================================================================================== short test summary info ==============================================================================================
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_attention_outputs
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_config
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_correct_missing_keys
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_determinism
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_feed_forward_chunking
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_for_masked_lm
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_for_multiple_choice
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_for_next_sequence_prediction
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_for_pretraining
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_for_question_answering
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_for_sequence_classification
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_for_token_classification
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_forward_signature
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_head_pruning
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_head_pruning_integration
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_head_pruning_save_load_from_config_init
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_head_pruning_save_load_from_pretrained
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_headmasking
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_hidden_states_output
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_initialization
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_inputs_embeds
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_megatron_bert_model
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_model_common_attributes
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_model_outputs_equivalence
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_resize_embeddings_untied
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_resize_tokens_embeddings
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_retain_grad_hidden_states_attentions
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_save_load
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_save_load__keys_to_ignore_on_save
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_tie_model_weights
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_torchscript
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_torchscript_output_attentions
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_torchscript_output_hidden_state
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_training
+PASSED tests/test_modeling_megatron_bert.py::MegatronBertModelTest::test_training_gradient_checkpointing
+SKIPPED [1] tests/test_modeling_common.py:1198: test requires multiple GPUs
+SKIPPED [1] tests/test_modeling_common.py:1164: test requires multiple GPUs
+SKIPPED [1] tests/test_modeling_common.py:1102: test requires multiple GPUs
+SKIPPED [1] tests/test_modeling_common.py:1077: test requires multiple GPUs
+SKIPPED [1] tests/test_modeling_megatron_bert.py:357: test is slow
