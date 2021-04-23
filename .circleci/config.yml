@@ -129,7 +129,7 @@ jobs:
         environment:
             OMP_NUM_THREADS: 1
             TRANSFORMERS_IS_CI: yes
-        resource_class: 2xlarge
+        resource_class: xlarge
         parallelism: 1
         steps:
             - checkout
@@ -161,7 +161,7 @@ jobs:
                 when: always
             - run:
                 command: /usr/bin/time python -m pytest -n 8 --dist=loadfile -s --make-reports=tests_torch ./tests/ | tee tests_output.txt
-                no_output_timeout: 2m
+                no_output_timeout: 30m
             - run:
                 command: |
                   cat /sys/fs/cgroup/memory/memory.max_usage_in_bytes | perl -ne 'print $_ / 2**30'
