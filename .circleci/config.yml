@@ -145,7 +145,7 @@ jobs:
                 command: |
                     while true; do
                         sleep 1
-                        ps -u stas eo pid,%cpu,%mem,args,uname --sort=-%mem
+                        ps -u ubuntu eo pid,%cpu,%mem,args,uname --sort=-%mem
                         echo "======"
                     done
                 background: true
@@ -154,10 +154,20 @@ jobs:
                   paths:
                       - '~/.cache/pip'
             - run:
-                command: python -m pytest -n 8 --dist=loadfile -s --make-reports=tests_torch ./tests/ | tee tests_output.txt
-                no_output_timeout: 2m
+                command: |
+                  cat /sys/fs/cgroup/memory/memory.max_usage_in_bytes | perl -ne 'print $_ / 2**30'
+                  free -h
+                when: always
             - run:
                 command: cat /sys/fs/cgroup/memory/memory.max_usage_in_bytes
+                when: always
+            - run:
+                command: /usr/bin/time python -m pytest -n 8 --dist=loadfile -s --make-reports=tests_torch ./tests/ | tee tests_output.txt
+                no_output_timeout: 2m
+            - run:
+                command: |
+                  cat /sys/fs/cgroup/memory/memory.max_usage_in_bytes | perl -ne 'print $_ / 2**30'
+                  free -h
                 when: always
             - run:
                 command: sudo dmesg -H  | tee dmesg.txt
