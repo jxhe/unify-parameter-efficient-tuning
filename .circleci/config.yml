@@ -138,6 +138,7 @@ jobs:
                       - v0.4-torch-{{ checksum "setup.py" }}
                       - v0.4-{{ checksum "setup.py" }}
             - run: sudo apt-get -y update && sudo apt-get install -y libsndfile1-dev
+            - run: sudo apt-get install time
             - run: pip install --upgrade pip
             - run: pip install .[sklearn,torch,testing,sentencepiece,speech,vision]
             - run: pip install torch-scatter -f https://pytorch-geometric.com/whl/torch-1.8.0+cpu.html
@@ -155,8 +156,8 @@ jobs:
                       - '~/.cache/pip'
             - run:
                 command: |
-                  cat /sys/fs/cgroup/memory/memory.max_usage_in_bytes | perl -ne 'print $_ / 2**30'
                   free -h
+                  cat /sys/fs/cgroup/memory/memory.max_usage_in_bytes | perl -ne 'print $_ / 2**30'
                 when: always
             - run:
                 command: cat /sys/fs/cgroup/memory/memory.max_usage_in_bytes
