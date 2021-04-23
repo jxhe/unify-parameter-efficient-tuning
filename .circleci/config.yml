@@ -141,12 +141,11 @@ jobs:
             - run: pip install --upgrade pip
             - run: pip install .[sklearn,torch,testing,sentencepiece,speech,vision]
             - run: pip install torch-scatter -f https://pytorch-geometric.com/whl/torch-1.8.0+cpu.html
-            - run: pip install pytest-instafail
             - run:
                 command: |
                     while true; do
-                        sleep 5
-                        ps auxwwf
+                        sleep 1
+                        ps -u stas eo pid,%cpu,%mem,args,uname --sort=-%mem
                         echo "======"
                     done
                 background: true
@@ -154,13 +153,17 @@ jobs:
                   key: v0.4-torch-{{ checksum "setup.py" }}
                   paths:
                       - '~/.cache/pip'
-            - run: python -m pytest -n 8 --dist=loadfile -s --make-reports=tests_torch ./tests/ --instafail | tee tests_output.txt
+            - run:
+                command: python -m pytest -n 8 --dist=loadfile -s --make-reports=tests_torch ./tests/ | tee tests_output.txt
+                no_output_timeout: 2m
             - run:
                 command: cat /sys/fs/cgroup/memory/memory.max_usage_in_bytes
                 when: always
             - run:
-                command: dmesg -H
+                command: sudo dmesg -H  | tee dmesg.txt
                 when: always
+            - store_artifacts:
+                  path: ~/transformers/dmesg.txt
             - store_artifacts:
                   path: ~/transformers/tests_output.txt
             - store_artifacts:
