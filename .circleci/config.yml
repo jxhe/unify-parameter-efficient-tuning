@@ -469,15 +469,4 @@ workflows:
     build_and_test:
         jobs:
             - run_tests_torch
-#    tpu_testing_jobs:
-#        triggers:
-#            - schedule:
-#                # Set to run at the first minute of every hour.
-#                cron: "0 8 * * *"
-#                filters:
-#                    branches:
-#                        only:
-#                            - master
-#        jobs:
-#            - cleanup-gke-jobs
-#            - run_examples_tpu
+
