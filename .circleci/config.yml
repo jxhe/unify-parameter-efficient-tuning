@@ -129,7 +129,7 @@ jobs:
         environment:
             OMP_NUM_THREADS: 1
             TRANSFORMERS_IS_CI: yes
-        resource_class: xlarge
+        resource_class: 2xlarge
         parallelism: 1
         steps:
             - checkout
@@ -146,7 +146,7 @@ jobs:
                 command: |
                     while true; do
                         sleep 1
-                        ps -u ubuntu eo pid,%cpu,%mem,args,uname --sort=-%mem
+                        ps eo pid,%cpu,%mem,args,uname --sort=-%mem
                         echo "======"
                     done
                 background: true
@@ -158,9 +158,6 @@ jobs:
                 command: |
                   free -h
                   cat /sys/fs/cgroup/memory/memory.max_usage_in_bytes | perl -ne 'print $_ / 2**30'
-                when: always
-            - run:
-                command: cat /sys/fs/cgroup/memory/memory.max_usage_in_bytes
                 when: always
             - run:
                 command: /usr/bin/time python -m pytest -n 8 --dist=loadfile -s --make-reports=tests_torch ./tests/ | tee tests_output.txt
