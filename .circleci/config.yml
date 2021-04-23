@@ -142,7 +142,7 @@ jobs:
             - run: pip install .[sklearn,torch,testing,sentencepiece,speech,vision]
             - run: pip install torch-scatter -f https://pytorch-geometric.com/whl/torch-1.8.0+cpu.html
             - run: pip install pytest-instafail
-            - run: 
+            - run:
                 command: |
                     while true; do
                         sleep 5
@@ -155,6 +155,12 @@ jobs:
                   paths:
                       - '~/.cache/pip'
             - run: python -m pytest -n 8 --dist=loadfile -s --make-reports=tests_torch ./tests/ --instafail | tee tests_output.txt
+            - run:
+                command: cat /sys/fs/cgroup/memory/memory.max_usage_in_bytes
+                when: always
+            - run:
+                command: dmesg -H
+                when: always
             - store_artifacts:
                   path: ~/transformers/tests_output.txt
             - store_artifacts:
@@ -477,4 +483,3 @@ workflows:
     build_and_test:
         jobs:
             - run_tests_torch
-
