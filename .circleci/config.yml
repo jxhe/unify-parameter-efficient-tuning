@@ -131,10 +131,6 @@ jobs:
             TRANSFORMERS_IS_CI: yes
         resource_class: xlarge
         parallelism: 1
-        machine:
-            - post:
-                - FILE=$CIRCLE_ARTIFACTS/memory-usage-actual.txt; while true; do ps -u ubuntu eo pid,%cpu,%mem,args,uname --sort=-%mem >> $FILE; echo "----------" >> $FILE; sleep 1; done:
-                    background: true
         steps:
             - checkout
             - restore_cache:
@@ -146,6 +142,14 @@ jobs:
             - run: pip install .[sklearn,torch,testing,sentencepiece,speech,vision]
             - run: pip install torch-scatter -f https://pytorch-geometric.com/whl/torch-1.8.0+cpu.html
             - run: pip install pytest-instafail
+            - run: 
+                command: |
+                    while true; do
+                        sleep 5
+                        ps auxwwf
+                        echo "======"
+                    done
+                background: true
             - save_cache:
                   key: v0.4-torch-{{ checksum "setup.py" }}
                   paths:
