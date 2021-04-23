@@ -131,6 +131,10 @@ jobs:
             TRANSFORMERS_IS_CI: yes
         resource_class: xlarge
         parallelism: 1
+        machine:
+            - post:
+                - FILE=$CIRCLE_ARTIFACTS/memory-usage-actual.txt; while true; do ps -u ubuntu eo pid,%cpu,%mem,args,uname --sort=-%mem >> $FILE; echo "----------" >> $FILE; sleep 1; done:
+                    background: true
         steps:
             - checkout
             - restore_cache:
@@ -146,7 +150,7 @@ jobs:
                   key: v0.4-torch-{{ checksum "setup.py" }}
                   paths:
                       - '~/.cache/pip'
-            - run: python -m pytest -n 2 --dist=loadfile -s --make-reports=tests_torch ./tests/ --instafail | tee tests_output.txt
+            - run: python -m pytest -n 8 --dist=loadfile -s --make-reports=tests_torch ./tests/ --instafail | tee tests_output.txt
             - store_artifacts:
                   path: ~/transformers/tests_output.txt
             - store_artifacts:
