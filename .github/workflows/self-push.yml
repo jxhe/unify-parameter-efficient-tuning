@@ -187,45 +187,46 @@ jobs:
 #          name: run_all_tests_tf_multi_gpu_test_reports
 #          path: reports
 #
-#  run_tests_torch_cuda_extensions_gpu:
-#    runs-on: [self-hosted, docker-gpu, single-gpu]
-#    container:
-#      image: nvcr.io/nvidia/pytorch:21.03-py3
-#      options: --gpus 0 --shm-size "16gb" --ipc host -v /mnt/cache/.cache/huggingface:/mnt/cache/
-#    steps:
-#      - name: Launcher docker
-#        uses: actions/checkout@v2
-#
-#      - name: NVIDIA-SMI
-#        run: |
-#          nvidia-smi
-#
-#      - name: Install dependencies
-#        run: |
-#          pip install --upgrade pip
-#          pip install .[testing,deepspeed]
-#
-#      - name: Are GPUs recognized by our DL frameworks
-#        run: |
-#          python -c "import torch; print('Cuda available:', torch.cuda.is_available())"
-#          python -c "import torch; print('Cuda version:', torch.version.cuda)"
-#          python -c "import torch; print('CuDNN version:', torch.backends.cudnn.version())"
-#          python -c "import torch; print('Number of GPUs available:', torch.cuda.device_count())"
-#
-#      - name: Run all tests on GPU
-#        run: |
-#          python -m pytest -n 1 --dist=loadfile --make-reports=tests_torch_cuda_extensions_gpu tests/deepspeed tests/extended
-#
-#      - name: Failure short reports
-#        if: ${{ always() }}
-#        run: cat reports/tests_torch_cuda_extensions_gpu_failures_short.txt
-#
-#      - name: Test suite reports artifacts
-#        if: ${{ always() }}
-#        uses: actions/upload-artifact@v2
-#        with:
-#          name: run_tests_torch_cuda_extensions_gpu_test_reports
-#          path: reports
+  run_tests_torch_cuda_extensions_gpu:
+    runs-on: [self-hosted, docker-gpu, single-gpu]
+    container:
+      image: nvcr.io/nvidia/pytorch:21.03-py3
+      options: --gpus 0 --shm-size "16gb" --ipc host -v /mnt/cache/.cache/huggingface:/mnt/cache/
+    steps:
+      - name: Launcher docker
+        uses: actions/checkout@v2
+
+      - name: NVIDIA-SMI
+        run: |
+          nvidia-smi
+
+      - name: Install dependencies
+        run: |
+          apt install libaio-dev
+          pip install --upgrade pip
+          pip install .[testing,deepspeed]
+
+      - name: Are GPUs recognized by our DL frameworks
+        run: |
+          python -c "import torch; print('Cuda available:', torch.cuda.is_available())"
+          python -c "import torch; print('Cuda version:', torch.version.cuda)"
+          python -c "import torch; print('CuDNN version:', torch.backends.cudnn.version())"
+          python -c "import torch; print('Number of GPUs available:', torch.cuda.device_count())"
+
+      - name: Run all tests on GPU
+        run: |
+          python -m pytest -n 1 --dist=loadfile --make-reports=tests_torch_cuda_extensions_gpu tests/deepspeed tests/extended
+
+      - name: Failure short reports
+        if: ${{ always() }}
+        run: cat reports/tests_torch_cuda_extensions_gpu_failures_short.txt
+
+      - name: Test suite reports artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: run_tests_torch_cuda_extensions_gpu_test_reports
+          path: reports
 
   run_tests_torch_cuda_extensions_multi_gpu:
     runs-on: [self-hosted, docker-gpu, multi-gpu]
@@ -242,6 +243,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          apt install libaio-dev
           pip install --upgrade pip
           pip install .[testing,deepspeed,fairscale]
 
