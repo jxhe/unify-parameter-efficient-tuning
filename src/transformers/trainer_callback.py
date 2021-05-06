@@ -559,3 +559,12 @@ class EarlyStoppingCallback(TrainerCallback):
         self.check_metric_value(args, state, control, metric_value)
         if self.early_stopping_patience_counter >= self.early_stopping_patience:
             control.should_training_stop = True
+
+
+class LogFlosCallback(TrainerCallback):
+    """
+    A bare :class:`~transformers.TrainerCallback` that just prints the logs.
+    """
+
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        logs["total_flos"] = state.total_flos
