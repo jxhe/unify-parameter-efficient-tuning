@@ -94,6 +94,7 @@ TEST_FILES_WITH_NO_COMMON_TESTS = [
 # should **not** be the rule.
 IGNORE_NON_AUTO_CONFIGURED = [
     # models to ignore for model xxx mapping
+    "DetrForSegmentation",
     "DPRReader",
     "DPRSpanPredictor",
     "FlaubertForQuestionAnswering",

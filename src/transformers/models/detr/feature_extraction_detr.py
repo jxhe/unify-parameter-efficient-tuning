@@ -460,8 +460,8 @@ class DetrFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixin):
             :class:`~transformers.BatchFeature`: A :class:`~transformers.BatchFeature` with the following fields:
 
             - **pixel_values** -- Pixel values to be fed to a model.
-            - **pixel_mask** -- Pixel mask to be fed to a model (when :obj:`pad_and_return_pixel_mask=True` or if `"pixel_mask"` 
-              is in :obj:`self.model_input_names`).
+            - **pixel_mask** -- Pixel mask to be fed to a model (when :obj:`pad_and_return_pixel_mask=True` or if
+              `"pixel_mask"` is in :obj:`self.model_input_names`).
         """
         # Input type checking for clearer error
 
@@ -623,9 +623,9 @@ class DetrFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixin):
                 maxes[index] = max(maxes[index], item)
         return maxes
 
-    def pad_and_create_pixel_mask(self, 
-                                  pixel_values_list: List[torch.Tensor],
-                                  return_tensors: Optional[Union[str, TensorType]] = None):
+    def pad_and_create_pixel_mask(
+        self, pixel_values_list: List[torch.Tensor], return_tensors: Optional[Union[str, TensorType]] = None
+    ):
         """
         Pad images up to the largest image in a batch and create a corresponding :obj:`pixel_mask`.
 
@@ -641,11 +641,11 @@ class DetrFeatureExtractor(FeatureExtractionMixin, ImageFeatureExtractionMixin):
             :class:`~transformers.BatchFeature`: A :class:`~transformers.BatchFeature` with the following fields:
 
             - **pixel_values** -- Pixel values to be fed to a model.
-            - **pixel_mask** -- Pixel mask to be fed to a model (when :obj:`pad_and_return_pixel_mask=True` or if `"pixel_mask"` 
-              is in :obj:`self.model_input_names`).
+            - **pixel_mask** -- Pixel mask to be fed to a model (when :obj:`pad_and_return_pixel_mask=True` or if
+              `"pixel_mask"` is in :obj:`self.model_input_names`).
 
         """
-        
+
         max_size = self._max_by_axis([list(image.shape) for image in pixel_values_list])
         c, h, w = max_size
         padded_images = []

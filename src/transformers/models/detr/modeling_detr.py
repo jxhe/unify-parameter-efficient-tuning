@@ -1489,7 +1489,7 @@ class DetrForObjectDetection(DetrPreTrainedModel):
 @add_start_docstrings(
     """
     DETR Model (consisting of a backbone and encoder-decoder Transformer) with a segmentation head on top, for tasks
-    such as COCO panoptic. 
+    such as COCO panoptic.
 
     """,
     DETR_START_DOCSTRING,
@@ -1510,7 +1510,9 @@ class DetrForSegmentation(DetrPreTrainedModel):
 
         # The DetrMHAttentionMap has a custom layer initialization scheme which must not get overwritten by the
         # self.init_weights()
-        self.bbox_attention = DetrMHAttentionMap(hidden_size, hidden_size, number_of_heads, dropout=0.0, std=config.init_xavier_std)
+        self.bbox_attention = DetrMHAttentionMap(
+            hidden_size, hidden_size, number_of_heads, dropout=0.0, std=config.init_xavier_std
+        )
 
     @add_start_docstrings_to_model_forward(DETR_INPUTS_DOCSTRING)
     @replace_return_docstrings(output_type=DetrForSegmentationOutput, config_class=_CONFIG_FOR_DOC)

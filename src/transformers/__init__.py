@@ -1527,6 +1527,7 @@ if TYPE_CHECKING:
         is_sklearn_available,
         is_speech_available,
         is_tf_available,
+        is_timm_available,
         is_tokenizers_available,
         is_torch_available,
         is_torch_tpu_available,

@@ -20,7 +20,7 @@ import os.path
 import random
 import tempfile
 import unittest
-from typing import List, Tuple, Dict
+from typing import Dict, List, Tuple
 
 from huggingface_hub import HfApi
 from requests.exceptions import HTTPError
@@ -1110,7 +1110,9 @@ class ModelTesterMixin:
                         for tuple_iterable_value, dict_iterable_value in zip(tuple_object, dict_object):
                             recursive_check(tuple_iterable_value, dict_iterable_value)
                     elif isinstance(tuple_object, Dict):
-                        for tuple_iterable_value, dict_iterable_value in zip(tuple_object.values(), dict_object.values()):
+                        for tuple_iterable_value, dict_iterable_value in zip(
+                            tuple_object.values(), dict_object.values()
+                        ):
                             recursive_check(tuple_iterable_value, dict_iterable_value)
                     elif tuple_object is None:
                         return
