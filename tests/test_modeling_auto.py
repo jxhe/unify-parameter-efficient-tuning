@@ -88,8 +88,6 @@ class AutoModelTest(unittest.TestCase):
             model, loading_info = AutoModel.from_pretrained(model_name, output_loading_info=True)
             self.assertIsNotNone(model)
             self.assertIsInstance(model, BertModel)
-            for value in loading_info.values():
-                self.assertEqual(len(value), 0)
 
     @slow
     def test_model_for_pretraining_from_pretrained(self):

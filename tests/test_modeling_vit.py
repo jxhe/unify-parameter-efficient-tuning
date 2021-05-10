@@ -322,7 +322,7 @@ class ViTModelTest(ModelTesterMixin, unittest.TestCase):
 
 # We will verify our results on an image of cute cats
 def prepare_img():
-    image = Image.open("./tests/fixtures/tests_samples/COCO/cats.png")
+    image = Image.open("./tests/fixtures/coco.jpg")
     return image
 
 
@@ -347,6 +347,6 @@ class ViTModelIntegrationTest(unittest.TestCase):
         expected_shape = torch.Size((1, 1000))
         self.assertEqual(outputs.logits.shape, expected_shape)
 
-        expected_slice = torch.tensor([-0.2744, 0.8215, -0.0836]).to(torch_device)
+        expected_slice = torch.tensor([-0.4804, -0.2469, 0.8617]).to(torch_device)
 
         self.assertTrue(torch.allclose(outputs.logits[0, :3], expected_slice, atol=1e-4))

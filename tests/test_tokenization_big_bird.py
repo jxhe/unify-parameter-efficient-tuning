@@ -201,4 +201,4 @@ class BigBirdTokenizationTest(TokenizerTesterMixin, unittest.TestCase):
         tokenizer = BigBirdTokenizer.from_pretrained("google/bigbird-roberta-base")
         decoded_text = tokenizer.decode(tokenizer("Paris is the [MASK].").input_ids)
 
-        self.assertTrue(decoded_text == "[CLS] Paris is the [MASK].[SEP]")
+        self.assertTrue(decoded_text == "[CLS] Paris is the[MASK].[SEP]")
