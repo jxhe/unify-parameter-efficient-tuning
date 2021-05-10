@@ -20,7 +20,7 @@ import os.path
 import random
 import tempfile
 import unittest
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 from huggingface_hub import HfApi
 from requests.exceptions import HTTPError
@@ -856,7 +856,6 @@ class ModelTesterMixin:
 
         outputs = model(**inputs)
 
-        print(outputs)
         output = outputs[0]
 
         if config.is_encoder_decoder:
@@ -1110,6 +1109,9 @@ class ModelTesterMixin:
                     if isinstance(tuple_object, (List, Tuple)):
                         for tuple_iterable_value, dict_iterable_value in zip(tuple_object, dict_object):
                             recursive_check(tuple_iterable_value, dict_iterable_value)
+                    elif isinstance(tuple_object, Dict):
+                        for tuple_iterable_value, dict_iterable_value in zip(tuple_object.values(), dict_object.values()):
+                            recursive_check(tuple_iterable_value, dict_iterable_value)
                     elif tuple_object is None:
                         return
                     else:
@@ -1123,6 +1125,7 @@ class ModelTesterMixin:
                 recursive_check(tuple_output, dict_output)
 
         for model_class in self.all_model_classes:
+            print(model_class)
             model = model_class(config)
             model.to(torch_device)
             model.eval()
