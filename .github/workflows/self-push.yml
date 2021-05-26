@@ -90,7 +90,7 @@ jobs:
           TF_NUM_INTRAOP_THREADS: 8
           TF_NUM_INTEROP_THREADS: 1
         run: |
-          python -m pytest -n 1 --dist=loadfile --make-reports=tests_tf_gpu tests
+          python -m pytest -n 2 --dist=loadfile --make-reports=tests_tf_gpu tests
 
       - name: Failure short reports
         if: ${{ always() }}
