@@ -13,12 +13,13 @@
 # limitations under the License.
 
 import unittest
-import numpy as np
 
-from .test_pipelines_common import MonoInputPipelineCommonMixin
+import numpy as np
 
 from transformers import AutoTokenizer, DistilBertConfig, DistilBertForSequenceClassification, pipeline
 from transformers.testing_utils import slow
+
+from .test_pipelines_common import MonoInputPipelineCommonMixin
 
 
 class TextClassificationPipelineTests(MonoInputPipelineCommonMixin, unittest.TestCase):
@@ -120,7 +121,7 @@ class TextClassificationPipelineTests(MonoInputPipelineCommonMixin, unittest.Tes
     @slow
     def test_function_to_apply_error(self):
         for model_name in self.small_models:
-            string_input, _ = VALID_INPUTS
+            string_input = "I really disagree with what you've said."
             tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=True)
 
             model = DistilBertForSequenceClassification(DistilBertConfig.from_pretrained(model_name))
