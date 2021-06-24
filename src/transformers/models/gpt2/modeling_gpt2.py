@@ -354,7 +354,7 @@ class GPT2Block(nn.Module):
         hidden_states = self.ln_2(hidden_states)
 
         # added by Junxian
-        # this is the embeddings used to represent context by 
+        # this is the embeddings used to represent context by
         # knnlm
         extra_hidden = None
         if return_hidden_type == 'ffn_input_after_ln':
@@ -760,7 +760,7 @@ class GPT2Model(GPT2PreTrainedModel):
         presents = () if use_cache else None
         all_self_attentions = () if output_attentions else None
         all_cross_attentions = () if output_attentions and self.config.add_cross_attention else None
-        all_hidden_states = (hidden_states) if output_hidden_states else None
+        all_hidden_states = () if output_hidden_states else None
         for i, (block, layer_past) in enumerate(zip(self.h, past_key_values)):
 
             # Model parallel
@@ -774,6 +774,14 @@ class GPT2Model(GPT2PreTrainedModel):
                     attention_mask = attention_mask.to(hidden_states.device)
                 if isinstance(head_mask, torch.Tensor):
                     head_mask = head_mask.to(hidden_states.device)
+
+            # if output_hidden_states:
+            #     all_hidden_states = all_hidden_states + (hidden_states,)
+            if output_hidden_states:
+                if (return_hidden_type is None or return_hidden_type == 'default') or i == 0:
+                    all_hidden_states = all_hidden_states + (hidden_states,)
+                else:
+                    all_hidden_states = all_hidden_states + (outputs[-1], )
 
             if getattr(self.config, "gradient_checkpointing", False) and self.training:
 
@@ -828,19 +836,17 @@ class GPT2Model(GPT2PreTrainedModel):
                     if i == v[-1] and "cuda:" + str(k) != self.last_device:
                         hidden_states = hidden_states.to("cuda:" + str(k + 1))
 
-            if output_hidden_states:
-                if return_hidden_type is None or return_hidden_type == 'default':
-                    all_hidden_states = all_hidden_states + (hidden_states,)
-                else:
-                    all_hidden_states = all_hidden_states + (outputs[-1], )
 
         hidden_states = self.ln_f(hidden_states)
 
+        # import pdb; pdb.set_trace()
         hidden_states = hidden_states.view(*output_shape)
-        import pdb; pdb.set_trace()
         # Add last hidden state
-        # if output_hidden_states:
-        #     all_hidden_states = all_hidden_states + (hidden_states,)
+        if output_hidden_states:
+            if return_hidden_type is None or return_hidden_type == 'default':
+                all_hidden_states = all_hidden_states + (hidden_states,)
+            else:
+                all_hidden_states = all_hidden_states + (outputs[-1],)
 
         if not return_dict:
             return tuple(v for v in [hidden_states, presents, all_hidden_states, all_self_attentions] if v is not None)
@@ -952,7 +958,7 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
-        return_hidden_type=None, # added by Junxian 
+        return_hidden_type=None, # added by Junxian
     ):
         r"""
         labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
@@ -976,7 +982,7 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
-            return_hidden_type=return_hidden_type, # added by Junxian 
+            return_hidden_type=return_hidden_type, # added by Junxian
         )
         hidden_states = transformer_outputs[0]
 

@@ -50,7 +50,7 @@ encodings = tokenizer('\n'.join(open(args.data).readlines()), return_tensors='pt
 
 
 hidden_type = 'standard' if args.return_hidden_type is None else args.return_hidden_type
-ids = f'layer{args.nlayer}.rpr_type{hidden_type}'
+ids = f'layer{args.nlayer}.rpr_type_{hidden_type}'
 
 keys = np.memmap(os.path.join(save_dir, f'keys.{ids}.size{encodings.input_ids.size(1)}.hid{model.config.n_embd}.npy'),
                  dtype=np.float32,
@@ -79,7 +79,7 @@ for i in tqdm(range(0, encodings.input_ids.size(1), stride)):
 
     with torch.no_grad():
         # labels are shifted inside the model
-        outputs = model(input_ids, labels=target_ids, 
+        outputs = model(input_ids, labels=target_ids,
             output_hidden_states=True, return_hidden_type=args.return_hidden_type)
         log_likelihood = outputs[0] * trg_len
         hidden_states = outputs.hidden_states
