@@ -13,7 +13,9 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Optional, Tuple
+# from typing import Optional, Tuple
+# modified by Junxian
+from typing import Optional, Tuple, Dict
 
 import torch
 
@@ -241,6 +243,9 @@ class BaseModelOutputWithPastAndCrossAttentions(ModelOutput):
     hidden_states: Optional[Tuple[torch.FloatTensor]] = None
     attentions: Optional[Tuple[torch.FloatTensor]] = None
     cross_attentions: Optional[Tuple[torch.FloatTensor]] = None
+
+    # added by Junxian
+    extra_hidden_states: Optional[Dict[str, Tuple[torch.FloatTensor]]] = None
 
 
 @dataclass

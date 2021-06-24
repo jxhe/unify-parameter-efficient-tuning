@@ -23,6 +23,10 @@ parser.add_argument('--save-emb', type=str, default='hidden_val',
     help='the folder to save the encodings')
 parser.add_argument('--model', type=str, default='gpt2-large',
     help='the pretrained model name')
+parser.add_argument('--return-hidden-type', type=str, default=None, \
+    choices=['ffn_input_after_ln'], \
+    help='the hidden representations to use, by default we use the output of every \
+    sub transformer layer')
 
 args = parser.parse_args()
 
@@ -44,7 +48,11 @@ model.eval()
 
 encodings = tokenizer('\n'.join(open(args.data).readlines()), return_tensors='pt')
 
-keys = np.memmap(os.path.join(save_dir, f'keys_layer{args.nlayer}_size{encodings.input_ids.size(1)}_hid{model.config.n_embd}.npy'),
+
+hidden_type = 'standard' if args.return_hidden_type is None else args.return_hidden_type
+ids = f'layer{args.nlayer}.rpr_type{hidden_type}'
+
+keys = np.memmap(os.path.join(save_dir, f'keys.{ids}.size{encodings.input_ids.size(1)}.hid{model.config.n_embd}.npy'),
                  dtype=np.float32,
                  mode='w+',
                  shape=(encodings.input_ids.size(1), model.config.n_embd))
@@ -53,7 +61,7 @@ keys = np.memmap(os.path.join(save_dir, f'keys_layer{args.nlayer}_size{encodings
 #                  mode='w+',
 #                  shape=(encodings.input_ids.size(1), 1))
 
-vals = open(os.path.join(save_dir, f'vals_layer{args.nlayer}.jsonl'), 'w')
+vals = open(os.path.join(save_dir, f'vals.{ids}.jsonl'), 'w')
 
 max_length = model.config.n_positions
 stride = 512
@@ -71,7 +79,8 @@ for i in tqdm(range(0, encodings.input_ids.size(1), stride)):
 
     with torch.no_grad():
         # labels are shifted inside the model
-        outputs = model(input_ids, labels=target_ids, output_hidden_states=True)
+        outputs = model(input_ids, labels=target_ids, 
+            output_hidden_states=True, return_hidden_type=args.return_hidden_type)
         log_likelihood = outputs[0] * trg_len
         hidden_states = outputs.hidden_states
 

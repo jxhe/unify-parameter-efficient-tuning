@@ -21,12 +21,12 @@ chart_studio.tools.set_config_file(world_readable=True,
 
 def read_input(keys, vals):
     def parse_fname(fname):
-        x = fname.split('.')[0]
+        x = '.'.join(fname.split('.')[:-1])
         x = x.split('/')[-1]
-        x = x.split('_')
+        x = x.split('.')
 
-        size = int(x[2].split('size')[-1])
-        embed = int(x[3].split('hid')[-1])
+        size = int(x[-2].split('size')[-1])
+        embed = int(x[-1].split('hid')[-1])
 
         return size, embed
 
