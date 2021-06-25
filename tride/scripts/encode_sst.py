@@ -10,49 +10,59 @@ import numpy as np
 import argparse
 import torch
 from tqdm import tqdm
-from transformers import AutoModelForCausalLM, PreTrainedTokenizerFast
-from openai_sentiment_neuron.utils import sst_binary
+from transformers import AutoModelForCausalLM, PreTrainedTokenizerFast, GPT2TokenizerFast
+from openai_sentiment_neuron import sst_binary
 
 
 def encode(model, x, save_dir, split, device):
     hidden_type = 'standard' if args.return_hidden_type is None else args.return_hidden_type
     ids = f'layer{args.nlayer}.rpr_type_{hidden_type}'
 
-    keys = np.memmap(os.path.join(save_dir, f'{split}.keys.{ids}.size{encodings.input_ids.size(1)}.hid{model.config.n_embd}.npy'),
+    keys = np.memmap(os.path.join(save_dir, f'{split}.keys.{ids}.size{len(x)}.hid{model.config.n_embd}.npy'),
                      dtype=np.float32,
                      mode='w+',
                      shape=(len(x), model.config.n_embd))
 
     max_length = model.config.n_positions
-    bsz = 
 
     lls = []
     cur = 0
-    bsz = 128
+    bsz = 32
     total_tok = 0
 
     pbar = tqdm(total=len(x))
 
+    # import pdb; pdb.set_trace()
+
     while cur < len(x):
         cur_bsz = min(bsz, len(x) - cur)
         xi = x[cur:cur+cur_bsz]
-        encodings = tokenizer(xi, return_tensors='pt')
+        encodings = tokenizer(xi, padding=True, return_tensors='pt').to(device)
 
-        input_ids = encodings.input_ids.to(device)
+        input_ids = encodings.input_ids
+        attention_mask = encodings.attention_mask
         target_ids = input_ids.clone()
 
-        trg_len = 1
-        target_ids[:,:-trg_len] = -100
+        trg_len = attention_mask.sum(1)
+        for i in range(target_ids.size(0)):
+            target_ids[i, trg_len[i]:] = -100
+
+        # the perplexity computation is not very accurate
+        # since it ignores the first token prediction and eos prediction
 
         with torch.no_grad():
             # labels are shifted inside the model
-            outputs = model(input_ids, labels=target_ids,
+            outputs = model(input_ids, attention_mask=attention_mask, labels=target_ids,
                 output_hidden_states=True, return_hidden_type=args.return_hidden_type)
-            log_likelihood = outputs[0] * trg_len
+            log_likelihood = outputs[0] * ((trg_len-1).sum())
+            total_tok += (trg_len-1).sum().item()
             hidden_states = outputs.hidden_states
 
+            # import pdb; pdb.set_trace()
             hidden_states = hidden_states[args.nlayer]
-            keys[cur:cur+cur_bsz] = hidden_states[0][-1, :].cpu()
+
+            for i in range(cur_bsz):
+                keys[cur+i] = hidden_states[i, trg_len[i].item()-1, :].cpu().numpy().astype(np.float32)
 
         cur += cur_bsz
         pbar.update(cur_bsz)
@@ -91,8 +101,11 @@ os.makedirs(args.save_emb, exist_ok=True)
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-tokenizer = PreTrainedTokenizerFast.from_pretrained(args.model)
+# tokenizer = PreTrainedTokenizerFast.from_pretrained(args.model)
+tokenizer = GPT2TokenizerFast.from_pretrained(args.model)
 model = AutoModelForCausalLM.from_pretrained(args.model)
+
+tokenizer.pad_token = tokenizer.eos_token
 
 model.to(device)
 model.eval()
@@ -101,4 +114,5 @@ trX, vaX, teX, trY, vaY, teY = sst_binary(args.data)
 
 data = {'train': trX, 'val':vaX, 'test': teX}
 for split, x in data.items():
-    encode(model, x, save_dir, split, device):
+    encode(model, x, save_dir, split, device)
+
