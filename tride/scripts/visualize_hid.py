@@ -2,9 +2,12 @@ import json
 import argparse
 import os
 import time
+import torch
 import numpy as np
 
 from scipy.spatial.distance import cosine
+from sklearn.preprocessing import scale
+from sklearn.linear_model import LogisticRegression
 
 import chart_studio
 import chart_studio.plotly as py
@@ -47,7 +50,14 @@ def read_input(keys, vals):
     return keys, val_data
 
 
-def plot_html(keys, vals, start_id, length, output_dir, fid='', vis_feat='l2'):
+def plot_html(keys, 
+              vals, 
+              start_id, 
+              length, 
+              output_dir, 
+              fid='', 
+              vis_feat='l2',
+              extra=None):
 
     vis_size = length
     vis_shape = (vis_size // 20, 20)
@@ -72,7 +82,26 @@ def plot_html(keys, vals, start_id, length, output_dir, fid='', vis_feat='l2'):
 
         return np.linalg.norm(diff, axis=-1)
 
+    def hyper_z(keys):
+        index = extra['model'].coef_[0].nonzero()[0]
+        print(f'{w.shape()[0]} neurons')
+
+        w = extra['model'].coef_[0][index]
+        x = keys[:, index]
+
+        b = model.intercept_[0]
+
+        # the distance between x0 and hyperplane wx+b=0 is
+        # |wx0+b| / |w|
+        return np.dot(x, w) + b / np.sqrt(np.dot(w, w))
+
+
     # import pdb; pdb.set_trace()
+    if vis_feat == 'hyper_z':
+        hyper_z = hyper_z(keys)
+    else:
+        hyper_z = None
+
     l2_d = l2_dist(keys)
     cosine_d = cosine_dist(keys)
     norm = np.linalg.norm(keys, axis=-1)
@@ -81,6 +110,10 @@ def plot_html(keys, vals, start_id, length, output_dir, fid='', vis_feat='l2'):
     shift_norm[0] = shift_norm[1]
     relative_l2 = l2_d / shift_norm
 
+    if vis_feat == 'hyper_z':
+        hyper_z = np.reshape(hyper_z, vis_shape)
+    else:
+        hyper_z = None
     l2_d = np.reshape(l2_d, vis_shape)
     cosine_d = np.reshape(cosine_d, vis_shape)
     norm = np.reshape(norm, vis_shape)
@@ -97,6 +130,7 @@ def plot_html(keys, vals, start_id, length, output_dir, fid='', vis_feat='l2'):
             text += f'l2_d: {l2_d[i, j]:.3f} <br>'
             text += f'relative_l2_d: {relative_l2[i, j]:.3f} <br>'
             text += f'cosine_d: {cosine_d[i, j]:.3f} <br>'
+            text += f'hyper_z: {hyper_z[i, j]:.3f} <br>' if hyper_z not None else None
 
             local.append(text)
 
@@ -117,6 +151,10 @@ def plot_html(keys, vals, start_id, length, output_dir, fid='', vis_feat='l2'):
         z = relative_l2
         z[z<0.1] = 1000
         z[z==1000] = 1
+    elif vis_feat == 'hyper_z':
+        z = hype_z
+        # z = z.flatten()
+        z = np.clip(z, -1, 1)
     else:
         raise ValueError
 
@@ -129,7 +167,7 @@ def plot_html(keys, vals, start_id, length, output_dir, fid='', vis_feat='l2'):
 
     # Make Annotated Heatmap
     fig = ff.create_annotated_heatmap(z, annotation_text=symbol, text=hover,
-                                     colorscale='inferno', hoverinfo='text')
+                                     colorscale='rdylgn', hoverinfo='text')
     fig.update_layout(title_text=f'gpt2-large visualizing {vis_feat} from {fid}')
 
     fid = fid.split('/')[-1]
@@ -142,7 +180,8 @@ def plot_html(keys, vals, start_id, length, output_dir, fid='', vis_feat='l2'):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='')
-    parser.add_argument('--vis-feat', type=str, default='l2',
+    parser.add_argument('--vis-feat', type=str, default='l2', 
+        choices=['l2', 'cosine', 'hyper_z']
         help='the feature used to reflect colors of the heatmap')
     parser.add_argument('--key', type=str, default='features.jsonl',
         help='the input jsonl file')
@@ -153,6 +192,9 @@ if __name__ == '__main__':
     parser.add_argument('--output_dir', type=str, default=None,
         help='the output html directory. If not set, the figures would \
         be uploaded to plotly chart studio')
+    parser.add_argument('--extra-path', type=str, default=None,
+        help='some extra files to load for visualization, depending \
+        on the specific mode of vis_feat')
     # parser.add_argument('--prefix', type=str, default='',
     #     help='the prefix of outputs files, to distinguish in case')
     args = parser.parse_args()
@@ -173,5 +215,7 @@ if __name__ == '__main__':
     keys = keys[:length]
     vals = vals[:length]
 
+    extra = torch.load(args.extra_path) is args.extra_path is not None else None
+
     plot_html(keys, vals, 0, length, args.output_dir,
-        vis_feat=args.vis_feat, fid=args.key)
+        vis_feat=args.vis_feat, fid=args.key, extra=extra)
