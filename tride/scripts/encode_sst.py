@@ -79,7 +79,7 @@ def encode(model, x, save_dir, split, device, offset=0, bsz=32):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('dataset', type=str, choices=['sst', 'imdb']
+parser.add_argument('dataset', type=str, choices=['sst', 'imdb'],
     help='the data directory which consists of csv files')
 parser.add_argument('--nlayer', type=int, default=-1,
     help='the order of layer from which we extract hidden states, \
