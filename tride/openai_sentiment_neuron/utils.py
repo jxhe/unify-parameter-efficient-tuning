@@ -24,16 +24,16 @@ def train_with_reg_cv(trX, trY, vaX, vaY, teX=None, teY=None, penalty='l1',
     return score, c, nnotzero
 
 def train_with_reg(trX, trY, vaX, vaY, teX=None, teY=None, penalty='l1',
-        c=0.01., seed=42, verbose=0):
+        c=0.01, seed=42, verbose=0):
     scores = []
-    model = LogisticRegression(C=c, penalty=penalty, random_state=seed, verbose=verbose)
+    model = LogisticRegression(C=c, penalty=penalty, random_state=seed, verbose=verbose, solver='liblinear')
     model.fit(trX, trY)
     nnotzero = np.sum(model.coef_ != 0)
     if teX is not None and teY is not None:
         score = model.score(teX, teY)*100.
     else:
         score = model.score(vaX, vaY)*100.
-    return score, c, nnotzero
+    return score, c, nnotzero, model
 
 
 def load_sst(path):

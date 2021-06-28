@@ -14,9 +14,9 @@ from transformers import AutoModelForCausalLM, PreTrainedTokenizerFast, GPT2Toke
 from openai_sentiment_neuron import sst_binary
 
 
-def encode(model, x, save_dir, split, device):
+def encode(model, x, save_dir, split, device, offset=0):
     hidden_type = 'standard' if args.return_hidden_type is None else args.return_hidden_type
-    ids = f'layer{args.nlayer}.rpr_type_{hidden_type}'
+    ids = f'layer{args.nlayer}.rpr_type_{hidden_type}.offset_{offset}'
 
     keys = np.memmap(os.path.join(save_dir, f'{split}.keys.{ids}.size{len(x)}.hid{model.config.n_embd}.npy'),
                      dtype=np.float32,
@@ -62,7 +62,8 @@ def encode(model, x, save_dir, split, device):
             hidden_states = hidden_states[args.nlayer]
 
             for i in range(cur_bsz):
-                keys[cur+i] = hidden_states[i, trg_len[i].item()-1, :].cpu().numpy().astype(np.float32)
+                keys[cur+i] = hidden_states[i, trg_len[i].item()-1 + offset, :].cpu().numpy().astype(np.float32)
+                # keys[cur+i] = hidden_states[i, 1, :].cpu().numpy().astype(np.float32)
 
         cur += cur_bsz
         pbar.update(cur_bsz)
@@ -88,6 +89,8 @@ parser.add_argument('--return-hidden-type', type=str, default=None, \
     choices=['ffn_input_after_ln'], \
     help='the hidden representations to use, by default we use the output of every \
     sub transformer layer')
+parser.add_argument('--offset', type=int, default=0, \
+    help='the offset of encoding positions in the sequence, by default we use the last hidden state')
 
 args = parser.parse_args()
 
@@ -114,5 +117,5 @@ trX, vaX, teX, trY, vaY, teY = sst_binary(args.data)
 
 data = {'train': trX, 'val':vaX, 'test': teX}
 for split, x in data.items():
-    encode(model, x, save_dir, split, device)
+    encode(model, x, save_dir, split, device, offset=args.offset)
 

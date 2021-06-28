@@ -1,6 +1,6 @@
 import argparse
 import numpy as np
-from openai_sentiment_neuron import sst_binary, train_with_reg_cv
+from openai_sentiment_neuron import sst_binary, train_with_reg_cv, train_with_reg
 
 
 def read_input(keys):
@@ -23,6 +23,8 @@ def read_input(keys):
     return keys
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--data', type=str, default='openai_sentiment_neuron/data',
+    help='the data directory which consists of csv files')
 parser.add_argument('--train', type=str,
     help='the data directory which consists of csv files')
 parser.add_argument('--val', type=str,
@@ -41,7 +43,7 @@ vaXt = read_input(args.val)
 teXt = read_input(args.test)
 
 # classification results
-full_rep_acc, c, nnotzero = train_with_reg(trXt, trY, vaXt, vaY, teXt, teY, c=args.c, verbose=1)
+full_rep_acc, c, nnotzero, model = train_with_reg(trXt, trY, vaXt, vaY, teXt, teY, c=args.c, verbose=1)
 print('%05.2f test accuracy'%full_rep_acc)
 print('%05.2f regularization coef'%c)
 print('%05d features used'%nnotzero)
