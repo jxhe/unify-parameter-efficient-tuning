@@ -84,12 +84,12 @@ def plot_html(keys,
 
     def hyper_z(keys):
         index = extra['model'].coef_[0].nonzero()[0]
-        print(f'{w.shape()[0]} neurons')
+        print(f'{index.shape[0]} neurons')
 
         w = extra['model'].coef_[0][index]
         x = keys[:, index]
 
-        b = model.intercept_[0]
+        b = extra['model'].intercept_[0]
 
         # the distance between x0 and hyperplane wx+b=0 is
         # |wx0+b| / |w|
@@ -130,7 +130,7 @@ def plot_html(keys,
             text += f'l2_d: {l2_d[i, j]:.3f} <br>'
             text += f'relative_l2_d: {relative_l2[i, j]:.3f} <br>'
             text += f'cosine_d: {cosine_d[i, j]:.3f} <br>'
-            text += f'hyper_z: {hyper_z[i, j]:.3f} <br>' if hyper_z not None else None
+            text += f'hyper_z: {hyper_z[i, j]:.3f} <br>' if hyper_z is not None else 'none'
 
             local.append(text)
 
@@ -139,6 +139,8 @@ def plot_html(keys,
     # Invert Matrices
     symbol = symbol[::-1]
     hover = hover[::-1]
+    
+    plot_args = {'colorscale': 'inferno'}
 
     if vis_feat == 'l2':
         z = l2_d
@@ -152,9 +154,10 @@ def plot_html(keys,
         z[z<0.1] = 1000
         z[z==1000] = 1
     elif vis_feat == 'hyper_z':
-        z = hype_z
+        z = hyper_z
         # z = z.flatten()
-        z = np.clip(z, -1, 1)
+        z = np.clip(z, -2.5, 2.5)
+        plot_args = {'colorscale': 'RdYlGn', 'font_colors': ['black']}
     else:
         raise ValueError
 
@@ -167,7 +170,7 @@ def plot_html(keys,
 
     # Make Annotated Heatmap
     fig = ff.create_annotated_heatmap(z, annotation_text=symbol, text=hover,
-                                     colorscale='rdylgn', hoverinfo='text')
+                                     hoverinfo='text', **plot_args)
     fig.update_layout(title_text=f'gpt2-large visualizing {vis_feat} from {fid}')
 
     fid = fid.split('/')[-1]
@@ -181,7 +184,7 @@ def plot_html(keys,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--vis-feat', type=str, default='l2', 
-        choices=['l2', 'cosine', 'hyper_z']
+        choices=['l2', 'cosine', 'hyper_z'],
         help='the feature used to reflect colors of the heatmap')
     parser.add_argument('--key', type=str, default='features.jsonl',
         help='the input jsonl file')
@@ -215,7 +218,7 @@ if __name__ == '__main__':
     keys = keys[:length]
     vals = vals[:length]
 
-    extra = torch.load(args.extra_path) is args.extra_path is not None else None
+    extra = torch.load(args.extra_path) if args.extra_path is not None else None
 
     plot_html(keys, vals, 0, length, args.output_dir,
         vis_feat=args.vis_feat, fid=args.key, extra=extra)

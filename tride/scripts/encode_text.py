@@ -64,15 +64,17 @@ def encode_eol(args, save_dir, ids):
     lls = []
     numx = 0
     total_tok = 0
+    skip = 0
 
-    cur = 0
     bx = []
-    pbar = tqdm(total=len(x))
 
     # import pdb; pdb.set_trace()
     data_file = open(args.data)
 
     for d, line in tqdm(enumerate(data_file)):
+        if line.strip() == '':
+            continue
+            skip += 1
         encodings = tokenizer(line, return_tensors='pt')
         keys = np.memmap(os.path.join(save_dir, f'keys.id{d}.{ids}.size{encodings.input_ids.size(1)}.hid{model.config.n_embd}.npy'),
                          dtype=np.float32,
@@ -80,7 +82,7 @@ def encode_eol(args, save_dir, ids):
                          shape=(encodings.input_ids.size(1), model.config.n_embd))
         vals = open(os.path.join(save_dir, f'vals.id{d}.{ids}.jsonl'), 'w')
 
-        input_ids = encodings.input_ids
+        input_ids = encodings.input_ids.to(device)
         target_ids = input_ids.clone()
         trg_len = input_ids.size(1)
 
@@ -100,21 +102,20 @@ def encode_eol(args, save_dir, ids):
 
             assert trg_len == hidden_states.size(1)
 
-            keys[cur:cur+trg_len] = hidden_states[0].cpu()
+            keys[:] = hidden_states[0][:,:].cpu()
             toks = tokenizer.convert_ids_to_tokens(input_ids[0].tolist())
             toks = [tokenizer.convert_tokens_to_string([t]) for t in toks]
 
             for t in toks:
                 vals.write(json.dumps(t))
                 vals.write('\n')
-            cur += trg_len
                     # keys[cur+i] = hidden_states[i, 1, :].cpu().numpy().astype(np.float32)
 
         lls.append(log_likelihood)
 
-        keys.close()
         vals.close()
-
+    
+    print(f'skipped {skip} lines')
     ppl = torch.exp(torch.stack(lls).sum() / total_tok)
     print(f'perplexity {ppl}')
 
