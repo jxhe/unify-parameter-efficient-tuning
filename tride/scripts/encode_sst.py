@@ -13,8 +13,10 @@ from tqdm import tqdm
 from transformers import AutoModelForCausalLM, PreTrainedTokenizerFast, GPT2TokenizerFast
 from openai_sentiment_neuron import sst_binary
 
+from datasets import load_dataset
 
-def encode(model, x, save_dir, split, device, offset=0):
+
+def encode(model, x, save_dir, split, device, offset=0, bsz=32):
     hidden_type = 'standard' if args.return_hidden_type is None else args.return_hidden_type
     ids = f'layer{args.nlayer}.rpr_type_{hidden_type}.offset_{offset}'
 
@@ -27,7 +29,6 @@ def encode(model, x, save_dir, split, device, offset=0):
 
     lls = []
     cur = 0
-    bsz = 32
     total_tok = 0
 
     pbar = tqdm(total=len(x))
@@ -37,7 +38,9 @@ def encode(model, x, save_dir, split, device, offset=0):
     while cur < len(x):
         cur_bsz = min(bsz, len(x) - cur)
         xi = x[cur:cur+cur_bsz]
-        encodings = tokenizer(xi, padding=True, return_tensors='pt').to(device)
+        encodings = tokenizer(xi, padding=True, 
+            truncation=True, return_tensors='pt',
+            max_length=max_length).to(device)
 
         input_ids = encodings.input_ids
         attention_mask = encodings.attention_mask
@@ -76,7 +79,7 @@ def encode(model, x, save_dir, split, device, offset=0):
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('data', type=str,
+parser.add_argument('dataset', type=str, choices=['sst', 'imdb']
     help='the data directory which consists of csv files')
 parser.add_argument('--nlayer', type=int, default=-1,
     help='the order of layer from which we extract hidden states, \
@@ -113,9 +116,18 @@ tokenizer.pad_token = tokenizer.eos_token
 model.to(device)
 model.eval()
 
-trX, vaX, teX, trY, vaY, teY = sst_binary(args.data)
+if args.dataset == 'sst':
+    trX, vaX, teX, trY, vaY, teY = sst_binary('openai_sentiment_neuron/data')
+    bsz = 32
+    data = {'train': trX, 'val':vaX, 'test': teX}
+elif args.dataset == 'imdb':
+    bsz = 2
+    dataset = load_dataset('imdb', cache_dir='data/hf_data_cache')
+    trX = [x['text'] for x in dataset['train']]
+    teX = [x['text'] for x in dataset['test']]
+    data = {'train': trX, 'test': teX}
 
-data = {'train': trX, 'val':vaX, 'test': teX}
 for split, x in data.items():
-    encode(model, x, save_dir, split, device, offset=args.offset)
+    encode(model, x, save_dir, split, device, 
+        offset=args.offset, bsz=bsz)
 
