@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 # import tensorflow as tf
 from sklearn.linear_model import LogisticRegression
+from datasets import load_dataset
 
 def train_with_reg_cv(trX, trY, vaX, vaY, teX=None, teY=None, penalty='l1',
         C=2**np.arange(-8, 1).astype(np.float), seed=42):

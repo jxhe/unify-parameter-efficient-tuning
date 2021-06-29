@@ -133,7 +133,7 @@ parser.add_argument('--save-emb', type=str, default='hidden_val',
 parser.add_argument('--model', type=str, default='gpt2-large',
     help='the pretrained model name')
 parser.add_argument('--return-hidden-type', type=str, default=None, \
-    choices=['ffn_input_after_ln'], \
+    choices=['ffn_input_after_ln', 'standard'], \
     help='the hidden representations to use, by default we use the output of every \
     sub transformer layer')
 parser.add_argument('--break-mode', type=str, default='none', \
