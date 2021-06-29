@@ -93,7 +93,7 @@ def plot_html(keys,
 
         # the distance between x0 and hyperplane wx+b=0 is
         # |wx0+b| / |w|
-        return np.dot(x, w) + b / np.sqrt(np.dot(w, w))
+        return (np.dot(x, w) + b) / np.sqrt(np.dot(w, w))
 
 
     # import pdb; pdb.set_trace()

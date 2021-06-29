@@ -48,6 +48,9 @@ from ...utils import logging
 from ...utils.model_parallel_utils import assert_device_map, get_device_map
 from .configuration_gpt2 import GPT2Config
 
+# added by Junxian
+from controller import override_func
+
 
 logger = logging.get_logger(__name__)
 
@@ -311,7 +314,8 @@ class GPT2Block(nn.Module):
         encoder_attention_mask=None,
         use_cache=False,
         output_attentions=False,
-        return_hidden_type=None, # added by Junxian
+        return_hidden_type=None, # added by Junxian along with the arguments below
+        override=None,
     ):
         residual = hidden_states
         hidden_states = self.ln_1(hidden_states)
@@ -352,6 +356,9 @@ class GPT2Block(nn.Module):
 
         residual = hidden_states
         hidden_states = self.ln_2(hidden_states)
+
+        if override['type'] == 'ffn_input_after_ln':
+            hidden_states = override_func(hidden_states, override)
 
         # added by Junxian
         # this is the embeddings used to represent context by
@@ -672,6 +679,7 @@ class GPT2Model(GPT2PreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
         return_hidden_type=None, # Added by Junxian
+        override=None, # Added by Junxian
     ):
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -761,7 +769,21 @@ class GPT2Model(GPT2PreTrainedModel):
         all_self_attentions = () if output_attentions else None
         all_cross_attentions = () if output_attentions and self.config.add_cross_attention else None
         all_hidden_states = () if output_hidden_states else None
+
+        # added by Junxian
+        if override is not None:
+            layer_override = override['layer'] if override['layer'] >=0 \
+                        else len(self.h) + override['layer']
+        else:
+            layer_override = None
+
         for i, (block, layer_past) in enumerate(zip(self.h, past_key_values)):
+            # by Junxian
+            # only override in the corresponding layer
+            if layer_override is not None and i == layer_override:
+                override_sub = override
+            else:
+                override_sub = None
 
             # Model parallel
             if self.model_parallel:
@@ -819,9 +841,17 @@ class GPT2Model(GPT2PreTrainedModel):
                     use_cache=use_cache,
                     output_attentions=output_attentions,
                     return_hidden_type=return_hidden_type,
+                    override=override_sub,
                 )
 
+
             hidden_states = outputs[0]
+
+            # check if i != len(self.h) - 1 because for the last layer, hidden states should be overridden 
+            # after layer norm
+            if override_sub is not None and override_sub['type'] == 'standard' and i != len(self.h) - 1:
+                hidden_states = override_func(hidden_states, override_sub)
+
             if use_cache is True:
                 presents = presents + (outputs[1],)
 
@@ -838,6 +868,9 @@ class GPT2Model(GPT2PreTrainedModel):
 
 
         hidden_states = self.ln_f(hidden_states)
+
+        if override is not None and override['type'] == 'standard' and layer_override == len(self.h) - 1:
+            hidden_states = override_func(hidden_states, override_sub)
 
         # import pdb; pdb.set_trace()
         hidden_states = hidden_states.view(*output_shape)
@@ -959,6 +992,7 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
         return_hidden_type=None, # added by Junxian
+        override=None,
     ):
         r"""
         labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
@@ -983,6 +1017,7 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             return_hidden_type=return_hidden_type, # added by Junxian
+            override=override,
         )
         hidden_states = transformer_outputs[0]
 
