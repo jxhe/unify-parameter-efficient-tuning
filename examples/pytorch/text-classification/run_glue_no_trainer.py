@@ -358,7 +358,7 @@ def main():
             "weight_decay": 0.0,
         },
     ]
-    optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
+    optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, betas=(0.9, 0.98), eps=1e-6)
 
     # Prepare everything with our `accelerator`.
     model, optimizer, train_dataloader, eval_dataloader = accelerator.prepare(
@@ -402,6 +402,8 @@ def main():
     progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
     completed_steps = 0
 
+    best_result = 0
+
     for epoch in range(args.num_train_epochs):
         model.train()
         for step, batch in enumerate(train_dataloader):
@@ -430,6 +432,11 @@ def main():
 
         eval_metric = metric.compute()
         logger.info(f"epoch {epoch}: {eval_metric}")
+
+        if eval_metric > best_result:
+            best_result = eval_metric
+
+    logger.info('best result = {}'.format(best_result))
 
     if args.output_dir is not None:
         accelerator.wait_for_everyone()
