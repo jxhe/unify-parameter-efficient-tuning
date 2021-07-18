@@ -142,6 +142,10 @@ def parse_args():
     )
     parser.add_argument("--output_dir", type=str, default=None, help="Where to store the final model.")
     parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
+
+    parser.add_argument('--update_options', type=str,
+                        choices=['LN', 'PE', 'LN+PE'],
+                        default='LN+PE')
     args = parser.parse_args()
 
     # Sanity checks
@@ -336,6 +340,10 @@ def main():
         train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size
     )
     eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+
+    # Freeze some parameters
+    if args.update_option == 'LN+PE':
+        pass
 
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
