@@ -132,7 +132,8 @@ def parse_args():
     )
     parser.add_argument(
         "--lr_scheduler_type",
-        type=SchedulerType,
+        #type=SchedulerType,
+        type=str,
         default="linear",
         help="The scheduler type to use.",
         choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"],
@@ -144,8 +145,9 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
 
     parser.add_argument('--update_options', type=str,
-                        choices=['LN', 'PE', 'LN+PE'],
-                        default='LN+PE')
+                        choices=['LN', 'PE', 'LN+PE', 'none'],
+                        default='none')
+    parser.add_argument('--eval_metric', type=str, default='accuracy')
     args = parser.parse_args()
 
     # Sanity checks
@@ -340,10 +342,25 @@ def main():
         train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size
     )
     eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
-
+        
     # Freeze some parameters
-    if args.update_option == 'LN+PE':
-        pass
+    if args.update_options != 'none':
+        for n, p in model.named_parameters():
+            if 'classifier' not in n:
+                p.requires_grad = False
+            #continue
+            if args.update_options == 'LN+PE':
+                if 'LayerNorm' in n or 'position_embeddings' in n:
+                    p.requires_grad = True
+            elif args.update_options == 'PE':
+                if 'position_embeddings' in n:
+                    p.requires_grad = True
+            elif args.update_options == 'LN':
+                if 'LayerNorm' in n:
+                    p.requires_grad = True
+    #for n, p in model.named_parameters():
+    #    print(n, p.requires_grad)
+        
 
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
@@ -433,8 +450,8 @@ def main():
         eval_metric = metric.compute()
         logger.info(f"epoch {epoch}: {eval_metric}")
 
-        if eval_metric > best_result:
-            best_result = eval_metric
+        if eval_metric[args.eval_metric] > best_result:
+            best_result = eval_metric[args.eval_metric]
 
     logger.info('best result = {}'.format(best_result))
 

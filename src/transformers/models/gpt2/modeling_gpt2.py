@@ -49,7 +49,7 @@ from ...utils.model_parallel_utils import assert_device_map, get_device_map
 from .configuration_gpt2 import GPT2Config
 
 # added by Junxian
-from controller import override_func
+#from controller import override_func
 
 
 logger = logging.get_logger(__name__)
