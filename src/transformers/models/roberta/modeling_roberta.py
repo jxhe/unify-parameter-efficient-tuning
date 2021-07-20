@@ -705,6 +705,8 @@ class RobertaModel(RobertaPreTrainedModel):
 
         self.pooler = RobertaPooler(config) if add_pooling_layer else None
 
+        self.set_bias_tuning_params()
+
         self.init_weights()
 
     def get_input_embeddings(self):
@@ -712,6 +714,13 @@ class RobertaModel(RobertaPreTrainedModel):
 
     def set_input_embeddings(self, value):
         self.embeddings.word_embeddings = value
+
+    def set_bias_tuning_params(self):
+        if self.config.option == 'add_to_input':
+            self.embeddings.learnable_bias_embeddings = nn.Embedding(self.config.max_position_embeddings, self.config.hidden_size)
+        elif self.config.option == 'add_to_att_output' or self.option == 'add_to_input_every_layer':
+            self.encoder.learnable_bias_embeddings = nn.ModuleList([nn.Embedding(self.config.max_position_embeddings, self.config.hidden_size)
+                                for _ in self.config.num_hidden_layers])
 
     def _prune_heads(self, heads_to_prune):
         """
