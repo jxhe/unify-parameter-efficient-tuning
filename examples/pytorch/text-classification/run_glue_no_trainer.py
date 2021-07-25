@@ -132,7 +132,8 @@ def parse_args():
     )
     parser.add_argument(
         "--lr_scheduler_type",
-        type=SchedulerType,
+        #type=SchedulerType,
+        type=str,
         default="linear",
         help="The scheduler type to use.",
         choices=["linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"],
@@ -142,6 +143,14 @@ def parse_args():
     )
     parser.add_argument("--output_dir", type=str, default=None, help="Where to store the final model.")
     parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
+
+    # added by Chunting: stranded for classification
+    parser.add_argument('--update_options', type=str,
+                        choices=['LN', 'PE', 'LN+PE', 'none'],
+                        default='none')
+    parser.add_argument('--eval_metric', type=str, default='accuracy')
+    parser.add_argument('--tuning-option', type=str, default='none')
+
     args = parser.parse_args()
 
     # Sanity checks
@@ -336,6 +345,24 @@ def main():
         train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size
     )
     eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+        
+    # Freeze some parameters
+    if args.update_options != 'none':
+        for n, p in model.named_parameters():
+            if 'classifier' not in n:
+                p.requires_grad = False
+            #continue
+            if args.update_options == 'LN+PE':
+                if 'LayerNorm' in n or 'position_embeddings' in n:
+                    p.requires_grad = True
+            elif args.update_options == 'PE':
+                if 'position_embeddings' in n:
+                    p.requires_grad = True
+            elif args.update_options == 'LN':
+                if 'LayerNorm' in n:
+                    p.requires_grad = True
+    #for n, p in model.named_parameters():
+    #    print(n, p.requires_grad)
 
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
@@ -350,7 +377,7 @@ def main():
             "weight_decay": 0.0,
         },
     ]
-    optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
+    optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, betas=(0.9, 0.98), eps=1e-6)
 
     # Prepare everything with our `accelerator`.
     model, optimizer, train_dataloader, eval_dataloader = accelerator.prepare(
@@ -394,6 +421,8 @@ def main():
     progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
     completed_steps = 0
 
+    best_result = 0
+
     for epoch in range(args.num_train_epochs):
         model.train()
         for step, batch in enumerate(train_dataloader):
@@ -422,6 +451,11 @@ def main():
 
         eval_metric = metric.compute()
         logger.info(f"epoch {epoch}: {eval_metric}")
+
+        if eval_metric[args.eval_metric] > best_result:
+            best_result = eval_metric[args.eval_metric]
+
+    logger.info('best result = {}'.format(best_result))
 
     if args.output_dir is not None:
         accelerator.wait_for_everyone()

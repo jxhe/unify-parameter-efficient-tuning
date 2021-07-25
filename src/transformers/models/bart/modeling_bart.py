@@ -17,7 +17,7 @@ import copy
 import math
 import random
 import warnings
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict
 
 import torch
 import torch.utils.checkpoint
@@ -133,6 +133,8 @@ class BartAttention(nn.Module):
         dropout: float = 0.0,
         is_decoder: bool = False,
         bias: bool = True,
+        config=None,
+        cache_key: str = None,
     ):
         super().__init__()
         self.embed_dim = embed_dim
@@ -150,6 +152,11 @@ class BartAttention(nn.Module):
         self.q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
+        # added by Chunting
+        assert cache_key in ['self', 'encoder_decoder', 'encoder']
+        self.use_prefix = config.use_prefix
+        self.cache_key = cache_key
+
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
 
@@ -161,6 +168,7 @@ class BartAttention(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
         layer_head_mask: Optional[torch.Tensor] = None,
         output_attentions: bool = False,
+        prefix_state: Optional[Dict[str, torch.Tensor]] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
 
@@ -205,6 +213,18 @@ class BartAttention(nn.Module):
         query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)
         key_states = key_states.view(*proj_shape)
         value_states = value_states.view(*proj_shape)
+
+        if prefix_state is not None:
+            # legacy
+            prefix_key = prefix_state.get(self.cache_key)['prev_key']  # bsz x nhead, preseqlen, head_dim
+            prefix_value = prefix_state.get(self.cache_key)['prev_value']
+            prefix_mask = prefix_state.get(self.cache_key)['prev_key_padding_mask']  # bsz, preseqlen: zeros
+
+            key_states = torch.cat([key_states, prefix_key], dim=1)
+            value_states = torch.cat([value_states, prefix_value], dim=1)
+            prefix_mask = _expand_mask(prefix_mask, key_states.dtype, tgt_len=tgt_len)
+            if attention_mask is not None:
+                attention_mask = torch.cat([prefix_mask, attention_mask], dim=-1)
 
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
@@ -263,11 +283,15 @@ class BartAttention(nn.Module):
 class BartEncoderLayer(nn.Module):
     def __init__(self, config: BartConfig):
         super().__init__()
+        self.config = config
+
         self.embed_dim = config.d_model
         self.self_attn = BartAttention(
             embed_dim=self.embed_dim,
             num_heads=config.encoder_attention_heads,
             dropout=config.attention_dropout,
+            config=config,
+            cache_key='encoder',
         )
         self.self_attn_layer_norm = nn.LayerNorm(self.embed_dim)
         self.dropout = config.dropout
@@ -283,6 +307,7 @@ class BartEncoderLayer(nn.Module):
         attention_mask: torch.Tensor,
         layer_head_mask: torch.Tensor,
         output_attentions: bool = False,
+        prefix_state=None,
     ):
         """
         Args:
@@ -301,6 +326,7 @@ class BartEncoderLayer(nn.Module):
             attention_mask=attention_mask,
             layer_head_mask=layer_head_mask,
             output_attentions=output_attentions,
+            prefix_state=prefix_state,
         )
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
@@ -331,6 +357,7 @@ class BartEncoderLayer(nn.Module):
 class BartDecoderLayer(nn.Module):
     def __init__(self, config: BartConfig):
         super().__init__()
+        self.config = config
         self.embed_dim = config.d_model
 
         self.self_attn = BartAttention(
@@ -338,6 +365,8 @@ class BartDecoderLayer(nn.Module):
             num_heads=config.decoder_attention_heads,
             dropout=config.attention_dropout,
             is_decoder=True,
+            config=config,
+            cache_key='self',
         )
         self.dropout = config.dropout
         self.activation_fn = ACT2FN[config.activation_function]
@@ -349,6 +378,8 @@ class BartDecoderLayer(nn.Module):
             config.decoder_attention_heads,
             dropout=config.attention_dropout,
             is_decoder=True,
+            config=config,
+            cache_key='encoder_decoder',
         )
         self.encoder_attn_layer_norm = nn.LayerNorm(self.embed_dim)
         self.fc1 = nn.Linear(self.embed_dim, config.decoder_ffn_dim)
@@ -366,6 +397,7 @@ class BartDecoderLayer(nn.Module):
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
         output_attentions: Optional[bool] = False,
         use_cache: Optional[bool] = True,
+        prefix_state=None,
     ):
         """
         Args:
@@ -396,6 +428,7 @@ class BartDecoderLayer(nn.Module):
             attention_mask=attention_mask,
             layer_head_mask=layer_head_mask,
             output_attentions=output_attentions,
+            prefix_state=prefix_state
         )
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
@@ -416,6 +449,7 @@ class BartDecoderLayer(nn.Module):
                 layer_head_mask=cross_attn_layer_head_mask,
                 past_key_value=cross_attn_past_key_value,
                 output_attentions=output_attentions,
+                prefix_state=prefix_state
             )
             hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
             hidden_states = residual + hidden_states
@@ -474,6 +508,7 @@ class BartPretrainedModel(PreTrainedModel):
     _keys_to_ignore_on_load_unexpected = [r"encoder\.version", r"decoder\.version"]
 
     def _init_weights(self, module):
+        print("================================================================ init weights is called!")
         std = self.config.init_std
         if isinstance(module, nn.Linear):
             module.weight.data.normal_(mean=0.0, std=std)
@@ -697,6 +732,7 @@ class BartEncoder(BartPretrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
+        prefix_state=None,
     ):
         r"""
         Args:
@@ -802,6 +838,7 @@ class BartEncoder(BartPretrainedModel):
                         attention_mask,
                         layer_head_mask=(head_mask[idx] if head_mask is not None else None),
                         output_attentions=output_attentions,
+                        prefix_state=prefix_state[idx] if prefix_state is not None else None,
                     )
 
                 hidden_states = layer_outputs[0]
@@ -888,6 +925,7 @@ class BartDecoder(BartPretrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
+        prefix_state=None,
     ):
         r"""
         Args:
@@ -1060,6 +1098,7 @@ class BartDecoder(BartPretrainedModel):
                     past_key_value=past_key_value,
                     output_attentions=output_attentions,
                     use_cache=use_cache,
+                    prefix_state=prefix_state[idx] if prefix_state is not None else None,
                 )
             hidden_states = layer_outputs[0]
 
@@ -1146,6 +1185,7 @@ class BartModel(BartPretrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
+        prefix_state=None,
     ):
 
         # different to other models, Bart automatically creates decoder_input_ids from
@@ -1171,6 +1211,7 @@ class BartModel(BartPretrainedModel):
                 output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
+                prefix_state=prefix_state,
             )
         # If the user passed a tuple for encoder_outputs, we wrap it in a BaseModelOutput when return_dict=True
         elif return_dict and not isinstance(encoder_outputs, BaseModelOutput):
@@ -1194,6 +1235,7 @@ class BartModel(BartPretrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            prefix_state=prefix_state,
         )
 
         if not return_dict:
@@ -1273,6 +1315,7 @@ class BartForConditionalGeneration(BartPretrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
+        prefix_state=None,
     ):
         r"""
         labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
@@ -1306,6 +1349,7 @@ class BartForConditionalGeneration(BartPretrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            prefix_state=prefix_state,
         )
         lm_logits = self.lm_head(outputs[0]) + self.final_logits_bias
 
@@ -1356,6 +1400,7 @@ class BartForConditionalGeneration(BartPretrainedModel):
             "decoder_head_mask": decoder_head_mask,
             "cross_attn_head_mask": cross_attn_head_mask,
             "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
+            "prefix_state": kwargs["prefix_state"] if "prefix_state" in kwargs else None
         }
 
     def prepare_decoder_input_ids_from_labels(self, labels: torch.Tensor):

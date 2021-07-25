@@ -23,6 +23,7 @@ import logging
 import math
 import os
 import random
+from collections import defaultdict
 
 import datasets
 import nltk
@@ -50,6 +51,11 @@ from transformers import (
 from transformers.file_utils import is_offline_mode
 from transformers.utils.versions import require_version
 
+import sys
+sys.path.insert(2, "./")
+
+from effectune.options import *
+from effectune.prefix_tuning import PrefixTuning
 
 logger = logging.getLogger(__name__)
 require_version("datasets>=1.8.0", "To fix: pip install -r examples/pytorch/summarization/requirements.txt")
@@ -148,6 +154,18 @@ def parse_args():
         "padded. Will default to `max_target_length`.This argument is also used to override the ``max_length`` "
         "param of ``model.generate``, which is used during ``evaluate`` and ``predict``.",
     )
+
+    parser.add_argument(
+        "--test_max_target_length",
+        type=int,
+        default=100,
+        help='following Lisa, but is it legal?'
+    )
+
+    parser.add_argument(
+        "--val_metric", type=str, default=None, required=False, choices=["bleu", "rouge2", "loss", None]
+    )
+
     parser.add_argument(
         "--max_length",
         type=int,
@@ -255,6 +273,14 @@ def parse_args():
         help="Model type to use if training from scratch.",
         choices=MODEL_TYPES,
     )
+    parser.add_argument("--cache_dir", type=str, default=None)
+    parser.add_argument("--fp16", action="store_true", default=False)
+    parser.add_argument("--debug", type=int, default=0)
+    parser.add_argument("--log_intervals", type=int, default=100)
+
+    add_gen_args(parser)
+    add_lisa_args(parser)
+    add_tune_args(parser)
 
     args = parser.parse_args()
 
@@ -275,6 +301,75 @@ def parse_args():
     return args
 
 
+def generate(args, config, eval_dataloader, model, accelerator, tokenizer, metric):
+    # model is accelerator.unwrap_model(model)
+    gen_kwargs = {
+        "max_length": args.eval_max_length if args is not None else config.max_length,
+        "min_length": args.eval_min_length if args is not None else 1,
+        "num_beams": args.num_beams,
+        "use_cache": True,
+    }
+
+    print("+++++++++++++++++++++++++++ generate +++++++++++++++++++++++++++ ")
+
+    def postprocess_text(preds, labels):
+        preds = [pred.strip() for pred in preds]
+        labels = [label.strip() for label in labels]
+
+        # rougeLSum expects newline after each sentence
+        preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
+        labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
+
+        return preds, labels
+
+    gen_model = model
+    for step, batch in enumerate(eval_dataloader):
+        with torch.no_grad():
+            if isinstance(model, PrefixTuning):
+                prefix_state = model.get_prompt(batch["input_ids"].size(0), args.num_beams)
+                gen_model = model.seq2seq_model
+            else:
+                prefix_state = None
+
+            # print(batch["input_ids"].device)
+            generated_tokens = gen_model.generate(
+                batch["input_ids"],
+                attention_mask=batch["attention_mask"],
+                prefix_state=prefix_state,
+                **gen_kwargs,
+            )
+
+            generated_tokens = accelerator.pad_across_processes(
+                generated_tokens, dim=1, pad_index=tokenizer.pad_token_id
+            )
+            labels = batch["labels"]
+            if not args.pad_to_max_length:
+                # If we did not pad to max length, we need to pad the labels too
+                labels = accelerator.pad_across_processes(batch["labels"], dim=1, pad_index=tokenizer.pad_token_id)
+
+            generated_tokens = accelerator.gather(generated_tokens).cpu().numpy()
+            labels = accelerator.gather(labels).cpu().numpy()
+
+            if args.ignore_pad_token_for_loss:
+                # Replace -100 in the labels as we can't decode them.
+                labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+            if isinstance(generated_tokens, tuple):
+                generated_tokens = generated_tokens[0]
+            decoded_preds = tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
+            decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+
+            decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+
+            metric.add_batch(predictions=decoded_preds, references=decoded_labels)
+
+    result = metric.compute(use_stemmer=True)
+    # Extract a few results from ROUGE
+    result = {key: value.mid.fmeasure * 100 for key, value in result.items()}
+
+    result = {k: round(v, 4) for k, v in result.items()}
+    return result
+
+
 def main():
     args = parse_args()
 
@@ -290,7 +385,7 @@ def main():
             "`--source_prefix 'summarize: ' `"
         )
     # Initialize the accelerator. We will let the accelerator handle device placement for us in this example.
-    accelerator = Accelerator()
+    accelerator = Accelerator(fp16=args.fp16)
     # Make one log on every process with the configuration for debugging.
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -324,7 +419,7 @@ def main():
     # download the dataset.
     if args.dataset_name is not None:
         # Downloading and loading a dataset from the hub.
-        raw_datasets = load_dataset(args.dataset_name, args.dataset_config_name)
+        raw_datasets = load_dataset(args.dataset_name, args.dataset_config_name, cache_dir=args.cache_dir)
     else:
         data_files = {}
         if args.train_file is not None:
@@ -343,15 +438,22 @@ def main():
     if args.config_name:
         config = AutoConfig.from_pretrained(args.config_name)
     elif args.model_name_or_path:
-        config = AutoConfig.from_pretrained(args.model_name_or_path)
+        config = AutoConfig.from_pretrained(args.model_name_or_path, cache_dir=args.cache_dir)
     else:
         config = CONFIG_MAPPING[args.model_type]()
         logger.warning("You are instantiating a new config instance from scratch.")
 
+    # put useful args into config: these arguments will be used in models, thus adding them to config
+    # todo: smarter ways to merge useful args into config
+    interested_args = ['use_prefix', 'mid_dim', 'preseqlen', 'prefix_dropout', 'unfreeze_params']
+    for key in args.__dict__:
+        if not hasattr(config, key) and key in interested_args:
+            setattr(config, key, args.__dict__[key])
+
     if args.tokenizer_name:
         tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name, use_fast=not args.use_slow_tokenizer)
     elif args.model_name_or_path:
-        tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, use_fast=not args.use_slow_tokenizer)
+        tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path, use_fast=not args.use_slow_tokenizer, cache_dir=args.cache_dir)
     else:
         raise ValueError(
             "You are instantiating a new tokenizer from scratch. This is not supported by this script."
@@ -363,6 +465,7 @@ def main():
             args.model_name_or_path,
             from_tf=bool(".ckpt" in args.model_name_or_path),
             config=config,
+            cache_dir=args.cache_dir,
         )
     else:
         logger.info("Training new model from scratch")
@@ -402,8 +505,14 @@ def main():
     padding = "max_length" if args.pad_to_max_length else False
 
     def preprocess_function(examples):
-        inputs = examples[text_column]
-        targets = examples[summary_column]
+        if args.debug:
+            K = 10
+            inputs = examples[text_column][:K]
+            targets = examples[summary_column][:K]
+        else:
+            inputs = examples[text_column]
+            targets = examples[summary_column]
+
         inputs = [prefix + inp for inp in inputs]
         model_inputs = tokenizer(inputs, max_length=args.max_source_length, padding=padding, truncation=True)
 
@@ -431,6 +540,11 @@ def main():
 
     train_dataset = processed_datasets["train"]
     eval_dataset = processed_datasets["validation"]
+    test_dataset = processed_datasets["test"]
+
+    logger.info(len(train_dataset))
+    logger.info(len(eval_dataset))
+    logger.info(len(test_dataset))
 
     # Log a few random samples from the training set:
     for index in random.sample(range(len(train_dataset)), 1):
@@ -444,20 +558,20 @@ def main():
         pad_to_multiple_of=8 if accelerator.use_fp16 else None,
     )
 
-    def postprocess_text(preds, labels):
-        preds = [pred.strip() for pred in preds]
-        labels = [label.strip() for label in labels]
-
-        # rougeLSum expects newline after each sentence
-        preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
-        labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
-
-        return preds, labels
 
     train_dataloader = DataLoader(
         train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size
     )
     eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+    test_dataloader = DataLoader(test_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+    test_dataloader = accelerator.prepare_data_loader(test_dataloader)
+
+    # added by Chunting: prepare the finetuning model
+    if args.use_prefix:
+        model = PrefixTuning(config, args, model)
+
+    for n, p in model.named_parameters():
+        print(n, p.requires_grad)
 
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
@@ -509,9 +623,13 @@ def main():
     logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
     logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
-    # Only show the progress bar once on each machine.
-    progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
+
+    if args.debug:
+        # Only show the progress bar once on each machine.
+        progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
     completed_steps = 0
+    best_metric = 0
+    best_checkpoint_path = os.path.join(args.output_dir, "pytorch_model.bin")
 
     for epoch in range(args.num_train_epochs):
         model.train()
@@ -520,12 +638,17 @@ def main():
             loss = outputs.loss
             loss = loss / args.gradient_accumulation_steps
             accelerator.backward(loss)
+            # todo: use simple printing format
             if step % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
-                progress_bar.update(1)
+                if args.debug:
+                    progress_bar.update(1)
                 completed_steps += 1
+
+            if step % args.log_intervals == 0:
+                logger.info("epoch = {}, step = {}/{}, loss = {}".format(epoch, step, len(train_dataloader), loss.item()))
 
             if completed_steps >= args.max_train_steps:
                 break
@@ -534,52 +657,33 @@ def main():
         if args.val_max_target_length is None:
             args.val_max_target_length = args.max_target_length
 
-        gen_kwargs = {
-            "max_length": args.val_max_target_length if args is not None else config.max_length,
-            "num_beams": args.num_beams,
-        }
-        for step, batch in enumerate(eval_dataloader):
-            with torch.no_grad():
-                generated_tokens = accelerator.unwrap_model(model).generate(
-                    batch["input_ids"],
-                    attention_mask=batch["attention_mask"],
-                    **gen_kwargs,
-                )
+        result = generate(args, config, eval_dataloader, accelerator.unwrap_model(model), accelerator, tokenizer, metric)
 
-                generated_tokens = accelerator.pad_across_processes(
-                    generated_tokens, dim=1, pad_index=tokenizer.pad_token_id
-                )
-                labels = batch["labels"]
-                if not args.pad_to_max_length:
-                    # If we did not pad to max length, we need to pad the labels too
-                    labels = accelerator.pad_across_processes(batch["labels"], dim=1, pad_index=tokenizer.pad_token_id)
-
-                generated_tokens = accelerator.gather(generated_tokens).cpu().numpy()
-                labels = accelerator.gather(labels).cpu().numpy()
-
-                if args.ignore_pad_token_for_loss:
-                    # Replace -100 in the labels as we can't decode them.
-                    labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
-                if isinstance(generated_tokens, tuple):
-                    generated_tokens = generated_tokens[0]
-                decoded_preds = tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
-                decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
-
-                decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
-
-                metric.add_batch(predictions=decoded_preds, references=decoded_labels)
-        result = metric.compute(use_stemmer=True)
-        # Extract a few results from ROUGE
-        result = {key: value.mid.fmeasure * 100 for key, value in result.items()}
-
-        result = {k: round(v, 4) for k, v in result.items()}
+        if result[args.val_metric] > best_metric:
+            accelerator.wait_for_everyone()
+            unwrapped_model = accelerator.unwrap_model(model)
+            if os.path.exists(best_checkpoint_path):
+                os.remove(best_checkpoint_path)
+            logger.info("save best checkpoints .......")
+            unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
+            best_metric = result[args.val_metric]
 
         logger.info(result)
+        logger.info("best = {}".format(best_metric))
 
-    if args.output_dir is not None:
-        accelerator.wait_for_everyone()
+    logger.info("========================== Training is done! Test ======================")
+    if accelerator.is_local_main_process:
         unwrapped_model = accelerator.unwrap_model(model)
-        unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
+        unwrapped_model.load_state_dict(torch.load(best_checkpoint_path))
+        unwrapped_model.to(model.device)
+        unwrapped_model.eval()
+        test_result = generate(args, config, test_dataloader, unwrapped_model, accelerator, tokenizer, metric)
+        logger.info(test_result)
+
+    # if args.output_dir is not None:
+    #     accelerator.wait_for_everyone()
+    #     unwrapped_model = accelerator.unwrap_model(model)
+    #     unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
 
 
 if __name__ == "__main__":

@@ -414,6 +414,7 @@ class GenerationMixin:
                 for argument, value in model_kwargs.items()
                 if not (argument.startswith("decoder_") or argument.startswith("cross_attn"))
             }
+            # print("debug encoder kwargs at generation L417: ", encoder_kwargs.keys())
             model_kwargs["encoder_outputs"]: ModelOutput = encoder(input_ids, return_dict=True, **encoder_kwargs)
         return model_kwargs
 
