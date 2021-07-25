@@ -144,10 +144,13 @@ def parse_args():
     parser.add_argument("--output_dir", type=str, default=None, help="Where to store the final model.")
     parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
 
+    # added by Chunting: stranded for classification
     parser.add_argument('--update_options', type=str,
                         choices=['LN', 'PE', 'LN+PE', 'none'],
                         default='none')
     parser.add_argument('--eval_metric', type=str, default='accuracy')
+    parser.add_argument('--tuning-option', type=str, default='none')
+
     args = parser.parse_args()
 
     # Sanity checks
@@ -360,7 +363,6 @@ def main():
                     p.requires_grad = True
     #for n, p in model.named_parameters():
     #    print(n, p.requires_grad)
-        
 
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
