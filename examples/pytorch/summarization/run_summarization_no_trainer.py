@@ -268,7 +268,7 @@ def parse_args():
         "--num_warmup_steps", type=int, default=0, help="Number of steps for the warmup in the lr scheduler."
     )
     parser.add_argument("--output_dir", type=str, default=None, help="Where to store the final model.")
-    parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
+    parser.add_argument("--seed", type=int, default=15213, help="A seed for reproducible training.")
     parser.add_argument(
         "--model_type",
         type=str,
@@ -280,6 +280,7 @@ def parse_args():
     parser.add_argument("--fp16", action="store_true", default=False)
     parser.add_argument("--debug", type=int, default=0)
     parser.add_argument("--log_intervals", type=int, default=100)
+    parser.add_argument("--max_val_batches", type=int, default=-1)
 
     add_gen_args(parser)
     add_lisa_args(parser)
@@ -634,6 +635,18 @@ def main():
     best_metric = 0
     best_checkpoint_path = os.path.join(args.output_dir, "pytorch_model.bin")
 
+    if args.max_val_batches > 0:
+        tot_eval_examples = 0
+        val_batches = []
+        for step, batch in enumerate(eval_dataloader):
+            val_batches.append(batch)
+        val_batches = random.sample(val_batches, args.max_val_batches)
+        for bb in val_batches:
+            tot_eval_examples += bb["input_ids"].size(0)
+        logger.info("tot valid examples = {}".format(tot_eval_examples))
+    else:
+        val_batches = eval_dataloader
+
     for epoch in range(args.num_train_epochs):
         model.train()
         for step, batch in enumerate(train_dataloader):
@@ -661,7 +674,7 @@ def main():
         if args.val_max_target_length is None:
             args.val_max_target_length = args.max_target_length
 
-        result = generate(args, config, eval_dataloader, accelerator.unwrap_model(model), accelerator, tokenizer, metric)
+        result = generate(args, config, val_batches, accelerator.unwrap_model(model), accelerator, tokenizer, metric)
 
         if result[args.val_metric] > best_metric:
             accelerator.wait_for_everyone()

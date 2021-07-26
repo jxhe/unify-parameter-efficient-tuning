@@ -26,7 +26,8 @@ class PrefixTuning(PretrainedBartModel):
         not_freeze_set = []
         if args.unfreeze_params != 'none':
             if args.unfreeze_params == 'LN':
-                not_freeze_set = ['layernorm']
+                # not_freeze_set = ['layernorm']  # input layernorm
+                not_freeze_set = ['attn_layer_norm']  # only optimize layer norm after attn
         logger.info(not_freeze_set)
         for n, p in self.seq2seq_model.named_parameters():
             if len(not_freeze_set) > 0:
@@ -147,7 +148,18 @@ class PrefixTuning(PretrainedBartModel):
         self.get_prompt = self.get_prompt_bias
 
     def get_prompt_bias(self, bsz, nsamples=1):
-        pass
+        result = []
+        max_src_len = self.args.max_source_length + 2
+        max_tgt_len = self.args.max_target_length + 2
+
+        src_positions = torch.arange(0, max_src_len, dtype=torch.long, device=self.device)
+        tgt_positions = torch.arange(0, max_tgt_len, dtype=torch.long, device=self.device)
+        for ii in range(self.match_n_layer):
+            temp_dict = {"encoder": self.encoder_attn_bias[ii].forward(src_positions),
+                         "self": self.decoder_self_attn_bias[ii].forward(tgt_positions),
+                         "encoder_decoder": self.decoder_cross_attn_bias[ii].forward(tgt_positions)}
+            result.append(temp_dict)
+        return result
 
     def forward(self,
                 input_ids=None,
