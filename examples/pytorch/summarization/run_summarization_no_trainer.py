@@ -145,6 +145,8 @@ def parse_args():
         "tokenization. Sequences longer than this will be truncated, sequences shorter will be padded."
         "during ``evaluate`` and ``predict``.",
     )
+
+    # not used
     parser.add_argument(
         "--val_max_target_length",
         type=int,
@@ -155,6 +157,7 @@ def parse_args():
         "param of ``model.generate``, which is used during ``evaluate`` and ``predict``.",
     )
 
+    # not used
     parser.add_argument(
         "--test_max_target_length",
         type=int,
@@ -567,7 +570,7 @@ def main():
     test_dataloader = accelerator.prepare_data_loader(test_dataloader)
 
     # added by Chunting: prepare the finetuning model
-    if args.use_prefix:
+    if args.use_prefix is not None:
         model = PrefixTuning(config, args, model)
 
     for n, p in model.named_parameters():
@@ -654,6 +657,7 @@ def main():
                 break
 
         model.eval()
+        # not used, remove
         if args.val_max_target_length is None:
             args.val_max_target_length = args.max_target_length
 

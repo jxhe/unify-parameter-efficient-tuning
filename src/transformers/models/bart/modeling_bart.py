@@ -220,8 +220,8 @@ class BartAttention(nn.Module):
             prefix_value = prefix_state.get(self.cache_key)['prev_value']
             prefix_mask = prefix_state.get(self.cache_key)['prev_key_padding_mask']  # bsz, preseqlen: zeros
 
-            key_states = torch.cat([key_states, prefix_key], dim=1)
-            value_states = torch.cat([value_states, prefix_value], dim=1)
+            key_states = torch.cat([prefix_key, key_states], dim=1)
+            value_states = torch.cat([prefix_value, value_states], dim=1)
             prefix_mask = _expand_mask(prefix_mask, key_states.dtype, tgt_len=tgt_len)
             if attention_mask is not None:
                 attention_mask = torch.cat([prefix_mask, attention_mask], dim=-1)
