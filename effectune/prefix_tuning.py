@@ -117,20 +117,20 @@ class PrefixTuning(PretrainedBartModel):
         for i, key_val in enumerate(past_key_values):
             temp_dict = {'self': {"prev_key": key_val[0].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
                                   "prev_value": key_val[1].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
-                                  "prev_key_padding_mask": torch.zeros(bsz, seqlen).to(key_val.device).bool() #bsz, preseqlen
+                                  "prev_key_padding_mask": torch.zeros(bsz, seqlen).to(key_val.device) #bsz, preseqlen
                                   },
                          }
 
             key_val2 = past_key_values2[i]
             temp_dict['encoder_decoder'] = {"prev_key": key_val2[0].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
                                             "prev_value": key_val2[1].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
-                                            "prev_key_padding_mask": torch.zeros(bsz, seqlen).to(key_val2.device).bool()
+                                            "prev_key_padding_mask": torch.zeros(bsz, seqlen).to(key_val2.device)
                                             }
             key_val_enc = past_key_values_enc[i]
             # at generation time, this is expanded automatically to the beam size
             temp_dict['encoder'] = {"prev_key": key_val_enc[0].contiguous().view(old_bsz*self.match_n_head, -1, self.match_n_embd),
                                     "prev_value": key_val_enc[1].contiguous().view(old_bsz*self.match_n_head, -1, self.match_n_embd),
-                                    "prev_key_padding_mask": torch.zeros(bsz_enc, seqlen).to(key_val_enc.device).bool()
+                                    "prev_key_padding_mask": torch.zeros(bsz_enc, seqlen).to(key_val_enc.device)
                                     }
             result.append(temp_dict)
 

@@ -44,7 +44,7 @@ from ...modeling_outputs import (
 from ...modeling_utils import PreTrainedModel
 from ...utils import logging
 from .configuration_bart import BartConfig
-
+import pdb
 
 logger = logging.get_logger(__name__)
 
@@ -223,9 +223,10 @@ class BartAttention(nn.Module):
 
             key_states = torch.cat([prefix_key, key_states], dim=1)
             value_states = torch.cat([prefix_value, value_states], dim=1)
-            prefix_mask = _expand_mask(prefix_mask, key_states.dtype, tgt_len=tgt_len)
+
             if attention_mask is not None:
-                attention_mask = torch.cat([prefix_mask, attention_mask], dim=-1)
+                expanded_prefix_mask = prefix_mask[:, None, None, :].expand(bsz, 1, tgt_len, prefix_mask.size(1)).to(attention_mask.dtype)
+                attention_mask = torch.cat([expanded_prefix_mask, attention_mask], dim=-1)
 
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
