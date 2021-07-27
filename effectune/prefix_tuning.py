@@ -9,11 +9,6 @@ class PrefixTuning(PretrainedBartModel):
     def __init__(self, config, args, pretrained_model):
         super().__init__(config)
         self.args = args
-
-        self.mid_dim = args.mid_dim
-        self.preseqlen = args.preseqlen
-        self.prefix_dropout = args.prefix_dropout
-
         self.seq2seq_model = pretrained_model
 
         self.match_n_layer = config.decoder_layers
@@ -21,33 +16,18 @@ class PrefixTuning(PretrainedBartModel):
         self.n_embd = config.d_model
         self.match_n_embd = self.n_embd // self.match_n_head
 
-        self.dropout = nn.Dropout(self.prefix_dropout)
-
-        self.input_tokens = torch.arange(self.preseqlen).long()
-        self.wte = nn.Embedding(self.preseqlen, self.n_embd)
-        self.control_trans = nn.Sequential(
-            nn.Linear(self.n_embd, self.mid_dim),
-            nn.Tanh(),
-            nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
-
-        self.wte_enc = nn.Embedding(self.preseqlen, self.n_embd)
-        self.control_trans_enc = nn.Sequential(
-            nn.Linear(self.n_embd, self.mid_dim),
-            nn.Tanh(),
-            nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
-
-        self.wte2 = nn.Embedding(self.preseqlen, self.n_embd)
-        self.control_trans2 = nn.Sequential(
-            nn.Linear(self.n_embd, self.mid_dim),
-            nn.Tanh(),
-            nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
+        if args.use_prefix == "lisa":
+            self.setup_lisa(args)
+        elif args.use_prefix == "learn_bias":
+            self.setup_bias(args)
 
         self._init_weights()
         logger.info("Declare PrefixTuning model!")
         not_freeze_set = []
         if args.unfreeze_params != 'none':
             if args.unfreeze_params == 'LN':
-                not_freeze_set = ['layernorm']
+                # not_freeze_set = ['layernorm']  # input layernorm
+                not_freeze_set = ['attn_layer_norm']  # only optimize layer norm after attn
         logger.info(not_freeze_set)
         for n, p in self.seq2seq_model.named_parameters():
             if len(not_freeze_set) > 0:
@@ -76,7 +56,35 @@ class PrefixTuning(PretrainedBartModel):
                 if module.padding_idx is not None:
                     module.weight.data[module.padding_idx].zero_()
 
-    def get_prompt(self, bsz, nsamples=1):
+    def setup_lisa(self, args):
+        self.mid_dim = args.mid_dim
+        self.preseqlen = args.preseqlen
+        self.prefix_dropout = args.prefix_dropout
+
+        self.dropout = nn.Dropout(self.prefix_dropout)
+
+        self.input_tokens = torch.arange(self.preseqlen).long()
+        self.wte = nn.Embedding(self.preseqlen, self.n_embd)
+        self.control_trans = nn.Sequential(
+            nn.Linear(self.n_embd, self.mid_dim),
+            nn.Tanh(),
+            nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
+
+        self.wte_enc = nn.Embedding(self.preseqlen, self.n_embd)
+        self.control_trans_enc = nn.Sequential(
+            nn.Linear(self.n_embd, self.mid_dim),
+            nn.Tanh(),
+            nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
+
+        self.wte2 = nn.Embedding(self.preseqlen, self.n_embd)
+        self.control_trans2 = nn.Sequential(
+            nn.Linear(self.n_embd, self.mid_dim),
+            nn.Tanh(),
+            nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
+
+        self.get_prompt = self.get_prompt_lisa
+
+    def get_prompt_lisa(self, bsz, nsamples=1):
         old_bsz = bsz
         bsz = bsz * nsamples
         input_tokens = self.input_tokens.unsqueeze(0).expand(bsz, -1).to(self.device)
@@ -87,7 +95,6 @@ class PrefixTuning(PretrainedBartModel):
                                                self.match_n_embd)
         past_key_values = self.dropout(past_key_values)
         past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).split(2)
-
 
         temp_control2 = self.wte2(input_tokens)
         past_key_values2 = self.control_trans2(temp_control2)  # bsz, seqlen, layer*emb
@@ -110,23 +117,48 @@ class PrefixTuning(PretrainedBartModel):
         for i, key_val in enumerate(past_key_values):
             temp_dict = {'self': {"prev_key": key_val[0].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
                                   "prev_value": key_val[1].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
-                                  "prev_key_padding_mask": torch.zeros(bsz, seqlen).to(key_val.device).bool() #bsz, preseqlen
+                                  "prev_key_padding_mask": torch.zeros(bsz, seqlen).to(key_val.device) #bsz, preseqlen
                                   },
                          }
 
             key_val2 = past_key_values2[i]
             temp_dict['encoder_decoder'] = {"prev_key": key_val2[0].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
                                             "prev_value": key_val2[1].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
-                                            "prev_key_padding_mask": torch.zeros(bsz, seqlen).to(key_val2.device).bool()
+                                            "prev_key_padding_mask": torch.zeros(bsz, seqlen).to(key_val2.device)
                                             }
             key_val_enc = past_key_values_enc[i]
             # at generation time, this is expanded automatically to the beam size
             temp_dict['encoder'] = {"prev_key": key_val_enc[0].contiguous().view(old_bsz*self.match_n_head, -1, self.match_n_embd),
                                     "prev_value": key_val_enc[1].contiguous().view(old_bsz*self.match_n_head, -1, self.match_n_embd),
-                                    "prev_key_padding_mask": torch.zeros(bsz_enc, seqlen).to(key_val_enc.device).bool()
+                                    "prev_key_padding_mask": torch.zeros(bsz_enc, seqlen).to(key_val_enc.device)
                                     }
             result.append(temp_dict)
 
+        return result
+
+    def setup_bias(self, args):
+        # Option 1: a simple version, no transformations, each attention layer has its own bias parameters
+        self.encoder_attn_bias = nn.ModuleList([nn.Embedding(args.max_source_length + 2, self.n_embd)
+                                                  for _ in range(self.match_n_layer)])
+        self.decoder_self_attn_bias = nn.ModuleList([nn.Embedding(args.max_target_length + 2, self.n_embd)
+                                                    for _ in range(self.match_n_layer)])
+
+        self.decoder_cross_attn_bias = nn.ModuleList([nn.Embedding(args.max_target_length + 2, self.n_embd)
+                                                    for _ in range(self.match_n_layer)])
+        self.get_prompt = self.get_prompt_bias
+
+    def get_prompt_bias(self, bsz, nsamples=1):
+        result = []
+        max_src_len = self.args.max_source_length + 2
+        max_tgt_len = self.args.max_target_length + 2
+
+        src_positions = torch.arange(0, max_src_len, dtype=torch.long, device=self.device)
+        tgt_positions = torch.arange(0, max_tgt_len, dtype=torch.long, device=self.device)
+        for ii in range(self.match_n_layer):
+            temp_dict = {"encoder": self.encoder_attn_bias[ii].forward(src_positions),
+                         "self": self.decoder_self_attn_bias[ii].forward(tgt_positions),
+                         "encoder_decoder": self.decoder_cross_attn_bias[ii].forward(tgt_positions)}
+            result.append(temp_dict)
         return result
 
     def forward(self,

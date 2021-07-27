@@ -44,7 +44,7 @@ from ...modeling_outputs import (
 from ...modeling_utils import PreTrainedModel
 from ...utils import logging
 from .configuration_bart import BartConfig
-
+import pdb
 
 logger = logging.get_logger(__name__)
 
@@ -168,7 +168,8 @@ class BartAttention(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
         layer_head_mask: Optional[torch.Tensor] = None,
         output_attentions: bool = False,
-        prefix_state: Optional[Dict[str, torch.Tensor]] = None,
+        prefix_state: Optional[Dict[str, torch.Tensor]] = None,  # added by Chunting
+        step: Optional[int] = None,  # added by Chunting
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
 
@@ -214,17 +215,18 @@ class BartAttention(nn.Module):
         key_states = key_states.view(*proj_shape)
         value_states = value_states.view(*proj_shape)
 
-        if prefix_state is not None:
+        if prefix_state is not None and self.use_prefix == 'lisa':
             # legacy
             prefix_key = prefix_state.get(self.cache_key)['prev_key']  # bsz x nhead, preseqlen, head_dim
             prefix_value = prefix_state.get(self.cache_key)['prev_value']
             prefix_mask = prefix_state.get(self.cache_key)['prev_key_padding_mask']  # bsz, preseqlen: zeros
 
-            key_states = torch.cat([key_states, prefix_key], dim=1)
-            value_states = torch.cat([value_states, prefix_value], dim=1)
-            prefix_mask = _expand_mask(prefix_mask, key_states.dtype, tgt_len=tgt_len)
+            key_states = torch.cat([prefix_key, key_states], dim=1)
+            value_states = torch.cat([prefix_value, value_states], dim=1)
+
             if attention_mask is not None:
-                attention_mask = torch.cat([prefix_mask, attention_mask], dim=-1)
+                expanded_prefix_mask = prefix_mask[:, None, None, :].expand(bsz, 1, tgt_len, prefix_mask.size(1)).to(attention_mask.dtype)
+                attention_mask = torch.cat([expanded_prefix_mask, attention_mask], dim=-1)
 
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
@@ -276,6 +278,30 @@ class BartAttention(nn.Module):
         attn_output = attn_output.reshape(bsz, tgt_len, embed_dim)
 
         attn_output = self.out_proj(attn_output)
+
+        if prefix_state is not None and self.use_prefix == 'learn_bias':
+            bias_embeds = prefix_state.get(self.cache_key)
+            if self.training:
+                start, end = 0, tgt_len
+                # print("train: ", start, end, "is cross: ", is_cross_attention, "is decoder:", self.is_decoder)
+                # input()
+            elif not is_cross_attention and past_key_value is not None:
+                # at generation time
+                start, end = src_len-1, src_len
+                # print("generate: ", start, end, "is cross: ", is_cross_attention, "is decoder:", self.is_decoder, "step: ", tgt_len)
+                # input()
+            elif past_key_value is not None:
+                assert step is not None
+                start, end = step-1, step
+                # print("generate: ", start, end, "is cross: ", is_cross_attention, "is decoder:", self.is_decoder, "step: ", tgt_len)
+                # input()
+            else:
+                start, end = 0, tgt_len
+                # print("generate: ", start, end, "is cross: ", is_cross_attention, "is decoder:", self.is_decoder, "step: ", tgt_len)
+                # input()
+
+            bias = bias_embeds[start:end, :]
+            attn_output = attn_output + bias
 
         return attn_output, attn_weights_reshaped, past_key_value
 
@@ -442,6 +468,10 @@ class BartDecoderLayer(nn.Module):
 
             # cross_attn cached key/values tuple is at positions 3,4 of present_key_value tuple
             cross_attn_past_key_value = past_key_value[-2:] if past_key_value is not None else None
+
+            # added by Chunting: for learned bias
+            step = (past_key_value[0].size(2) + 1) if cross_attn_past_key_value is not None else 1
+
             hidden_states, cross_attn_weights, cross_attn_present_key_value = self.encoder_attn(
                 hidden_states=hidden_states,
                 key_value_states=encoder_hidden_states,
@@ -449,7 +479,8 @@ class BartDecoderLayer(nn.Module):
                 layer_head_mask=cross_attn_layer_head_mask,
                 past_key_value=cross_attn_past_key_value,
                 output_attentions=output_attentions,
-                prefix_state=prefix_state
+                prefix_state=prefix_state,
+                step=step,
             )
             hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
             hidden_states = residual + hidden_states
