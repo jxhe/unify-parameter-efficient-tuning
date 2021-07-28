@@ -24,11 +24,13 @@ bsz=24
 gradient_steps=2
 metric=rouge2
 ft='LN+PE'
+eval_batch=150
 
 python -u examples/pytorch/summarization/run_summarization_no_trainer.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
+    --max_val_batches ${eval_batch} \
     --debug 0 \
     --preprocessing_num_workers 2 \
     --max_source_length 512 \
@@ -44,6 +46,6 @@ python -u examples/pytorch/summarization/run_summarization_no_trainer.py \
     --num_train_epochs ${epochs} \
     --learning_rate ${lr} \
     --fp16 \
-    --output_dir ${SAVE} | tee ${SAVE}/log.txt
+    --output_dir ${SAVE} 2>&1 | tee ${SAVE}/log.txt
 
 #rm -rf ${SAVE}/pytorch_model.bin
