@@ -18,10 +18,11 @@ class PrefixTuning(PretrainedBartModel):
 
         if args.use_prefix == "lisa":
             self.setup_lisa(args)
+            self._init_weights()
         elif args.use_prefix == "learn_bias":
             self.setup_bias(args)
 
-        self._init_weights()
+        #self._init_weights()
         logger.info("Declare PrefixTuning model!")
         not_freeze_set = []
         if args.unfreeze_params != 'none':
@@ -145,6 +146,16 @@ class PrefixTuning(PretrainedBartModel):
 
         self.decoder_cross_attn_bias = nn.ModuleList([nn.Embedding(args.max_target_length + 2, self.n_embd)
                                                     for _ in range(self.match_n_layer)])
+        for embed in self.encoder_attn_bias:
+            assert isinstance(embed, nn.Embedding)
+            nn.init.constant_(embed.weight, 0.0)
+        for embed in self.decoder_self_attn_bias:
+            assert isinstance(embed, nn.Embedding)
+            nn.init.constant_(embed.weight, 0.0)
+        for embed in self.decoder_cross_attn_bias:
+            assert isinstance(embed, nn.Embedding)
+            nn.init.constant_(embed.weight, 0.0)
+
         self.get_prompt = self.get_prompt_bias
 
     def get_prompt_bias(self, bsz, nsamples=1):

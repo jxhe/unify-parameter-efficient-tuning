@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=xsum
+#SBATCH --job-name=xsum100
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:A6000:1
 #SBATCH --mem=30g
@@ -16,6 +16,7 @@ cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
 
 exp_name=xsum_prefix
 SAVE=/home/chuntinz/tir5/tride/checkpoints/${exp_name}
+rm -rf ${SAVE}
 mkdir -p ${SAVE}
 
 epochs=30
@@ -24,13 +25,15 @@ bsz=24
 gradient_steps=2
 metric=rouge2
 ft='none'
+eval_batch=200
 
 python -u examples/pytorch/summarization/run_summarization_no_trainer.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
     --debug 0 \
     --cache_dir ${cache_dir} \
-    --use_prefix 1 \
+    --max_val_batches ${eval_batch} \
+    --use_prefix "lisa" \
     --mid_dim 800 \
     --preseqlen 200 \
     --unfreeze_params ${ft} \
@@ -48,6 +51,6 @@ python -u examples/pytorch/summarization/run_summarization_no_trainer.py \
     --num_train_epochs ${epochs} \
     --learning_rate ${lr} \
     --fp16 \
-    --output_dir ${SAVE} | tee ${SAVE}/log.txt
+    --output_dir ${SAVE} 2>&1 | tee ${SAVE}/log.txt
 
 #rm -rf ${SAVE}/pytorch_model.bin
