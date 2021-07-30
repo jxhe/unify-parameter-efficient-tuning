@@ -20,7 +20,8 @@ class PrefixTuning(PretrainedBartModel):
             self.setup_lisa(args)
             self._init_weights()
         elif args.use_prefix == "learn_bias":
-            self.setup_bias(args)
+            # self.setup_bias(args)
+            self.setup_bias_mlp(args)
 
         #self._init_weights()
         logger.info("Declare PrefixTuning model!")
@@ -169,6 +170,75 @@ class PrefixTuning(PretrainedBartModel):
             temp_dict = {"encoder": self.encoder_attn_bias[ii].forward(src_positions),
                          "self": self.decoder_self_attn_bias[ii].forward(tgt_positions),
                          "encoder_decoder": self.decoder_cross_attn_bias[ii].forward(tgt_positions)}
+            result.append(temp_dict)
+        return result
+
+    def setup_bias_mlp(self, args):
+        self.mid_dim = args.mid_dim
+        self.preseqlen = args.preseqlen
+        self.prefix_dropout = args.prefix_dropout
+
+        self.dropout = nn.Dropout(self.prefix_dropout)
+
+        self.src_len = args.max_source_length + 2
+        self.tgt_len = args.max_target_length + 2
+        self.tgt_input_tokens = torch.arange(self.tgt_len).long()
+        self.src_input_tokens = torch.arange(self.src_len).long()
+
+        self.wte = nn.Embedding(self.tgt_len, self.n_embd)
+        self.control_trans = nn.Sequential(
+            nn.Linear(self.n_embd, self.mid_dim),
+            nn.Tanh(),
+            nn.Linear(self.mid_dim, self.match_n_layer * self.n_embd))
+
+        self.wte_enc = nn.Embedding(self.src_len, self.n_embd)
+        self.control_trans_enc = nn.Sequential(
+            nn.Linear(self.n_embd, self.mid_dim),
+            nn.Tanh(),
+            nn.Linear(self.mid_dim, self.match_n_layer * self.n_embd))
+
+        self.wte2 = nn.Embedding(self.tgt_len, self.n_embd)
+        self.control_trans2 = nn.Sequential(
+            nn.Linear(self.n_embd, self.mid_dim),
+            nn.Tanh(),
+            nn.Linear(self.mid_dim, self.match_n_layer * self.n_embd))
+
+        self.get_prompt = self.get_prompt_bias_mlp
+
+        # initialization
+        nn.init.constant_(self.wte.weight, 0.0)
+        nn.init.constant_(self.wte_enc.weight, 0.0)
+        nn.init.constant_(self.wte2.weight, 0.0)
+
+        std = self.config.init_std
+        for n, module in self.named_parameters():
+            if n.startswith("control_trans"):
+                if isinstance(module, nn.Linear):
+                    module.weight.data.normal_(mean=0.0, std=std)
+                    if module.bias is not None:
+                        module.bias.data.zero_()
+
+    def get_prompt_bias_mlp(self, bsz, nsamples=1):
+        temp_control = self.wte(self.tgt_input_tokens.to(self.device))
+        past_key_values = self.control_trans(temp_control)  # tgt_len, layer*emb
+        past_key_values = past_key_values.view(self.tgt_len, self.match_n_layer, self.n_embd)
+        past_key_values = self.dropout(past_key_values)
+
+        temp_control2 = self.wte2(self.tgt_input_tokens.to(self.device))
+        past_key_values2 = self.control_trans2(temp_control2)  # tgt_len, layer*emb
+        past_key_values2 = past_key_values2.view(self.tgt_len, self.match_n_layer, self.n_embd)
+        past_key_values2 = self.dropout(past_key_values2)
+
+        temp_control_enc = self.wte_enc(self.src_input_tokens.to(self.device))
+        past_key_values_enc = self.control_trans_enc(temp_control_enc)  # src_len, layer*emb
+        past_key_values_enc = past_key_values_enc.view(self.src_len, self.match_n_layer, self.n_embd)
+        past_key_values_enc = self.dropout(past_key_values_enc)
+
+        result = []
+        for ii in range(self.match_n_layer):
+            temp_dict = {"encoder": past_key_values_enc[:, ii, :],
+                         "self": past_key_values[:, ii, :],
+                         "encoder_decoder": past_key_values2[:, ii, :]}
             result.append(temp_dict)
         return result
 

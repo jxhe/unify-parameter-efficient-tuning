@@ -604,19 +604,13 @@ def main():
     metric = load_metric("rouge")
     best_checkpoint_path = os.path.join(args.output_dir, "pytorch_model.bin")
 
-    logger.info("========================== Training is done! Test ======================")
-    if accelerator.is_local_main_process:
-        unwrapped_model = accelerator.unwrap_model(model)
-        unwrapped_model.load_state_dict(torch.load(best_checkpoint_path))
-        unwrapped_model.to(model.device)
-        unwrapped_model.eval()
-        test_result = generate(args, config, test_dataloader, unwrapped_model, accelerator, tokenizer, metric)
-        logger.info(test_result)
-
-    # if args.output_dir is not None:
-    #     accelerator.wait_for_everyone()
-    #     unwrapped_model = accelerator.unwrap_model(model)
-    #     unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
+    logger.info("========================== Test ======================")
+    unwrapped_model = accelerator.unwrap_model(model)
+    unwrapped_model.load_state_dict(torch.load(best_checkpoint_path))
+    unwrapped_model.to(model.device)
+    unwrapped_model.eval()
+    test_result = generate(args, config, test_dataloader, unwrapped_model, accelerator, tokenizer, metric)
+    logger.info(test_result)
 
 
 if __name__ == "__main__":

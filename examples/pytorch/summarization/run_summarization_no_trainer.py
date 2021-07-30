@@ -56,6 +56,7 @@ sys.path.insert(2, "./")
 
 from effectune.options import *
 from effectune.prefix_tuning import PrefixTuning
+from effectune.utils import log_metrics, get_aggerators
 
 import pdb
 logger = logging.getLogger(__name__)
@@ -306,7 +307,7 @@ def parse_args():
     return args
 
 
-def generate(args, config, eval_dataloader, model, accelerator, tokenizer, metric):
+def generate(args, config, eval_dataloader, model, accelerator, tokenizer, metric, opt_prefix="valid"):
     # model is accelerator.unwrap_model(model)
     gen_kwargs = {
         "max_length": args.eval_max_length if args is not None else config.max_length,
@@ -318,14 +319,17 @@ def generate(args, config, eval_dataloader, model, accelerator, tokenizer, metri
     print("+++++++++++++++++++++++++++ generate +++++++++++++++++++++++++++ ")
 
     def postprocess_text(preds, labels):
-        preds = [pred.strip() for pred in preds]
-        labels = [label.strip() for label in labels]
+        str_preds = [pred.strip() for pred in preds]
+        str_labels = [label.strip() for label in labels]
 
         # rougeLSum expects newline after each sentence
-        preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
-        labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
+        preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in str_preds]
+        labels = ["\n".join(nltk.sent_tokenize(label)) for label in str_labels]
 
-        return preds, labels
+        return preds, labels, str_preds, str_labels
+
+    fout_pred = open(os.path.join(args.output_dir, opt_prefix + ".pred.summary"), "w", encoding="utf-8")
+    fout_gold = open(os.path.join(args.output_dir, opt_prefix + ".gold.summary"), "w", encoding="utf-8")
 
     gen_model = model
     for step, batch in enumerate(eval_dataloader):
@@ -363,10 +367,19 @@ def generate(args, config, eval_dataloader, model, accelerator, tokenizer, metri
             decoded_preds = tokenizer.batch_decode(generated_tokens, skip_special_tokens=True)
             decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
-            decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+            decoded_preds, decoded_labels, str_decoded_preds, str_decoded_labels = \
+                postprocess_text(decoded_preds, decoded_labels)
+
+            for pred, gold in zip(str_decoded_preds, str_decoded_labels):
+                # print(pred)
+                # print(gold)
+                fout_pred.write(pred + "\n")
+                fout_gold.write(gold + "\n")
 
             metric.add_batch(predictions=decoded_preds, references=decoded_labels)
 
+    fout_pred.close()
+    fout_gold.close()
     result = metric.compute(use_stemmer=True)
     # Extract a few results from ROUGE
     result = {key: value.mid.fmeasure * 100 for key, value in result.items()}
@@ -630,9 +643,9 @@ def main():
     logger.info(f"  Total optimization steps = {args.max_train_steps}")
 
     # todo: better logger
-    if args.debug:
-        # Only show the progress bar once on each machine.
-        progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
+    # if args.debug:
+    #     # Only show the progress bar once on each machine.
+    #     progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
     completed_steps = 0
     best_metric = 0
     best_checkpoint_path = os.path.join(args.output_dir, "pytorch_model.bin")
@@ -650,6 +663,10 @@ def main():
     else:
         val_batches = eval_dataloader
 
+    # result = generate(args, config, val_batches, accelerator.unwrap_model(model), accelerator, tokenizer, metric)
+    # print("Before training!")
+    # print(result)
+
     for epoch in range(args.num_train_epochs):
         model.train()
         for step, batch in enumerate(train_dataloader):
@@ -657,20 +674,22 @@ def main():
             loss = outputs.loss
             loss = loss / args.gradient_accumulation_steps
             accelerator.backward(loss)
-            # todo: use simple printing format
+
             if step % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
-                if args.debug:
-                    progress_bar.update(1)
                 completed_steps += 1
 
+            num_tgt_tokens = (batch["labels"].ne(-100)).sum().long()
+            log_metrics("loss", loss, num_tgt_tokens)
             if step % args.log_intervals == 0:
-                logger.info("epoch = {}, step = {}/{}, loss = {}".format(epoch, step, len(train_dataloader), loss.item()))
+                logger.info("epoch = {}, step = {}/{}, loss = {}".format(epoch, step, len(train_dataloader),
+                                                                         get_aggerators()["loss"].smoothed_value))
 
             if completed_steps >= args.max_train_steps:
                 break
+        get_aggerators()["loss"].reset()
 
         model.eval()
         # not used, remove
@@ -697,7 +716,7 @@ def main():
         unwrapped_model.load_state_dict(torch.load(best_checkpoint_path))
         unwrapped_model.to(model.device)
         unwrapped_model.eval()
-        test_result = generate(args, config, test_dataloader, unwrapped_model, accelerator, tokenizer, metric)
+        test_result = generate(args, config, test_dataloader, unwrapped_model, accelerator, tokenizer, metric, opt_prefix="test")
         logger.info(test_result)
 
     # if args.output_dir is not None:
