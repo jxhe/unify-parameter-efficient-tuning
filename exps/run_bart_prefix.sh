@@ -10,13 +10,13 @@
 #SBATCH --time=0
 #SBATCH --array=0
 
-source activate nmt
-export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
-cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
+# source activate nmt
+export TRANSFORMERS_CACHE=checkpoints/hf_model
+cache_dir=${TRANSFORMERS_CACHE}
 
 exp_name=xsum_prefix
-exp_name=debug
-SAVE=/home/chuntinz/tir5/tride/checkpoints/${exp_name}
+# exp_name=debug
+SAVE=checkpoints/${exp_name}
 rm -rf ${SAVE}
 mkdir -p ${SAVE}
 
@@ -31,7 +31,7 @@ eval_batch=200
 python -u examples/pytorch/summarization/run_summarization_no_trainer.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
-    --debug 1 \
+    --debug 0 \
     --cache_dir ${cache_dir} \
     --max_val_batches ${eval_batch} \
     --use_prefix "lisa" \
@@ -54,7 +54,7 @@ python -u examples/pytorch/summarization/run_summarization_no_trainer.py \
     --fp16 \
     --output_dir ${SAVE} 2>&1 | tee ${SAVE}/log.txt
 
-file2rouge ${SAVE}/valid.gold.summary ${SAVE}/valid.pred.summary > ${SAVE}/valid.rouge
-file2rouge ${SAVE}/test.gold.summary ${SAVE}/test.pred.summary > ${SAVE}/test.rouge
+# files2rouge ${SAVE}/valid.gold.summary ${SAVE}/valid.pred.summary > ${SAVE}/valid.rouge
+# files2rouge ${SAVE}/test.gold.summary ${SAVE}/test.pred.summary > ${SAVE}/test.rouge
 
 #rm -rf ${SAVE}/pytorch_model.bin
