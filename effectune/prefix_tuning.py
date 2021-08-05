@@ -1,6 +1,8 @@
 import torch
 from transformers import PretrainedBartModel
 import torch.nn as nn
+
+from effectune.luna_attention import luna_attention
 from transformers.utils import logging
 logger = logging.get_logger(__name__)
 
@@ -22,22 +24,27 @@ class PrefixTuning(PretrainedBartModel):
         elif args.use_prefix == "learn_bias":
             # self.setup_bias(args)
             self.setup_bias_mlp(args)
+        elif args.use_prefix == 'luna':
+            self.setup_luna(args)
 
         #self._init_weights()
         logger.info("Declare PrefixTuning model!")
         not_freeze_set = []
-        if args.unfreeze_params != 'none':
+        if args.unfreeze_params != 'none' and args.use_prefix != 'luna':
             if args.unfreeze_params == 'LN':
                 # not_freeze_set = ['layernorm']  # input layernorm
                 not_freeze_set = ['attn_layer_norm']  # only optimize layer norm after attn
+            all_match = False
+        else:
+            # fixme: other options, now tune the self_attn_layer_norm in decoder
+            not_freeze_set = ["self_attn_layer_norm", "decoder"]
+            all_match = True
+
         logger.info(not_freeze_set)
         for n, p in self.seq2seq_model.named_parameters():
-            if len(not_freeze_set) > 0:
-                for nfs in not_freeze_set:
-                    if nfs in n:
-                        p.requires_grad = True
-                    else:
-                        p.requires_grad = False
+            if len(not_freeze_set) > 0 and self.if_update_params(n, not_freeze_set, all_match=all_match):
+                print("tune "+ n)
+                p.requires_grad = True
             else:
                 p.requires_grad = False
         logger.info("already freezed parameters!")
@@ -57,6 +64,10 @@ class PrefixTuning(PretrainedBartModel):
                 module.weight.data.normal_(mean=0.0, std=std)
                 if module.padding_idx is not None:
                     module.weight.data[module.padding_idx].zero_()
+
+    def if_update_params(self, module_name, safe_list, all_match=True):
+        check = [partial_name in module_name for partial_name in safe_list]
+        return all(check) if all_match else any(check)
 
     def setup_lisa(self, args):
         self.mid_dim = args.mid_dim
@@ -210,7 +221,8 @@ class PrefixTuning(PretrainedBartModel):
         nn.init.constant_(self.wte_enc.weight, 0.0)
         nn.init.constant_(self.wte2.weight, 0.0)
 
-        std = self.config.init_std
+        # std = self.config.init_std
+        std = 1e-3
         for n, module in self.named_parameters():
             if n.startswith("control_trans"):
                 if isinstance(module, nn.Linear):
@@ -241,6 +253,13 @@ class PrefixTuning(PretrainedBartModel):
                          "encoder_decoder": past_key_values2[:, ii, :]}
             result.append(temp_dict)
         return result
+
+    def setup_luna(self, args):
+        self.luna_attn = luna_attention(args, self.config, self.n_embd, self.match_n_head)
+        self.get_prompt = self.get_prompt_luna_bias
+
+    def get_prompt_luna_bias(self, bsz, nsamples=-1):
+        return self.luna_attn
 
     def forward(self,
                 input_ids=None,

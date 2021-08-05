@@ -285,7 +285,7 @@ def parse_args():
     parser.add_argument("--max_val_batches", type=int, default=-1)
 
     add_gen_args(parser)
-    add_lisa_args(parser)
+    add_efficient_tuning_args(parser)
     add_tune_args(parser)
 
     args = parser.parse_args()
@@ -588,8 +588,8 @@ def main():
     if args.use_prefix is not None:
         model = PrefixTuning(config, args, model)
 
-    for n, p in model.named_parameters():
-        print(n, p.requires_grad)
+    # for n, p in model.named_parameters():
+    #     print(n, p.requires_grad)
 
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.

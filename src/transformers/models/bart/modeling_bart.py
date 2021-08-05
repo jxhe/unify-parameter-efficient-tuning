@@ -44,6 +44,10 @@ from ...modeling_outputs import (
 from ...modeling_utils import PreTrainedModel
 from ...utils import logging
 from .configuration_bart import BartConfig
+
+import sys
+sys.path.insert(2, "./")
+from effectune.luna_attention import luna_attention
 import pdb
 
 logger = logging.get_logger(__name__)
@@ -456,6 +460,12 @@ class BartDecoderLayer(nn.Module):
             output_attentions=output_attentions,
             prefix_state=prefix_state
         )
+        # todo: first try add change here
+        if prefix_state is not None and self.config.use_prefix == 'luna':
+            luna_attn, p_prime = prefix_state['module'], prefix_state['p_prime']
+            bias = luna_attn.forward_dp(hidden_states, p_prime)
+            hidden_states = hidden_states + bias
+
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
         hidden_states = self.self_attn_layer_norm(hidden_states)
@@ -869,7 +879,7 @@ class BartEncoder(BartPretrainedModel):
                         attention_mask,
                         layer_head_mask=(head_mask[idx] if head_mask is not None else None),
                         output_attentions=output_attentions,
-                        prefix_state=prefix_state[idx] if prefix_state is not None else None,
+                        prefix_state=prefix_state[idx] if prefix_state is not None and isinstance(prefix_state, list) else prefix_state,
                     )
 
                 hidden_states = layer_outputs[0]
@@ -1079,6 +1089,7 @@ class BartDecoder(BartPretrainedModel):
                 assert attn_mask.size()[0] == (
                     len(self.layers)
                 ), f"The `{mask_name}` should be specified for {len(self.layers)} layers, but it is for {head_mask.size()[0]}."
+
         for idx, decoder_layer in enumerate(self.layers):
             # add LayerDrop (see https://arxiv.org/abs/1909.11556 for description)
             if output_hidden_states:
@@ -1116,6 +1127,9 @@ class BartDecoder(BartPretrainedModel):
                     None,
                 )
             else:
+                # fixme: this is hard coded now, changes are only added to the first layer of decoder
+                if idx != 0 and self.config.use_prefix == "luna":
+                    prefix_state = None
 
                 layer_outputs = decoder_layer(
                     hidden_states,
@@ -1129,7 +1143,7 @@ class BartDecoder(BartPretrainedModel):
                     past_key_value=past_key_value,
                     output_attentions=output_attentions,
                     use_cache=use_cache,
-                    prefix_state=prefix_state[idx] if prefix_state is not None else None,
+                    prefix_state=prefix_state[idx] if prefix_state is not None and isinstance(prefix_state, list) else prefix_state,
                 )
             hidden_states = layer_outputs[0]
 
@@ -1244,6 +1258,10 @@ class BartModel(BartPretrainedModel):
                 return_dict=return_dict,
                 prefix_state=prefix_state,
             )
+            if prefix_state is not None and isinstance(prefix_state, luna_attention):
+                p_prime = prefix_state.forward_pe(encoder_outputs[0], attention_mask)
+                prefix_state = {"module": prefix_state, "p_prime": p_prime}
+
         # If the user passed a tuple for encoder_outputs, we wrap it in a BaseModelOutput when return_dict=True
         elif return_dict and not isinstance(encoder_outputs, BaseModelOutput):
             encoder_outputs = BaseModelOutput(
@@ -1420,6 +1438,10 @@ class BartForConditionalGeneration(BartPretrainedModel):
         # cut decoder_input_ids if past is used
         if past is not None:
             decoder_input_ids = decoder_input_ids[:, -1:]
+
+        if "prefix_state" in kwargs and isinstance(kwargs["prefix_state"], luna_attention):
+            p_prime = kwargs["prefix_state"].forward_pe(encoder_outputs[0], attention_mask)
+            kwargs["prefix_state"] = {"module": kwargs["prefix_state"], "p_prime": p_prime}
 
         return {
             "input_ids": None,  # encoder_outputs is defined. input_ids not needed
