@@ -1,43 +1,45 @@
-#!/bin/bash
+#! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=xsum100
+#SBATCH --job-name=xsum
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:A6000:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=2
 #SBATCH -w tir-0-28
 #SBATCH --time=0
-#SBATCH --array=0
+##SBATCH --array=0
 
-# source activate nmt
+source activate nmt
 export TRANSFORMERS_CACHE=checkpoints/hf_model
 cache_dir=${TRANSFORMERS_CACHE}
 
-exp_name=xsum_prefix
-# exp_name=debug
-SAVE=checkpoints/${exp_name}
-rm -rf ${SAVE}
+DATE=`date +%Y%m%d`
+dataset="xsum"
+
+exp_name=xsum_test
+SAVE=checkpoints/${dataset}/${exp_name}
 mkdir -p ${SAVE}
+
+model_path=/home/chuntinz/tir5/tride/checkpoints/xsum
 
 epochs=30
 lr=5e-5
 bsz=24
 gradient_steps=2
 metric=rouge2
-ft='none'
-eval_batch=200
+ft='LN+PE'
+eval_batch=150
+use_prefix="none"
 
 python -u examples/pytorch/summarization/run_summarization_no_trainer.py \
     --dataset_name 'xsum' \
-    --model_name_or_path 'facebook/bart-large' \
-    --debug 0 \
+    --model_name_or_path ${model_path} \
     --cache_dir ${cache_dir} \
     --max_val_batches ${eval_batch} \
-    --use_prefix "lisa" \
+    --use_prefix ${use_prefix} \
     --mid_dim 800 \
     --preseqlen 200 \
-    --unfreeze_params ${ft} \
     --preprocessing_num_workers 2 \
     --max_source_length 512 \
     --max_target_length 60 \
@@ -46,7 +48,7 @@ python -u examples/pytorch/summarization/run_summarization_no_trainer.py \
     --eval_max_length 62 \
     --eval_min_length 11 \
     --num_beam 6 \
-    --do_train \
+    --do_predict \
     --val_metric ${metric} \
     --per_device_train_batch_size ${bsz} \
     --gradient_accumulation_steps ${gradient_steps} \
@@ -54,8 +56,5 @@ python -u examples/pytorch/summarization/run_summarization_no_trainer.py \
     --learning_rate ${lr} \
     --fp16 \
     --output_dir ${SAVE} 2>&1 | tee ${SAVE}/log.txt
-
-# files2rouge ${SAVE}/valid.gold.summary ${SAVE}/valid.pred.summary > ${SAVE}/valid.rouge
-# files2rouge ${SAVE}/test.gold.summary ${SAVE}/test.pred.summary > ${SAVE}/test.rouge
 
 #rm -rf ${SAVE}/pytorch_model.bin

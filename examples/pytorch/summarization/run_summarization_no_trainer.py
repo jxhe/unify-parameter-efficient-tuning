@@ -48,6 +48,12 @@ from transformers import (
     get_scheduler,
     set_seed,
 )
+
+from transformers import (
+    HfArgumentParser,,
+    Seq2SeqTrainingArguments,
+)
+
 from transformers.file_utils import is_offline_mode
 from transformers.utils.versions import require_version
 
@@ -391,6 +397,9 @@ def generate(args, config, eval_dataloader, model, accelerator, tokenizer, metri
 def main():
     args = parse_args()
 
+    parser = HfArgumentParser((Seq2SeqTrainingArguments))
+    training_args = parser.parse_args_into_dataclasses()
+
     if args.source_prefix is None and args.model_name_or_path in [
         "t5-small",
         "t5-base",
@@ -585,7 +594,7 @@ def main():
     test_dataloader = accelerator.prepare_data_loader(test_dataloader)
 
     # added by Chunting: prepare the finetuning model
-    if args.use_prefix is not None:
+    if args.use_prefix != "none":
         model = PrefixTuning(config, args, model)
 
     for n, p in model.named_parameters():
@@ -628,96 +637,104 @@ def main():
         num_training_steps=args.max_train_steps,
     )
 
-    # Metric
-    metric = load_metric("rouge")
+    if training_args.do_train:
+        # Metric
+        metric = load_metric("rouge")
 
-    # Train!
-    total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
+        # Train!
+        total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
 
-    logger.info("***** Running training *****")
-    logger.info(f"  Num examples = {len(train_dataset)}")
-    logger.info(f"  Num Epochs = {args.num_train_epochs}")
-    logger.info(f"  Instantaneous batch size per device = {args.per_device_train_batch_size}")
-    logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
-    logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
-    logger.info(f"  Total optimization steps = {args.max_train_steps}")
+        logger.info("***** Running training *****")
+        logger.info(f"  Num examples = {len(train_dataset)}")
+        logger.info(f"  Num Epochs = {args.num_train_epochs}")
+        logger.info(f"  Instantaneous batch size per device = {args.per_device_train_batch_size}")
+        logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
+        logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
+        logger.info(f"  Total optimization steps = {args.max_train_steps}")
 
-    # todo: better logger
-    # if args.debug:
-    #     # Only show the progress bar once on each machine.
-    #     progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
-    completed_steps = 0
-    best_metric = 0
-    best_checkpoint_path = os.path.join(args.output_dir, "pytorch_model.bin")
+        # todo: better logger
+        # if args.debug:
+        #     # Only show the progress bar once on each machine.
+        #     progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
+        completed_steps = 0
+        best_metric = 0
+        best_checkpoint_path = os.path.join(args.output_dir, "pytorch_model.bin")
 
-    if args.max_val_batches > 0:
-        tot_eval_examples = 0
-        val_batches = []
-        for step, batch in enumerate(eval_dataloader):
-            val_batches.append(batch)
-        ss = np.random.permutation(len(val_batches))
-        val_batches = [val_batches[ii] for ii in ss[:args.max_val_batches]]
-        for bb in val_batches:
-            tot_eval_examples += bb["input_ids"].size(0)
-        logger.info("tot valid examples = {}".format(tot_eval_examples))
-    else:
-        val_batches = eval_dataloader
+        if args.max_val_batches > 0:
+            tot_eval_examples = 0
+            val_batches = []
+            for step, batch in enumerate(eval_dataloader):
+                val_batches.append(batch)
+            ss = np.random.permutation(len(val_batches))
+            val_batches = [val_batches[ii] for ii in ss[:args.max_val_batches]]
+            for bb in val_batches:
+                tot_eval_examples += bb["input_ids"].size(0)
+            logger.info("tot valid examples = {}".format(tot_eval_examples))
+        else:
+            val_batches = eval_dataloader
 
-    # result = generate(args, config, val_batches, accelerator.unwrap_model(model), accelerator, tokenizer, metric)
-    # print("Before training!")
-    # print(result)
+        # result = generate(args, config, val_batches, accelerator.unwrap_model(model), accelerator, tokenizer, metric)
+        # print("Before training!")
+        # print(result)
 
-    for epoch in range(args.num_train_epochs):
-        model.train()
-        for step, batch in enumerate(train_dataloader):
-            # import pdb; pdb.set_trace()
-            outputs = model(**batch)
-            loss = outputs.loss
-            loss = loss / args.gradient_accumulation_steps
-            accelerator.backward(loss)
+        for epoch in range(args.num_train_epochs):
+            model.train()
+            for step, batch in enumerate(train_dataloader):
+                # import pdb; pdb.set_trace()
+                outputs = model(**batch)
+                loss = outputs.loss
+                loss = loss / args.gradient_accumulation_steps
+                accelerator.backward(loss)
 
-            if step % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
-                optimizer.step()
-                lr_scheduler.step()
-                optimizer.zero_grad()
-                completed_steps += 1
+                if step % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
+                    optimizer.step()
+                    lr_scheduler.step()
+                    optimizer.zero_grad()
+                    completed_steps += 1
 
-            num_tgt_tokens = (batch["labels"].ne(-100)).sum().long()
-            log_metrics("loss", loss, num_tgt_tokens)
-            if step % args.log_intervals == 0:
-                logger.info("epoch = {}, step = {}/{}, loss = {}".format(epoch, step, len(train_dataloader),
-                                                                         get_aggerators()["loss"].smoothed_value))
+                num_tgt_tokens = (batch["labels"].ne(-100)).sum().long()
+                log_metrics("loss", loss, num_tgt_tokens)
+                if step % args.log_intervals == 0:
+                    logger.info("epoch = {}, step = {}/{}, loss = {}".format(epoch, step, len(train_dataloader),
+                                                                             get_aggerators()["loss"].smoothed_value))
 
-            if completed_steps >= args.max_train_steps:
-                break
-        get_aggerators()["loss"].reset()
+                if completed_steps >= args.max_train_steps:
+                    break
+            get_aggerators()["loss"].reset()
 
-        model.eval()
-        # not used, remove
-        if args.val_max_target_length is None:
-            args.val_max_target_length = args.max_target_length
+            model.eval()
+            # not used, remove
+            if args.val_max_target_length is None:
+                args.val_max_target_length = args.max_target_length
 
-        result = generate(args, config, val_batches, accelerator.unwrap_model(model), accelerator, tokenizer, metric)
+            result = generate(args, config, val_batches, accelerator.unwrap_model(model), accelerator, tokenizer, metric)
 
-        if result[args.val_metric] > best_metric:
-            accelerator.wait_for_everyone()
+            if result[args.val_metric] > best_metric:
+                accelerator.wait_for_everyone()
+                unwrapped_model = accelerator.unwrap_model(model)
+                if os.path.exists(best_checkpoint_path):
+                    os.remove(best_checkpoint_path)
+                logger.info("save best checkpoints .......")
+                unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
+                best_metric = result[args.val_metric]
+
+            logger.info(result)
+            logger.info("best = {}".format(best_metric))
+
+        logger.info("========================== Training is done! Test ======================")
+        if accelerator.is_local_main_process:
             unwrapped_model = accelerator.unwrap_model(model)
-            if os.path.exists(best_checkpoint_path):
-                os.remove(best_checkpoint_path)
-            logger.info("save best checkpoints .......")
-            unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
-            best_metric = result[args.val_metric]
+            unwrapped_model.load_state_dict(torch.load(best_checkpoint_path))
+            unwrapped_model.to(model.device)
+            unwrapped_model.eval()
+            test_result = generate(args, config, test_dataloader, unwrapped_model, accelerator, tokenizer, metric, opt_prefix="test")
+            logger.info(test_result)
 
-        logger.info(result)
-        logger.info("best = {}".format(best_metric))
 
-    logger.info("========================== Training is done! Test ======================")
-    if accelerator.is_local_main_process:
-        unwrapped_model = accelerator.unwrap_model(model)
-        unwrapped_model.load_state_dict(torch.load(best_checkpoint_path))
-        unwrapped_model.to(model.device)
-        unwrapped_model.eval()
-        test_result = generate(args, config, test_dataloader, unwrapped_model, accelerator, tokenizer, metric, opt_prefix="test")
+    if training_args.do_predict:
+        logger.info("========================== Test ======================")
+        model.eval()
+        test_result = generate(args, config, test_dataloader, accelerator.unwrap_model(model), accelerator, tokenizer, metric, opt_prefix="test")
         logger.info(test_result)
 
     # if args.output_dir is not None:

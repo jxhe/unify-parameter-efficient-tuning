@@ -3,7 +3,8 @@ import argparse
 
 def add_lisa_args(parser):
     group = parser.add_argument_group('prefix')
-    group.add_argument('--use_prefix', type=str, default=None, choices=["lisa", "learn_bias"])
+    group.add_argument('--use_prefix', type=str, default="none", 
+        choices=["lisa", "learn_bias", "none"])
     group.add_argument('--mid_dim', type=int, default=800)
     group.add_argument('--preseqlen', type=int, default=200)
     group.add_argument('--prefix_dropout', type=float, default=0.0)

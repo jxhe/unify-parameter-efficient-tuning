@@ -11,11 +11,11 @@
 ##SBATCH --array=0
 
 source activate nmt
-export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
-cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
+export TRANSFORMERS_CACHE=checkpoints/hf_model
+cache_dir=${TRANSFORMERS_CACHE}
 
 exp_name=xsum
-SAVE=/home/chuntinz/tir5/tride/checkpoints/${exp_name}
+SAVE=checkpoints/${exp_name}
 mkdir -p ${SAVE}
 
 epochs=30
@@ -40,6 +40,7 @@ python -u examples/pytorch/summarization/run_summarization_no_trainer.py \
     --eval_max_length 62 \
     --eval_min_length 11 \
     --num_beam 6 \
+    --do_train \
     --val_metric ${metric} \
     --per_device_train_batch_size ${bsz} \
     --gradient_accumulation_steps ${gradient_steps} \
