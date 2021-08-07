@@ -49,10 +49,6 @@ from transformers import (
     set_seed,
 )
 
-from transformers import (
-    HfArgumentParser,,
-    Seq2SeqTrainingArguments,
-)
 
 from transformers.file_utils import is_offline_mode
 from transformers.utils.versions import require_version
@@ -285,6 +281,8 @@ def parse_args():
         choices=MODEL_TYPES,
     )
     parser.add_argument("--cache_dir", type=str, default=None)
+    parser.add_argument("--do_train", type=bool, default=False)
+    parser.add_argument("--do_predict", type=bool, default=False)
     parser.add_argument("--fp16", action="store_true", default=False)
     parser.add_argument("--debug", type=int, default=0)
     parser.add_argument("--log_intervals", type=int, default=100)
@@ -310,6 +308,8 @@ def parse_args():
     if args.output_dir is not None:
         os.makedirs(args.output_dir, exist_ok=True)
 
+    print(args)
+
     return args
 
 
@@ -319,6 +319,8 @@ def generate(args, config, eval_dataloader, model, accelerator, tokenizer, metri
         "max_length": args.eval_max_length if args is not None else config.max_length,
         "min_length": args.eval_min_length if args is not None else 1,
         "num_beams": args.num_beams,
+        "no_repeat_ngram_size": args.no_repeat_ngram_size,
+        "length_penalty": args.length_penalty,
         "use_cache": True,
     }
 
@@ -396,9 +398,6 @@ def generate(args, config, eval_dataloader, model, accelerator, tokenizer, metri
 
 def main():
     args = parse_args()
-
-    parser = HfArgumentParser((Seq2SeqTrainingArguments))
-    training_args = parser.parse_args_into_dataclasses()
 
     if args.source_prefix is None and args.model_name_or_path in [
         "t5-small",
@@ -557,26 +556,6 @@ def main():
         model_inputs["labels"] = labels["input_ids"]
         return model_inputs
 
-    processed_datasets = raw_datasets.map(
-        preprocess_function,
-        batched=True,
-        remove_columns=column_names,
-        load_from_cache_file=not args.overwrite_cache,
-        desc="Running tokenizer on dataset",
-    )
-
-    train_dataset = processed_datasets["train"]
-    eval_dataset = processed_datasets["validation"]
-    test_dataset = processed_datasets["test"]
-
-    logger.info(len(train_dataset))
-    logger.info(len(eval_dataset))
-    logger.info(len(test_dataset))
-
-    # Log a few random samples from the training set:
-    for index in random.sample(range(len(train_dataset)), 1):
-        logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
-
     label_pad_token_id = -100 if args.ignore_pad_token_for_loss else tokenizer.pad_token_id
     data_collator = DataCollatorForSeq2Seq(
         tokenizer,
@@ -585,13 +564,51 @@ def main():
         pad_to_multiple_of=8 if accelerator.use_fp16 else None,
     )
 
+    if args.do_train:
+        processed_datasets = raw_datasets.map(
+            preprocess_function,
+            batched=True,
+            remove_columns=column_names,
+            load_from_cache_file=not args.overwrite_cache,
+            desc="Running tokenizer on dataset",
+        )
 
-    train_dataloader = DataLoader(
-        train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size
+        train_dataset = processed_datasets["train"]
+        eval_dataset = processed_datasets["validation"]
+        test_dataset = processed_datasets["test"]
+
+        logger.info(len(train_dataset))
+        logger.info(len(eval_dataset))
+        logger.info(len(test_dataset))
+
+        train_dataloader = DataLoader(
+            train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size
+        )
+        eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+        test_dataloader = DataLoader(test_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+
+        train_dataloader = accelerator.prepare_data_loader(train_dataloader)
+        eval_dataloader = accelerator.prepare_data_loader(eval_dataloader)
+    elif args.do_predict:
+        test_dataset = raw_datasets['test'].map(
+        preprocess_function,
+        batched=True,
+        remove_columns=column_names,
+        load_from_cache_file=not args.overwrite_cache,
+        desc="Running tokenizer on dataset",
     )
-    eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
-    test_dataloader = DataLoader(test_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+        logger.info(len(test_dataset))
+
+        test_dataloader = DataLoader(test_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+
     test_dataloader = accelerator.prepare_data_loader(test_dataloader)
+
+    # Log a few random samples from the training set:
+    # for index in random.sample(range(len(train_dataset)), 1):
+    #     logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
+
+
+
 
     # added by Chunting: prepare the finetuning model
     if args.use_prefix != "none":
@@ -616,30 +633,30 @@ def main():
     optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
 
     # Prepare everything with our `accelerator`.
-    model, optimizer, train_dataloader, eval_dataloader = accelerator.prepare(
-        model, optimizer, train_dataloader, eval_dataloader
+    model, optimizer = accelerator.prepare(
+        model, optimizer
     )
+    # Metric
+    metric = load_metric("rouge")
 
-    # Note -> the training dataloader needs to be prepared before we grab his length below (cause its length will be
-    # shorter in multiprocess)
+    if args.do_train:
+        # Note -> the training dataloader needs to be prepared before we grab his length below (cause its length will be
+        # shorter in multiprocess)
 
-    # Scheduler and math around the number of training steps.
-    num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
-    if args.max_train_steps is None:
-        args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
-    else:
-        args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
+        # Scheduler and math around the number of training steps.
+        num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
+        if args.max_train_steps is None:
+            args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
+        else:
+            args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
 
-    lr_scheduler = get_scheduler(
-        name=args.lr_scheduler_type,
-        optimizer=optimizer,
-        num_warmup_steps=args.num_warmup_steps,
-        num_training_steps=args.max_train_steps,
-    )
+        lr_scheduler = get_scheduler(
+            name=args.lr_scheduler_type,
+            optimizer=optimizer,
+            num_warmup_steps=args.num_warmup_steps,
+            num_training_steps=args.max_train_steps,
+        )
 
-    if training_args.do_train:
-        # Metric
-        metric = load_metric("rouge")
 
         # Train!
         total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
@@ -731,7 +748,7 @@ def main():
             logger.info(test_result)
 
 
-    if training_args.do_predict:
+    if args.do_predict:
         logger.info("========================== Test ======================")
         model.eval()
         test_result = generate(args, config, test_dataloader, accelerator.unwrap_model(model), accelerator, tokenizer, metric, opt_prefix="test")

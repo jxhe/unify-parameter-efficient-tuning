@@ -3,7 +3,7 @@ import argparse
 
 def add_lisa_args(parser):
     group = parser.add_argument_group('prefix')
-    group.add_argument('--use_prefix', type=str, default="none", 
+    group.add_argument('--use_prefix', type=str, default="none",
         choices=["lisa", "learn_bias", "none"])
     group.add_argument('--mid_dim', type=int, default=800)
     group.add_argument('--preseqlen', type=int, default=200)
@@ -14,6 +14,8 @@ def add_lisa_args(parser):
 def add_gen_args(parser):
     parser.add_argument('--eval_max_length', type=int, default=62)
     parser.add_argument('--eval_min_length', type=int, default=11)
+    parser.add_argument('--no_repeat_ngram_size', type=int, default=0)
+    parser.add_argument('--length_penalty', type=float, default=1.0)
 
 
 def add_tune_args(parser):
