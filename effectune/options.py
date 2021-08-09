@@ -69,19 +69,19 @@ class LisaArguments:
             "help": ""
         },
     )
-
-
-@dataclass
-class TuneArguments:
-    """
-    Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
-    """
-
     unfreeze_params: Optional[str] = field(
         default="none",
         metadata={
-            "help": "", "choices": ['LN', 'none']
+            "help": "", "choices": ['LN', 'LN+PE', 'none']
         },
     )
+
+
+# @dataclass
+# class TuneArguments:
+#     """
+#     Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
+#     """
+
 
 

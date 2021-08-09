@@ -45,10 +45,12 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
+import sys
+sys.path.insert(2, "./")
+
 from effectune.options import (
     GenerationArguments,
     LisaArguments,
-    TuneArguments,
 )
 from effectune.prefix_tuning import PrefixTuning
 
@@ -247,15 +249,15 @@ def main():
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
     parser = HfArgumentParser(
-        (ModelArguments, DataTrainingArguments, Seq2SeqTrainingArguments, 
-            GenerationArguments, LisaArguments, TuneArguments)
+        (ModelArguments, DataTrainingArguments, Seq2SeqTrainingArguments,
+            GenerationArguments, LisaArguments)
         )
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args, gen_args, lisa_args, tune_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args, data_args, training_args, gen_args, lisa_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
     else:
-        model_args, data_args, training_args, gen_args, lisa_args, tune_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, gen_args, lisa_args = parser.parse_args_into_dataclasses()
 
     # Setup logging
     logging.basicConfig(
@@ -352,10 +354,9 @@ def main():
     # put useful args into config: these arguments will be used in models, thus adding them to config
     # todo: smarter ways to merge useful args into config
     interested_args = ['use_prefix', 'mid_dim', 'preseqlen', 'prefix_dropout', 'unfreeze_params']
-    for subargs in [lisa_args, tune_args]:
-        for k, v in vars(subargs).items():
-            if not hasattr(config, k) and k in interested_args:
-                setattr(config, k, v)
+    for k, v in vars(lisa_args).items():
+        if not hasattr(config, k) and k in interested_args:
+            setattr(config, k, v)
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,

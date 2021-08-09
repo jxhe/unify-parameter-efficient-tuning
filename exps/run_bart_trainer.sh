@@ -20,8 +20,8 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-use_prefix="none"
-exp_name=xsum_bart
+use_prefix="lisa"
+exp_name=xsum_bart_${use_prefix}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
@@ -40,7 +40,7 @@ label_smoothing_factor=0
 eval_strategy="epoch"
 save_steps=100
 
-python -u examples/summarization/run_summarization.py \
+python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
