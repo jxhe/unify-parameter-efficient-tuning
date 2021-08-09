@@ -45,6 +45,13 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
+from effectune.options import (
+    GenerationArguments,
+    LisaArguments,
+    TuneArguments,
+)
+from effectune.prefix_tuning import PrefixTuning
+
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.9.0.dev0")
@@ -195,13 +202,6 @@ class DataTrainingArguments:
             "value if set."
         },
     )
-    num_beams: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": "Number of beams to use for evaluation. This argument will be passed to ``model.generate``, "
-            "which is used during ``evaluate`` and ``predict``."
-        },
-    )
     ignore_pad_token_for_loss: bool = field(
         default=True,
         metadata={
@@ -246,13 +246,16 @@ def main():
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, Seq2SeqTrainingArguments))
+    parser = HfArgumentParser(
+        (ModelArguments, DataTrainingArguments, Seq2SeqTrainingArguments, 
+            GenerationArguments, LisaArguments, TuneArguments)
+        )
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args, data_args, training_args, gen_args, lisa_args, tune_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
     else:
-        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, gen_args, lisa_args, tune_args = parser.parse_args_into_dataclasses()
 
     # Setup logging
     logging.basicConfig(
@@ -340,6 +343,20 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
+
+
+    # put generation args into config
+    for k, v in vars(gen_args).items():
+        setattr(config, f'gen_{k}', v)
+
+    # put useful args into config: these arguments will be used in models, thus adding them to config
+    # todo: smarter ways to merge useful args into config
+    interested_args = ['use_prefix', 'mid_dim', 'preseqlen', 'prefix_dropout', 'unfreeze_params']
+    for subargs in [lisa_args, tune_args]:
+        for k, v in vars(subargs).items():
+            if not hasattr(config, k) and k in interested_args:
+                setattr(config, k, v)
+
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
@@ -480,18 +497,27 @@ def main():
         pad_to_multiple_of=8 if training_args.fp16 else None,
     )
 
+    # added by Chunting: prepare the finetuning model
+    if lisa_args.use_prefix != "none":
+        model = PrefixTuning(config, lisa_args, model)
+
+    for n, p in model.named_parameters():
+        print(n, p.requires_grad)
+
     # Metric
     metric = load_metric("rouge")
 
+    gen_prefix = "val"
+
     def postprocess_text(preds, labels):
-        preds = [pred.strip() for pred in preds]
-        labels = [label.strip() for label in labels]
+        str_preds = [pred.strip() for pred in preds]
+        str_labels = [label.strip() for label in labels]
 
         # rougeLSum expects newline after each sentence
-        preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in preds]
-        labels = ["\n".join(nltk.sent_tokenize(label)) for label in labels]
+        preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in str_preds]
+        labels = ["\n".join(nltk.sent_tokenize(label)) for label in str_preds]
 
-        return preds, labels
+        return preds, labels, str_preds, str_labels
 
     def compute_metrics(eval_preds):
         preds, labels = eval_preds
@@ -504,7 +530,19 @@ def main():
         decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
         # Some simple post-processing
-        decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+        decoded_preds, decoded_labels, str_decoded_preds, str_decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+
+        # only write in the main process
+        if trainer.is_world_process_zero():
+            fout_pred = open(os.path.join(training_args.output_dir, f"{gen_prefix}.pred.summary"), "w", encoding="utf-8")
+            fout_gold = open(os.path.join(training_args.output_dir, f"{gen_prefix}.gold.summary"), "w", encoding="utf-8")
+            for pred, gold in zip(str_decoded_preds, str_decoded_labels):
+                # print(pred)
+                # print(gold)
+                fout_pred.write(pred + "\n")
+                fout_gold.write(gold + "\n")
+            fout_pred.close()
+            fout_gold.close()
 
         result = metric.compute(predictions=decoded_preds, references=decoded_labels, use_stemmer=True)
         # Extract a few results from ROUGE
@@ -552,7 +590,7 @@ def main():
         logger.info("*** Evaluate ***")
 
         metrics = trainer.evaluate(
-            max_length=data_args.val_max_target_length, num_beams=data_args.num_beams, metric_key_prefix="eval"
+            max_length=data_args.val_max_target_length, num_beams=gen_args.num_beams, metric_key_prefix="eval"
         )
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
@@ -567,7 +605,7 @@ def main():
             predict_dataset,
             metric_key_prefix="predict",
             max_length=data_args.val_max_target_length,
-            num_beams=data_args.num_beams,
+            num_beams=gen_args.num_beams,
         )
         metrics = predict_results.metrics
         max_predict_samples = (
