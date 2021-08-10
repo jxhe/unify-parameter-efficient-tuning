@@ -461,9 +461,10 @@ def main():
         config = CONFIG_MAPPING[args.model_type]()
         logger.warning("You are instantiating a new config instance from scratch.")
 
+    logger.info(args)
     # put useful args into config: these arguments will be used in models, thus adding them to config
     # todo: smarter ways to merge useful args into config
-    interested_args = ['use_prefix', 'mid_dim', 'preseqlen', 'prefix_dropout', 'unfreeze_params']
+    interested_args = ['use_prefix', 'mid_dim', 'preseqlen', 'prefix_dropout', 'unfreeze_params', "luna_option", "num_bias_layers"]
     for key in args.__dict__:
         if not hasattr(config, key) and key in interested_args:
             setattr(config, key, args.__dict__[key])

@@ -47,7 +47,7 @@ from .configuration_bart import BartConfig
 
 import sys
 sys.path.insert(2, "./")
-from effectune.luna_attention import luna_attention
+from effectune.luna_attention import luna_attention, luna_attention_enc_dec
 import pdb
 
 logger = logging.get_logger(__name__)
@@ -219,7 +219,7 @@ class BartAttention(nn.Module):
         key_states = key_states.view(*proj_shape)
         value_states = value_states.view(*proj_shape)
 
-        if prefix_state is not None and self.use_prefix == 'lisa':
+        if prefix_state is not None and self.use_prefix == 'lisa':# and self.cache_key != "encoder":
             # legacy
             prefix_key = prefix_state.get(self.cache_key)['prev_key']  # bsz x nhead, preseqlen, head_dim
             prefix_value = prefix_state.get(self.cache_key)['prev_value']
@@ -338,6 +338,9 @@ class BartEncoderLayer(nn.Module):
         layer_head_mask: torch.Tensor,
         output_attentions: bool = False,
         prefix_state=None,
+        encoder_layer_idx=-1,
+        p_prime=None,
+        unexpanded_attention_mask: torch.Tensor = None,
     ):
         """
         Args:
@@ -351,6 +354,10 @@ class BartEncoderLayer(nn.Module):
                 returned tensors for more detail.
         """
         residual = hidden_states
+
+        # if prefix_state is not None and isinstance(prefix_state, luna_attention_enc_dec) and self.config.luna_option == "full_before":
+        #     p_prime, e_prime = prefix_state.forward_encoder(hidden_states, unexpanded_attention_mask, p_prime, encoder_layer_idx)
+
         hidden_states, attn_weights, _ = self.self_attn(
             hidden_states=hidden_states,
             attention_mask=attention_mask,
@@ -358,14 +365,29 @@ class BartEncoderLayer(nn.Module):
             output_attentions=output_attentions,
             prefix_state=prefix_state,
         )
+        # if prefix_state is not None and isinstance(prefix_state, luna_attention_enc_dec) and self.config.luna_option == "full_before":
+        #     hidden_states = hidden_states + e_prime
+
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
         hidden_states = self.self_attn_layer_norm(hidden_states)
+
+        if prefix_state is not None and isinstance(prefix_state, luna_attention_enc_dec) and self.config.luna_option == "full_before":
+            p_prime, e_prime = prefix_state.forward_encoder(hidden_states, unexpanded_attention_mask, p_prime, encoder_layer_idx)
+            hidden_states = hidden_states + e_prime
 
         residual = hidden_states
         hidden_states = self.activation_fn(self.fc1(hidden_states))
         hidden_states = nn.functional.dropout(hidden_states, p=self.activation_dropout, training=self.training)
         hidden_states = self.fc2(hidden_states)
+
+        # if prefix_state is not None and isinstance(prefix_state, luna_attention_enc_dec) and self.config.luna_option == "full_before":
+        #     hidden_states = hidden_states + e_prime
+
+        if prefix_state is not None and isinstance(prefix_state, luna_attention_enc_dec) and self.config.luna_option == "full_after":
+            p_prime, e_prime = prefix_state.forward_encoder(hidden_states, unexpanded_attention_mask, p_prime, encoder_layer_idx)
+            hidden_states = hidden_states + e_prime
+
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
         hidden_states = self.final_layer_norm(hidden_states)
@@ -381,7 +403,7 @@ class BartEncoderLayer(nn.Module):
         if output_attentions:
             outputs += (attn_weights,)
 
-        return outputs
+        return outputs, p_prime
 
 
 class BartDecoderLayer(nn.Module):
@@ -428,6 +450,8 @@ class BartDecoderLayer(nn.Module):
         output_attentions: Optional[bool] = False,
         use_cache: Optional[bool] = True,
         prefix_state=None,
+        decoder_layer_idx=-1,
+        p_prime=None,
     ):
         """
         Args:
@@ -461,14 +485,16 @@ class BartDecoderLayer(nn.Module):
             prefix_state=prefix_state
         )
         # todo: first try add change here
-        if prefix_state is not None and self.config.use_prefix == 'luna':
-            luna_attn, p_prime = prefix_state['module'], prefix_state['p_prime']
-            bias = luna_attn.forward_dp(hidden_states, p_prime)
+        if prefix_state is not None and self.config.use_prefix == 'luna' and self.config.luna_option == "self_attn":
+            bias = prefix_state.forward_dp(hidden_states, p_prime, decoder_layer_idx)
             hidden_states = hidden_states + bias
 
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
         hidden_states = self.self_attn_layer_norm(hidden_states)
+
+        # if prefix_state is not None and isinstance(prefix_state, luna_attention_enc_dec) and self.config.luna_option == "full_before":
+        #     d_prime = prefix_state.forward_dp(hidden_states, p_prime, decoder_layer_idx)
 
         # Cross-Attention Block
         cross_attn_present_key_value = None
@@ -492,6 +518,9 @@ class BartDecoderLayer(nn.Module):
                 prefix_state=prefix_state,
                 step=step,
             )
+            # if prefix_state is not None and isinstance(prefix_state, luna_attention_enc_dec) and self.config.luna_option == "full_before":
+            #     hidden_states = hidden_states + d_prime
+
             hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
             hidden_states = residual + hidden_states
             hidden_states = self.encoder_attn_layer_norm(hidden_states)
@@ -499,12 +528,29 @@ class BartDecoderLayer(nn.Module):
             # add cross-attn to positions 3,4 of present_key_value tuple
             present_key_value = present_key_value + cross_attn_present_key_value
 
+            if prefix_state is not None and isinstance(prefix_state, luna_attention_enc_dec) and self.config.luna_option == "full_before":
+                d_prime = prefix_state.forward_dp(hidden_states, p_prime, decoder_layer_idx)
+                hidden_states = hidden_states + d_prime
+
         # Fully Connected
         residual = hidden_states
         hidden_states = self.activation_fn(self.fc1(hidden_states))
         hidden_states = nn.functional.dropout(hidden_states, p=self.activation_dropout, training=self.training)
         hidden_states = self.fc2(hidden_states)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
+
+        # if prefix_state is not None and isinstance(prefix_state, luna_attention_enc_dec) and self.config.luna_option == "full_before":
+        #     hidden_states = hidden_states + d_prime
+
+        if prefix_state is not None and self.config.use_prefix == 'luna' and self.config.luna_option == "full_layer":
+            bias = prefix_state.forward_dp(hidden_states, p_prime, decoder_layer_idx)
+            hidden_states = hidden_states + bias
+
+        if prefix_state is not None and isinstance(prefix_state, luna_attention_enc_dec) and self.config.luna_option == "full_after":
+            # logger.info("train = {}, step = {}".format(self.training, step))
+            d_prime = prefix_state.forward_dp(hidden_states, p_prime, decoder_layer_idx)
+            hidden_states = hidden_states + d_prime
+
         hidden_states = residual + hidden_states
         hidden_states = self.final_layer_norm(hidden_states)
 
@@ -839,6 +885,7 @@ class BartEncoder(BartPretrainedModel):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
         # expand attention_mask
+        unexpand_attention_mask = attention_mask
         if attention_mask is not None:
             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
             attention_mask = _expand_mask(attention_mask, inputs_embeds.dtype)
@@ -851,6 +898,9 @@ class BartEncoder(BartPretrainedModel):
             assert head_mask.size()[0] == (
                 len(self.layers)
             ), f"The head_mask should be specified for {len(self.layers)} layers, but it is for {head_mask.size()[0]}."
+
+        # added by Chunting
+        p_prime = None
         for idx, encoder_layer in enumerate(self.layers):
             if output_hidden_states:
                 encoder_states = encoder_states + (hidden_states,)
@@ -874,12 +924,18 @@ class BartEncoder(BartPretrainedModel):
                         (head_mask[idx] if head_mask is not None else None),
                     )
                 else:
-                    layer_outputs = encoder_layer(
+                    if self.config.use_prefix == "luna" and prefix_state is not None and idx + 1 > self.config.num_bias_layers:
+                        prefix_state = None
+
+                    layer_outputs, p_prime = encoder_layer(
                         hidden_states,
                         attention_mask,
                         layer_head_mask=(head_mask[idx] if head_mask is not None else None),
                         output_attentions=output_attentions,
                         prefix_state=prefix_state[idx] if prefix_state is not None and isinstance(prefix_state, list) else prefix_state,
+                        encoder_layer_idx=idx,
+                        p_prime=p_prime,
+                        unexpanded_attention_mask=unexpand_attention_mask,
                     )
 
                 hidden_states = layer_outputs[0]
@@ -967,6 +1023,7 @@ class BartDecoder(BartPretrainedModel):
         output_hidden_states=None,
         return_dict=None,
         prefix_state=None,
+        p_prime=None,
     ):
         r"""
         Args:
@@ -1127,9 +1184,9 @@ class BartDecoder(BartPretrainedModel):
                     None,
                 )
             else:
-                # fixme: this is hard coded now, changes are only added to the first layer of decoder
-                if idx != 0 and self.config.use_prefix == "luna":
+                if self.config.use_prefix == "luna" and prefix_state is not None and idx + 1 > self.config.num_bias_layers:
                     prefix_state = None
+                    # print("hi = {}".format(idx))
 
                 layer_outputs = decoder_layer(
                     hidden_states,
@@ -1144,6 +1201,8 @@ class BartDecoder(BartPretrainedModel):
                     output_attentions=output_attentions,
                     use_cache=use_cache,
                     prefix_state=prefix_state[idx] if prefix_state is not None and isinstance(prefix_state, list) else prefix_state,
+                    decoder_layer_idx=idx,
+                    p_prime=p_prime,
                 )
             hidden_states = layer_outputs[0]
 
@@ -1231,8 +1290,8 @@ class BartModel(BartPretrainedModel):
         output_hidden_states=None,
         return_dict=None,
         prefix_state=None,
+        p_prime=None,
     ):
-
         # different to other models, Bart automatically creates decoder_input_ids from
         # input_ids if no decoder_input_ids are provided
         if decoder_input_ids is None and decoder_inputs_embeds is None:
@@ -1258,9 +1317,8 @@ class BartModel(BartPretrainedModel):
                 return_dict=return_dict,
                 prefix_state=prefix_state,
             )
-            if prefix_state is not None and isinstance(prefix_state, luna_attention):
+            if prefix_state is not None and self.config.use_prefix == 'luna':
                 p_prime = prefix_state.forward_pe(encoder_outputs[0], attention_mask)
-                prefix_state = {"module": prefix_state, "p_prime": p_prime}
 
         # If the user passed a tuple for encoder_outputs, we wrap it in a BaseModelOutput when return_dict=True
         elif return_dict and not isinstance(encoder_outputs, BaseModelOutput):
@@ -1285,6 +1343,7 @@ class BartModel(BartPretrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             prefix_state=prefix_state,
+            p_prime=p_prime,
         )
 
         if not return_dict:
@@ -1365,6 +1424,7 @@ class BartForConditionalGeneration(BartPretrainedModel):
         output_hidden_states=None,
         return_dict=None,
         prefix_state=None,
+        p_prime=None,
     ):
         r"""
         labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
@@ -1399,6 +1459,7 @@ class BartForConditionalGeneration(BartPretrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
             prefix_state=prefix_state,
+            p_prime=p_prime,
         )
         lm_logits = self.lm_head(outputs[0]) + self.final_logits_bias
 
@@ -1439,9 +1500,10 @@ class BartForConditionalGeneration(BartPretrainedModel):
         if past is not None:
             decoder_input_ids = decoder_input_ids[:, -1:]
 
-        if "prefix_state" in kwargs and isinstance(kwargs["prefix_state"], luna_attention):
+        if "prefix_state" in kwargs and self.config.use_prefix == 'luna':
             p_prime = kwargs["prefix_state"].forward_pe(encoder_outputs[0], attention_mask)
-            kwargs["prefix_state"] = {"module": kwargs["prefix_state"], "p_prime": p_prime}
+        else:
+            p_prime = None
 
         return {
             "input_ids": None,  # encoder_outputs is defined. input_ids not needed
@@ -1453,7 +1515,8 @@ class BartForConditionalGeneration(BartPretrainedModel):
             "decoder_head_mask": decoder_head_mask,
             "cross_attn_head_mask": cross_attn_head_mask,
             "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
-            "prefix_state": kwargs["prefix_state"] if "prefix_state" in kwargs else None
+            "prefix_state": kwargs["prefix_state"] if "prefix_state" in kwargs else None,
+            "p_prime": p_prime,
         }
 
     def prepare_decoder_input_ids_from_labels(self, labels: torch.Tensor):

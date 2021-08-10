@@ -7,7 +7,9 @@ def add_efficient_tuning_args(parser):
     group.add_argument('--mid_dim', type=int, default=800)
     group.add_argument('--preseqlen', type=int, default=200)
     group.add_argument('--prefix_dropout', type=float, default=0.0)
-
+    group.add_argument('--luna_option', type=str, default="full_layer", choices=["self_attn", "full_layer", "full_before", "full_after"])
+    group.add_argument('--num_bias_layers', type=int, default=1)
+    group.add_argument('--share-luna-params', type=int, default=1)
     return parser
 
 
