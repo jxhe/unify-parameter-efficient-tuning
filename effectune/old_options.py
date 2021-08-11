@@ -16,7 +16,8 @@ def add_efficient_tuning_args(parser):
 def add_gen_args(parser):
     parser.add_argument('--eval_max_length', type=int, default=62)
     parser.add_argument('--eval_min_length', type=int, default=11)
-
+    parser.add_argument('--no_repeat_ngram_size', type=int, default=0)
+    parser.add_argument('--length_penalty', type=float, default=1.0)
 
 def add_tune_args(parser):
     group = parser.add_argument_group('finetune')

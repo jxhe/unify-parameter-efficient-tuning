@@ -342,17 +342,10 @@ def generate(args, config, eval_dataloader, model, accelerator, tokenizer, metri
     gen_model = model
     for step, batch in enumerate(eval_dataloader):
         with torch.no_grad():
-            if isinstance(model, PrefixTuning):
-                prefix_state = model.get_prompt(batch["input_ids"].size(0), args.num_beams)
-                gen_model = model.seq2seq_model
-            else:
-                prefix_state = None
-
             # print(batch["input_ids"].device)
-            generated_tokens = gen_model.generate(
+            generated_tokens = model.generate(
                 batch["input_ids"],
                 attention_mask=batch["attention_mask"],
-                prefix_state=prefix_state,
                 **gen_kwargs,
             )
 
