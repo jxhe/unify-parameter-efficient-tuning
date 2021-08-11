@@ -1,7 +1,7 @@
 import torch
 from transformers import PretrainedBartModel
 import torch.nn as nn
-
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 from effectune.luna_attention import luna_attention, luna_attention_enc_dec
 from effectune.bias_factory import Prefix, MLP_Bias, Bias
 from transformers.utils import logging
@@ -126,3 +126,79 @@ class PrefixTuning(PretrainedBartModel):
                                     prefix_state=prefix_state,
                                     **kwargs)
         return output
+
+    def generate(
+            self,
+            input_ids: Optional[torch.LongTensor] = None,
+            max_length: Optional[int] = None,
+            min_length: Optional[int] = None,
+            do_sample: Optional[bool] = None,
+            early_stopping: Optional[bool] = None,
+            num_beams: Optional[int] = None,
+            temperature: Optional[float] = None,
+            top_k: Optional[int] = None,
+            top_p: Optional[float] = None,
+            repetition_penalty: Optional[float] = None,
+            bad_words_ids: Optional[Iterable[int]] = None,
+            bos_token_id: Optional[int] = None,
+            pad_token_id: Optional[int] = None,
+            eos_token_id: Optional[int] = None,
+            length_penalty: Optional[float] = None,
+            no_repeat_ngram_size: Optional[int] = None,
+            encoder_no_repeat_ngram_size: Optional[int] = None,
+            num_return_sequences: Optional[int] = None,
+            max_time: Optional[float] = None,
+            max_new_tokens: Optional[int] = None,
+            decoder_start_token_id: Optional[int] = None,
+            use_cache: Optional[bool] = None,
+            num_beam_groups: Optional[int] = None,
+            diversity_penalty: Optional[float] = None,
+            prefix_allowed_tokens_fn: Optional[Callable[[int, torch.Tensor], List[int]]] = None,
+            output_attentions: Optional[bool] = None,
+            output_hidden_states: Optional[bool] = None,
+            output_scores: Optional[bool] = None,
+            return_dict_in_generate: Optional[bool] = None,
+            forced_bos_token_id: Optional[int] = None,
+            forced_eos_token_id: Optional[int] = None,
+            remove_invalid_values: Optional[bool] = None,
+            synced_gpus: Optional[bool] = None,
+            override: Optional[Dict] = None, # added by Junxian
+            **model_kwargs,
+    ):
+        prefix_state = self.get_prompt(input_ids.size(0), num_beams)
+        generated_tokens = self.seq2seq_model.generate(input_ids=input_ids,
+                                                       max_length=max_length,
+                                                       min_length=min_length,
+                                                       do_sample=do_sample,
+                                                       early_stopping=early_stopping,
+                                                       num_beams=num_beams,
+                                                       temperature=temperature,
+                                                       top_k=top_k,
+                                                       top_p=top_p,
+                                                       repetition_penalty=repetition_penalty,
+                                                       bad_words_ids=bad_words_ids,
+                                                       bos_token_id=bos_token_id,
+                                                       pad_token_id=pad_token_id,
+                                                       eos_token_id=eos_token_id,
+                                                       length_penalty=length_penalty,
+                                                       no_repeat_ngram_size=no_repeat_ngram_size,
+                                                       encoder_no_repeat_ngram_size=encoder_no_repeat_ngram_size,
+                                                       num_return_sequences=num_return_sequences,
+                                                       max_time=max_time,
+                                                       max_new_tokens=max_new_tokens,
+                                                       decoder_start_token_id=decoder_start_token_id,
+                                                       use_cache=use_cache,
+                                                       num_beam_groups=num_beam_groups,
+                                                       diversity_penalty=diversity_penalty,
+                                                       prefix_allowed_tokens_fn=prefix_allowed_tokens_fn,
+                                                       output_attentions=output_attentions,
+                                                       output_hidden_states=output_hidden_states,
+                                                       output_scores=output_scores,
+                                                       return_dict_in_generate=return_dict_in_generate,
+                                                       forced_bos_token_id=forced_bos_token_id,
+                                                       forced_eos_token_id=forced_eos_token_id,
+                                                       remove_invalid_values=remove_invalid_values,
+                                                       synced_gpus=synced_gpus,
+                                                       prefix_state=prefix_state,
+                                                       **model_kwargs)
+        return generated_tokens

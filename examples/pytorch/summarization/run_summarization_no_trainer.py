@@ -48,13 +48,15 @@ from transformers import (
     get_scheduler,
     set_seed,
 )
+
+
 from transformers.file_utils import is_offline_mode
 from transformers.utils.versions import require_version
 
 import sys
 sys.path.insert(2, "./")
 
-from effectune.options import *
+from effectune.old_options import *
 from effectune.prefix_tuning import PrefixTuning
 from effectune.utils import log_metrics, get_aggerators
 
@@ -279,6 +281,8 @@ def parse_args():
         choices=MODEL_TYPES,
     )
     parser.add_argument("--cache_dir", type=str, default=None)
+    parser.add_argument("--do_train", type=bool, default=True)
+    parser.add_argument("--do_predict", type=bool, default=False)
     parser.add_argument("--fp16", action="store_true", default=False)
     parser.add_argument("--debug", type=int, default=0)
     parser.add_argument("--log_intervals", type=int, default=100)
@@ -304,6 +308,8 @@ def parse_args():
     if args.output_dir is not None:
         os.makedirs(args.output_dir, exist_ok=True)
 
+    print(args)
+
     return args
 
 
@@ -313,6 +319,8 @@ def generate(args, config, eval_dataloader, model, accelerator, tokenizer, metri
         "max_length": args.eval_max_length if args is not None else config.max_length,
         "min_length": args.eval_min_length if args is not None else 1,
         "num_beams": args.num_beams,
+        "no_repeat_ngram_size": args.no_repeat_ngram_size,
+        "length_penalty": args.length_penalty,
         "use_cache": True,
     }
 
@@ -549,26 +557,6 @@ def main():
         model_inputs["labels"] = labels["input_ids"]
         return model_inputs
 
-    processed_datasets = raw_datasets.map(
-        preprocess_function,
-        batched=True,
-        remove_columns=column_names,
-        load_from_cache_file=not args.overwrite_cache,
-        desc="Running tokenizer on dataset",
-    )
-
-    train_dataset = processed_datasets["train"]
-    eval_dataset = processed_datasets["validation"]
-    test_dataset = processed_datasets["test"]
-
-    logger.info(len(train_dataset))
-    logger.info(len(eval_dataset))
-    logger.info(len(test_dataset))
-
-    # Log a few random samples from the training set:
-    for index in random.sample(range(len(train_dataset)), 1):
-        logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
-
     label_pad_token_id = -100 if args.ignore_pad_token_for_loss else tokenizer.pad_token_id
     data_collator = DataCollatorForSeq2Seq(
         tokenizer,
@@ -577,16 +565,51 @@ def main():
         pad_to_multiple_of=8 if accelerator.use_fp16 else None,
     )
 
+    if args.do_train:
+        processed_datasets = raw_datasets.map(
+            preprocess_function,
+            batched=True,
+            remove_columns=column_names,
+            load_from_cache_file=not args.overwrite_cache,
+            desc="Running tokenizer on dataset",
+        )
 
-    train_dataloader = DataLoader(
-        train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size
+        train_dataset = processed_datasets["train"]
+        eval_dataset = processed_datasets["validation"]
+        test_dataset = processed_datasets["test"]
+
+        logger.info(len(train_dataset))
+        logger.info(len(eval_dataset))
+        logger.info(len(test_dataset))
+
+        train_dataloader = DataLoader(
+            train_dataset, shuffle=True, collate_fn=data_collator, batch_size=args.per_device_train_batch_size
+        )
+        eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+        test_dataloader = DataLoader(test_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+
+        train_dataloader = accelerator.prepare_data_loader(train_dataloader)
+        eval_dataloader = accelerator.prepare_data_loader(eval_dataloader)
+    elif args.do_predict:
+        test_dataset = raw_datasets['test'].map(
+        preprocess_function,
+        batched=True,
+        remove_columns=column_names,
+        load_from_cache_file=not args.overwrite_cache,
+        desc="Running tokenizer on dataset",
     )
-    eval_dataloader = DataLoader(eval_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
-    test_dataloader = DataLoader(test_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+        logger.info(len(test_dataset))
+
+        test_dataloader = DataLoader(test_dataset, collate_fn=data_collator, batch_size=args.per_device_eval_batch_size)
+
     test_dataloader = accelerator.prepare_data_loader(test_dataloader)
 
+    # Log a few random samples from the training set:
+    # for index in random.sample(range(len(train_dataset)), 1):
+    #     logger.info(f"Sample {index} of the training set: {train_dataset[index]}.")
+
     # added by Chunting: prepare the finetuning model
-    if args.use_prefix is not None:
+    if args.use_prefix != "none":
         model = PrefixTuning(config, args, model)
 
     # for n, p in model.named_parameters():
@@ -608,116 +631,125 @@ def main():
     optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate)
 
     # Prepare everything with our `accelerator`.
-    model, optimizer, train_dataloader, eval_dataloader = accelerator.prepare(
-        model, optimizer, train_dataloader, eval_dataloader
+    model, optimizer = accelerator.prepare(
+        model, optimizer
     )
-
-    # Note -> the training dataloader needs to be prepared before we grab his length below (cause its length will be
-    # shorter in multiprocess)
-
-    # Scheduler and math around the number of training steps.
-    num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
-    if args.max_train_steps is None:
-        args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
-    else:
-        args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
-
-    lr_scheduler = get_scheduler(
-        name=args.lr_scheduler_type,
-        optimizer=optimizer,
-        num_warmup_steps=args.num_warmup_steps,
-        num_training_steps=args.max_train_steps,
-    )
-
     # Metric
     metric = load_metric("rouge")
 
-    # Train!
-    total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
+    if args.do_train:
+        # Note -> the training dataloader needs to be prepared before we grab his length below (cause its length will be
+        # shorter in multiprocess)
 
-    logger.info("***** Running training *****")
-    logger.info(f"  Num examples = {len(train_dataset)}")
-    logger.info(f"  Num Epochs = {args.num_train_epochs}")
-    logger.info(f"  Instantaneous batch size per device = {args.per_device_train_batch_size}")
-    logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
-    logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
-    logger.info(f"  Total optimization steps = {args.max_train_steps}")
+        # Scheduler and math around the number of training steps.
+        num_update_steps_per_epoch = math.ceil(len(train_dataloader) / args.gradient_accumulation_steps)
+        if args.max_train_steps is None:
+            args.max_train_steps = args.num_train_epochs * num_update_steps_per_epoch
+        else:
+            args.num_train_epochs = math.ceil(args.max_train_steps / num_update_steps_per_epoch)
 
-    # todo: better logger
-    # if args.debug:
-    #     # Only show the progress bar once on each machine.
-    #     progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
-    completed_steps = 0
-    best_metric = 0
-    best_checkpoint_path = os.path.join(args.output_dir, "pytorch_model.bin")
+        lr_scheduler = get_scheduler(
+            name=args.lr_scheduler_type,
+            optimizer=optimizer,
+            num_warmup_steps=args.num_warmup_steps,
+            num_training_steps=args.max_train_steps,
+        )
 
-    if args.max_val_batches > 0:
-        tot_eval_examples = 0
-        val_batches = []
-        for step, batch in enumerate(eval_dataloader):
-            val_batches.append(batch)
-        ss = np.random.permutation(len(val_batches))
-        val_batches = [val_batches[ii] for ii in ss[:args.max_val_batches]]
-        for bb in val_batches:
-            tot_eval_examples += bb["input_ids"].size(0)
-        logger.info("tot valid examples = {}".format(tot_eval_examples))
-    else:
-        val_batches = eval_dataloader
 
-    # result = generate(args, config, val_batches, accelerator.unwrap_model(model), accelerator, tokenizer, metric)
-    # print("Before training!")
-    # print(result)
+        # Train!
+        total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
 
-    for epoch in range(args.num_train_epochs):
-        model.train()
-        for step, batch in enumerate(train_dataloader):
-            outputs = model(**batch)
-            loss = outputs.loss
-            loss = loss / args.gradient_accumulation_steps
-            accelerator.backward(loss)
+        logger.info("***** Running training *****")
+        logger.info(f"  Num examples = {len(train_dataset)}")
+        logger.info(f"  Num Epochs = {args.num_train_epochs}")
+        logger.info(f"  Instantaneous batch size per device = {args.per_device_train_batch_size}")
+        logger.info(f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}")
+        logger.info(f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}")
+        logger.info(f"  Total optimization steps = {args.max_train_steps}")
 
-            if step % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
-                optimizer.step()
-                lr_scheduler.step()
-                optimizer.zero_grad()
-                completed_steps += 1
+        # todo: better logger
+        # if args.debug:
+        #     # Only show the progress bar once on each machine.
+        #     progress_bar = tqdm(range(args.max_train_steps), disable=not accelerator.is_local_main_process)
+        completed_steps = 0
+        best_metric = 0
+        best_checkpoint_path = os.path.join(args.output_dir, "pytorch_model.bin")
 
-            num_tgt_tokens = (batch["labels"].ne(-100)).sum().long()
-            log_metrics("loss", loss, num_tgt_tokens)
-            if step % args.log_intervals == 0:
-                logger.info("epoch = {}, step = {}/{}, loss = {}".format(epoch, step, len(train_dataloader),
-                                                                         get_aggerators()["loss"].smoothed_value))
+        if args.max_val_batches > 0:
+            tot_eval_examples = 0
+            val_batches = []
+            for step, batch in enumerate(eval_dataloader):
+                val_batches.append(batch)
+            ss = np.random.permutation(len(val_batches))
+            val_batches = [val_batches[ii] for ii in ss[:args.max_val_batches]]
+            for bb in val_batches:
+                tot_eval_examples += bb["input_ids"].size(0)
+            logger.info("tot valid examples = {}".format(tot_eval_examples))
+        else:
+            val_batches = eval_dataloader
 
-            if completed_steps >= args.max_train_steps:
-                break
-        get_aggerators()["loss"].reset()
+        # result = generate(args, config, val_batches, accelerator.unwrap_model(model), accelerator, tokenizer, metric)
+        # print("Before training!")
+        # print(result)
 
-        model.eval()
-        # not used, remove
-        if args.val_max_target_length is None:
-            args.val_max_target_length = args.max_target_length
+        for epoch in range(args.num_train_epochs):
+            model.train()
+            for step, batch in enumerate(train_dataloader):
+                # import pdb; pdb.set_trace()
+                outputs = model(**batch)
+                loss = outputs.loss
+                loss = loss / args.gradient_accumulation_steps
+                accelerator.backward(loss)
 
-        result = generate(args, config, val_batches, accelerator.unwrap_model(model), accelerator, tokenizer, metric)
+                if step % args.gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
+                    optimizer.step()
+                    lr_scheduler.step()
+                    optimizer.zero_grad()
+                    completed_steps += 1
 
-        if result[args.val_metric] > best_metric:
-            accelerator.wait_for_everyone()
+                num_tgt_tokens = (batch["labels"].ne(-100)).sum().long()
+                log_metrics("loss", loss, num_tgt_tokens)
+                if step % args.log_intervals == 0:
+                    logger.info("epoch = {}, step = {}/{}, loss = {}".format(epoch, step, len(train_dataloader),
+                                                                             get_aggerators()["loss"].smoothed_value))
+
+                if completed_steps >= args.max_train_steps:
+                    break
+            get_aggerators()["loss"].reset()
+
+            model.eval()
+            # not used, remove
+            if args.val_max_target_length is None:
+                args.val_max_target_length = args.max_target_length
+
+            result = generate(args, config, val_batches, accelerator.unwrap_model(model), accelerator, tokenizer, metric)
+
+            if result[args.val_metric] > best_metric:
+                accelerator.wait_for_everyone()
+                unwrapped_model = accelerator.unwrap_model(model)
+                if os.path.exists(best_checkpoint_path):
+                    os.remove(best_checkpoint_path)
+                logger.info("save best checkpoints .......")
+                unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
+                best_metric = result[args.val_metric]
+
+            logger.info(result)
+            logger.info("best = {}".format(best_metric))
+
+        logger.info("========================== Training is done! Test ======================")
+        if accelerator.is_local_main_process:
             unwrapped_model = accelerator.unwrap_model(model)
-            if os.path.exists(best_checkpoint_path):
-                os.remove(best_checkpoint_path)
-            logger.info("save best checkpoints .......")
-            unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
-            best_metric = result[args.val_metric]
+            unwrapped_model.load_state_dict(torch.load(best_checkpoint_path))
+            unwrapped_model.to(model.device)
+            unwrapped_model.eval()
+            test_result = generate(args, config, test_dataloader, unwrapped_model, accelerator, tokenizer, metric, opt_prefix="test")
+            logger.info(test_result)
 
-        logger.info(result)
-        logger.info("best = {}".format(best_metric))
 
-    logger.info("========================== Training is done! Test ======================")
-    if accelerator.is_local_main_process:
-        unwrapped_model = accelerator.unwrap_model(model)
-        unwrapped_model.load_state_dict(torch.load(best_checkpoint_path))
-        unwrapped_model.to(model.device)
-        unwrapped_model.eval()
-        test_result = generate(args, config, test_dataloader, unwrapped_model, accelerator, tokenizer, metric, opt_prefix="test")
+    if args.do_predict:
+        logger.info("========================== Test ======================")
+        model.eval()
+        test_result = generate(args, config, test_dataloader, accelerator.unwrap_model(model), accelerator, tokenizer, metric, opt_prefix="test")
         logger.info(test_result)
 
     # if args.output_dir is not None:

@@ -1,29 +1,104 @@
-import argparse
+from dataclasses import dataclass, field
+from typing import Optional
+
+@dataclass
+class GenerationArguments:
+    """
+    Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
+    """
+    min_length: Optional[int] = field(
+        default=10,
+        metadata={
+            "help": "minimal generation length"
+        },
+    )
+
+    max_length: Optional[int] = field(
+        default=128,
+        metadata={
+            "help": "max generation length"
+        },
+    )
+
+    num_beams: Optional[int] = field(
+        default=5,
+        metadata={
+            "help": "minimal generation length"
+        },
+    )
+
+    no_repeat_ngram_size: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": "minimal generation length"
+        },
+    )
+
+@dataclass
+class TuneArguments:
+    use_prefix: Optional[str] = field(
+        default="none",
+        metadata={
+            "help": "", "choices": ["lisa", "learn_bias", "luna", "none"]
+        },
+    )
+
+    mid_dim: Optional[int] = field(
+        default=800,
+        metadata={
+            "help": ""
+        },
+    )
+
+    preseqlen: Optional[int] = field(
+        default=200,
+        metadata={
+            "help": ""
+        },
+    )
+
+    prefix_dropout: Optional[float] = field(
+        default=0.0,
+        metadata={
+            "help": ""
+        },
+    )
+
+    unfreeze_params: Optional[str] = field(
+        default="none",
+        metadata={
+            "help": "", "choices": ['LN', 'LN+PE', 'none']
+        },
+    )
+
+    luna_option: Optional[str] = field(
+        default="full_layer",
+        metadata={
+            "help": "", "choices": ["self_attn", "full_layer", "full_before", "full_after"]
+        },
+    )
+
+    num_bias_layers: Optional[int] = field(
+        default=1,
+        metadata={
+            "help": ""
+        },
+    )
+
+    share_luna_params: Optional[int] = field(
+        default=1,
+        metadata={
+            "help": ""
+        },
+    )
+
+# @dataclass
+# class TuneArguments:
+#     """
+#     Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
+#     """
 
 
-def add_efficient_tuning_args(parser):
-    group = parser.add_argument_group('prefix')
-    group.add_argument('--use_prefix', type=str, default=None, choices=["lisa", "learn_bias", "luna"])
-    group.add_argument('--mid_dim', type=int, default=800)
-    group.add_argument('--preseqlen', type=int, default=200)
-    group.add_argument('--prefix_dropout', type=float, default=0.0)
-    group.add_argument('--luna_option', type=str, default="full_layer", choices=["self_attn", "full_layer", "full_before", "full_after"])
-    group.add_argument('--num_bias_layers', type=int, default=1)
-    group.add_argument('--share-luna-params', type=int, default=1)
-    return parser
-
-
-def add_gen_args(parser):
-    parser.add_argument('--eval_max_length', type=int, default=62)
-    parser.add_argument('--eval_min_length', type=int, default=11)
-
-
-def add_tune_args(parser):
-    group = parser.add_argument_group('finetune')
-    group.add_argument('--unfreeze_params', type=str,
-                        choices=['LN', 'none'],
-                        default='none')
-    return parser
 
 
 
