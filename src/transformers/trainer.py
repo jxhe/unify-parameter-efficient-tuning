@@ -1318,6 +1318,7 @@ class Trainer:
                         self.lr_scheduler.step()
 
                     model.zero_grad()
+                    # import pdb; pdb.set_trace()
                     self.state.global_step += 1
                     self.state.epoch = epoch + (step + 1) / steps_in_epoch
                     self.control = self.callback_handler.on_step_end(args, self.state, self.control)

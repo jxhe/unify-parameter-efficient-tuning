@@ -21,6 +21,7 @@ DATE=`date +%Y%m%d`
 dataset="xsum"
 
 use_prefix="lisa"
+lisa_option="cross_attn"
 
 max_steps=80000
 warmup_updates=0
@@ -31,12 +32,12 @@ weight_decay=0
 bsz=16
 gradient_steps=4
 metric=rouge2
-ft='LN+PE'
+ft='ef_gate'
 top_layers=12
 max_eval_samples=1600
 max_train_samples=2000
 logging_steps=100
-label_smoothing_factor=0.
+label_smoothing_factor=0
 
 eval_strategy="steps"
 # eval_strategy="steps"
@@ -50,18 +51,20 @@ debug_str=""
 if [ "${debug}" = 1 ];
 then
     max_train_samples=2000
-    gradient_steps=3
+    bsz=24
+    gradient_steps=2
     num_train_epochs=30
     max_steps=-1
-    eval_strategy='epoch'
+    eval_strategy='steps'
+    save_steps=100
     report_to="none"
-    logging_steps=50
+    logging_steps=10
     extra_cmd="--max_train_samples ${max_train_samples}"
     debug_str=".debug"
 fi
 
 
-exp_name=xsum_tride.prefix.${use_prefix}.ms${max_steps}.ls${label_smoothing_factor}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.ms${max_steps}.ls${label_smoothing_factor}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
@@ -71,6 +74,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
     --use_prefix ${use_prefix} \
+    --lisa_option ${lisa_option} \
     --mid_dim 800 \
     --preseqlen 200 \
     --unfreeze_params ${ft} \

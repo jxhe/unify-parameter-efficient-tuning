@@ -163,8 +163,8 @@ class BartAttention(nn.Module):
         self.cache_key = cache_key
 
         if self.use_prefix == 'lisa' and self.config.lisa_option == 'cross_attn':
-            self.gate = nn.Parameter(torch.zeros(num_heads, self.head_dim, requires_grad=True))
-            self.gate_bias = nn.Parameter(torch.full((self.num_heads,), 0.5, requires_grad=True))
+            self.ef_gate = nn.Parameter(torch.zeros(num_heads, self.head_dim, requires_grad=True))
+            self.ef_gate_bias = nn.Parameter(torch.full((self.num_heads,), 0.5, requires_grad=True))
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
@@ -221,7 +221,7 @@ class BartAttention(nn.Module):
 
         if self.use_prefix == "lisa" and self.config.lisa_option == "cross_attn":
             x = query_states.view(bsz, tgt_len, self.num_heads, self.head_dim)
-            gates = torch.sigmoid((x * self.gate[None, None, :, :]).sum(-1) + self.gate_bias).unsqueeze(-1) # bsz, tgt_len, num_heads, 1
+            gates = torch.sigmoid((x * self.ef_gate[None, None, :, :]).sum(-1) + self.ef_gate_bias).unsqueeze(-1) # bsz, tgt_len, num_heads, 1
 
         proj_shape = (bsz * self.num_heads, -1, self.head_dim)
         query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)

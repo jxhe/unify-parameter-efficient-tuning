@@ -501,6 +501,8 @@ def main():
     if tune_args.use_prefix != "none":
         model = PrefixTuning(config, tune_args, model)
 
+    # import pdb; pdb.set_trace()
+
     for n, p in model.named_parameters():
         print(n, p.requires_grad)
 

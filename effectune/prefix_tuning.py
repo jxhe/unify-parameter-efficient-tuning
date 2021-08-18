@@ -37,6 +37,9 @@ class PrefixTuning(PretrainedBartModel):
             if args.unfreeze_params == 'LN':
                 # not_freeze_set = ['layernorm']  # input layernorm
                 not_freeze_set = ['attn_layer_norm']  # only optimize layer norm after attn
+            else:
+                not_freeze_set = args.unfreeze_params.split(',')
+
             all_match = False
         elif args.use_prefix == 'luna':
             # fixme: other options, now tune the self_attn_layer_norm in decoder

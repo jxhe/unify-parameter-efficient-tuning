@@ -67,7 +67,7 @@ class TuneArguments:
     unfreeze_params: Optional[str] = field(
         default="none",
         metadata={
-            "help": "", "choices": ['LN', 'LN+PE', 'none']
+            "help": ""
         },
     )
 
