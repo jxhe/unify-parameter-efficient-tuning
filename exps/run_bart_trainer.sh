@@ -32,6 +32,7 @@ bsz=16
 gradient_steps=4
 metric=rouge2
 ft='LN+PE'
+top_layers=12
 max_eval_examples=1600
 max_train_examples=160
 logging_steps=100
@@ -54,6 +55,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --mid_dim 800 \
     --preseqlen 200 \
     --unfreeze_params ${ft} \
+    --num_bias_layers ${top_layers} \
     --preprocessing_num_workers 2 \
     --max_source_length 512 \
     --max_target_length 128 \
