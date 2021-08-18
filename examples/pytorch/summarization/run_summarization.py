@@ -515,7 +515,7 @@ def main():
 
         # rougeLSum expects newline after each sentence
         preds = ["\n".join(nltk.sent_tokenize(pred)) for pred in str_preds]
-        labels = ["\n".join(nltk.sent_tokenize(label)) for label in str_preds]
+        labels = ["\n".join(nltk.sent_tokenize(label)) for label in str_labels]
 
         return preds, labels, str_preds, str_labels
 

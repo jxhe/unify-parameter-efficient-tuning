@@ -10,9 +10,11 @@
 #SBATCH --time=0
 #SBATCH --array=0
 
-source activate nmt
-export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
-cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
+# source activate nmt
+# export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
+# cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
+export TRANSFORMERS_CACHE=checkpoints/hf_model
+cache_dir=${TRANSFORMERS_CACHE}
 
 epochs=30
 lr=5e-5

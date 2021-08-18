@@ -14,7 +14,7 @@ cache_dir=${TRANSFORMERS_CACHE}
 
 
 # wandb env variables
-export WANDB_PROJECT=xsum_effectune
+export WANDB_PROJECT=xsum_tride
 export WANDB_WATCH="false"
 
 DATE=`date +%Y%m%d`
@@ -33,16 +33,35 @@ gradient_steps=4
 metric=rouge2
 ft='LN+PE'
 top_layers=12
-max_eval_examples=1600
-max_train_examples=160
+max_eval_samples=1600
+max_train_samples=2000
 logging_steps=100
 label_smoothing_factor=0.
 
 eval_strategy="steps"
 # eval_strategy="steps"
 save_steps=3000
+report_to="wandb"
 
-exp_name=xsum_tride.prefix.${use_prefix}.ms${max_steps}.ls${label_smoothing_factor}.wd${weight_decay}.bias${add_bias_logits}
+debug=1
+extra_cmd=""
+debug_str=""
+
+if [ "${debug}" = 1 ];
+then
+    max_train_samples=2000
+    gradient_steps=3
+    num_train_epochs=30
+    max_steps=-1
+    eval_strategy='epoch'
+    report_to="none"
+    logging_steps=50
+    extra_cmd="--max_train_samples ${max_train_samples}"
+    debug_str=".debug"
+fi
+
+
+exp_name=xsum_tride.prefix.${use_prefix}.ms${max_steps}.ls${label_smoothing_factor}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
@@ -60,8 +79,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --max_source_length 512 \
     --max_target_length 128 \
     --val_max_target_length 60 \
-    --max_eval_samples ${max_eval_examples} \
-    --max_train_examples ${max_train_examples} \
+    --max_eval_samples ${max_eval_samples} \
     --num_beams 6 \
     --max_length 60 \
     --min_length 10 \
@@ -72,6 +90,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --per_device_eval_batch_size ${bsz} \
     --gradient_accumulation_steps ${gradient_steps} \
     --max_steps ${max_steps} \
+    --num_train_epochs ${num_train_epochs} \
     --learning_rate ${lr} \
     --lr_scheduler_type ${lr_scheduler_type} \
     --max_grad_norm ${max_grad_norm} \
@@ -86,14 +105,14 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --save_steps ${save_steps} \
     --eval_steps ${save_steps} \
     --load_best_model_at_end \
-    --report_to "wandb" \
+    --report_to ${report_to} \
     --run_name ${dataset}.${DATE}.${exp_name} \
     --overwrite_output_dir "True" \
     --disable_tqdm "True" \
     --metric_for_best_model ${metric} \
     --greater_is_better "True" \
     --predict_with_generate \
-    --output_dir ${SAVE} 2>&1 | tee ${SAVE}/log.txt
+    --output_dir ${SAVE} ${extra_cmd} 2>&1 | tee ${SAVE}/log.txt
     # --predict_with_generate
     # --metric_for_best_model ${metric} \
     # --greater_is_better "True" \
