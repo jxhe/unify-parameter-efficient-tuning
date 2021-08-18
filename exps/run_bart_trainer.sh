@@ -14,31 +14,37 @@ cache_dir=${TRANSFORMERS_CACHE}
 
 
 # wandb env variables
-export WANDB_PROJECT=xsum_effctune
+export WANDB_PROJECT=xsum_effectune
 export WANDB_WATCH="false"
 
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
 use_prefix="lisa"
-exp_name=xsum_bart_${use_prefix}
+
+max_steps=80000
+warmup_updates=0
+lr=5e-5
+lr_scheduler_type="polynomial"
+max_grad_norm=1
+weight_decay=0
+bsz=16
+gradient_steps=4
+metric=rouge2
+ft='LN+PE'
+max_eval_examples=1600
+max_train_examples=160
+logging_steps=100
+label_smoothing_factor=0.
+
+eval_strategy="steps"
+# eval_strategy="steps"
+save_steps=3000
+
+exp_name=xsum_tride.prefix.${use_prefix}.ms${max_steps}.ls${label_smoothing_factor}.wd${weight_decay}.bias${add_bias_logits}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
-
-epochs=30
-lr=5e-5
-bsz=24
-gradient_steps=2
-metric=rouge2
-ft='none'
-# max_eval_examples=1600
-logging_steps=100
-label_smoothing_factor=0
-
-
-eval_strategy="epoch"
-save_steps=100
 
 python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
@@ -50,8 +56,10 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --unfreeze_params ${ft} \
     --preprocessing_num_workers 2 \
     --max_source_length 512 \
-    --max_target_length 60 \
+    --max_target_length 128 \
     --val_max_target_length 60 \
+    --max_eval_samples ${max_eval_examples} \
+    --max_train_examples ${max_train_examples} \
     --num_beams 6 \
     --max_length 60 \
     --min_length 10 \
@@ -61,8 +69,12 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --per_device_train_batch_size ${bsz} \
     --per_device_eval_batch_size ${bsz} \
     --gradient_accumulation_steps ${gradient_steps} \
-    --num_train_epochs ${epochs} \
+    --max_steps ${max_steps} \
     --learning_rate ${lr} \
+    --lr_scheduler_type ${lr_scheduler_type} \
+    --max_grad_norm ${max_grad_norm} \
+    --weight_decay ${weight_decay} \
+    --warmup_steps ${warmup_updates} \
     --fp16 \
     --logging_steps ${logging_steps} \
     --save_total_limit 2 \
@@ -76,6 +88,9 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --run_name ${dataset}.${DATE}.${exp_name} \
     --overwrite_output_dir "True" \
     --disable_tqdm "True" \
+    --metric_for_best_model ${metric} \
+    --greater_is_better "True" \
+    --predict_with_generate \
     --output_dir ${SAVE} 2>&1 | tee ${SAVE}/log.txt
     # --predict_with_generate
     # --metric_for_best_model ${metric} \

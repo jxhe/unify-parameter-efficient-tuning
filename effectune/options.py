@@ -92,6 +92,13 @@ class TuneArguments:
         },
     )
 
+    lisa_option: Optional[str] = field(
+        default="default",
+        metadata={
+            "help": "", "choices": ["default", "cross_attn"]
+        },
+    )
+
 # @dataclass
 # class TuneArguments:
 #     """

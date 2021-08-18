@@ -210,10 +210,11 @@ class Seq2SeqTrainer(Trainer):
         inputs = self._prepare_inputs(inputs)
 
         gen_kwargs = {
-            "max_length": self.data_args.val_max_target_length
-            if self.data_args is not None
-            else self.config.max_length,
-            "num_beams": self.data_args.eval_beams if self.data_args is not None else self.config.num_beams,
+            "max_length": self._max_length if self._max_length is not None else self.model.config.gen_max_length,
+            "num_beams": self._num_beams if self._num_beams is not None else self.model.config.gen_num_beams,
+            "min_length": self.model.config.gen_min_length,
+            "no_repeat_ngram_size": self.model.config.gen_no_repeat_ngram_size,
+            "synced_gpus": True if is_deepspeed_zero3_enabled() else False,
         }
 
         if self.args.predict_with_generate and not self.args.prediction_loss_only:
