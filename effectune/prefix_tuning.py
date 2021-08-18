@@ -32,6 +32,7 @@ class PrefixTuning(PretrainedBartModel):
             self.get_prompt = self.get_fake_prompt
 
         logger.info("Declare PrefixTuning model!")
+        all_match = True
         if args.unfreeze_params != "none":
             not_freeze_set = [args.unfreeze_params]
         else:
