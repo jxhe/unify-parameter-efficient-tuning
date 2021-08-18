@@ -2,7 +2,7 @@ import torch
 from transformers import PretrainedBartModel
 import torch.nn as nn
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
-from effectune.luna_attention import luna_attention, luna_attention_enc_dec
+from effectune.luna_attention import luna_attention, luna_attention_enc_dec, SimpleAttnBias
 from effectune.bias_factory import Prefix, MLP_Bias, Bias
 from transformers.utils import logging
 logger = logging.get_logger(__name__)
@@ -22,10 +22,14 @@ class PrefixTuning(PretrainedBartModel):
         if args.use_prefix == "lisa":
             self.setup_lisa(args, config)
         elif args.use_prefix == "learn_bias":
-            # self.setup_bias(args)
+            # self.setup_bias(args, config)
             self.setup_bias_mlp(args, config)
         elif args.use_prefix == 'luna':
             self.setup_luna(args)
+        elif args.use_prefix == 'dlisa':
+            self.setup_dependent_lisa(args, config)
+        elif args.use_prefix == 'bitfit':
+            self.get_prompt = self.get_fake_prompt
 
         logger.info("Declare PrefixTuning model!")
         not_freeze_set = []
@@ -39,6 +43,9 @@ class PrefixTuning(PretrainedBartModel):
             # not_freeze_set = ["decoder.layers.1.self_attn_layer_norm"]
             # not_freeze_set = ['attn_layer_norm', 'decoder']
             not_freeze_set = ['layer_norm']
+            all_match = True
+        elif args.use_prefix == 'bitfit':
+            not_freeze_set = ['bias']
             all_match = True
 
         logger.info(not_freeze_set)
@@ -61,15 +68,15 @@ class PrefixTuning(PretrainedBartModel):
     def get_prompt_lisa(self, bsz, nsamples=1):
         return self.lisa_model(bsz, nsamples, self.device)
 
-    def setup_bias(self, args):
-        self.bias = Bias(args)
+    def setup_bias(self, args, config):
+        self.bias = Bias(args, config)
         self.get_prompt = self.get_prompt_bias
 
     def get_prompt_bias(self, bsz, nsamples=1):
-        return self.bias(bsz, nsamples)
+        return self.bias(bsz, nsamples, self.device)
 
     def setup_bias_mlp(self, args, config):
-        self.bias_mlp = MLP_Bias(args, config, "gpu")
+        self.bias_mlp = MLP_Bias(args, config)
         self.get_prompt = self.get_prompt_bias_mlp
 
     def get_prompt_bias_mlp(self, bsz, nsamples=1):
@@ -77,13 +84,23 @@ class PrefixTuning(PretrainedBartModel):
 
     def setup_luna(self, args):
         if args.luna_option == "full_before" or args.luna_option == "full_after":
-            self.luna_attn = luna_attention_enc_dec(args, self.config, self.n_embd, self.match_n_head, args.num_bias_layers, args.num_bias_layers, share_params=args.share_luna_params)
+            self.luna_attn = luna_attention_enc_dec(args, self.config, self.n_embd, self.match_n_head, share_params=args.share_luna_params)
         else:
             self.luna_attn = luna_attention(args, self.config, self.n_embd, self.match_n_head, args.num_bias_layers)
         self.get_prompt = self.get_prompt_luna_bias
 
     def get_prompt_luna_bias(self, bsz, nsamples=-1):
         return self.luna_attn
+
+    def setup_dependent_lisa(self, args, config):
+        self.bias_model = SimpleAttnBias(args, config, self.n_embd, self.match_n_head)
+        self.get_prompt = self.get_prompt_dependent_lisa
+
+    def get_prompt_dependent_lisa(self, bsz, nsamples=-1):
+        return self.bias_model
+
+    def get_fake_prompt(self, bsz, nsamples=-1):
+        return None
 
     def forward(self,
                 input_ids=None,

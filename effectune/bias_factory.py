@@ -3,7 +3,7 @@ import torch.nn as nn
 
 
 def init_lisa_params(module):
-    std = 0.02
+    std = 1e-20
     if isinstance(module, nn.Linear):
         module.weight.data.normal_(mean=0.0, std=std)
         if module.bias is not None:
@@ -26,7 +26,8 @@ class Prefix(nn.Module):
     def __init__(self, args, config):
         super().__init__()
 
-        self.match_n_layer = config.decoder_layers
+        # self.match_n_layer = config.decoder_layers if args.num_bias_layers < 0 else args.num_bias_layers
+        self.match_n_layer = args.num_bias_layers
         self.match_n_head = config.decoder_attention_heads
         self.n_embd = config.d_model
         self.match_n_embd = self.n_embd // self.match_n_head
@@ -56,7 +57,8 @@ class Prefix(nn.Module):
             nn.Tanh(),
             nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
 
-        self.apply(init_lisa_params)
+        if args.lisa_option == "cross_attn":
+            self.apply(init_lisa_params)
 
     def forward(self, bsz, nsamples=1, device="gpu"):
         old_bsz = bsz
@@ -72,7 +74,6 @@ class Prefix(nn.Module):
 
         temp_control2 = self.wte2(input_tokens)
         past_key_values2 = self.control_trans2(temp_control2)  # bsz, seqlen, layer*emb
-        bsz, seqlen, _ = past_key_values2.shape
         past_key_values2 = past_key_values2.view(bsz, seqlen, self.match_n_layer * 2, self.match_n_head,
                                                  self.match_n_embd)
         past_key_values2 = self.dropout(past_key_values2)
@@ -107,7 +108,6 @@ class Prefix(nn.Module):
                                     "prev_key_padding_mask": torch.zeros(bsz_enc, seqlen).to(key_val_enc.device)
                                     }
             result.append(temp_dict)
-
         return result
 
 
@@ -115,7 +115,7 @@ class MLP_Bias(nn.Module):
     def __init__(self, args, config):
         super().__init__()
 
-        self.match_n_layer = config.decoder_layers
+        self.match_n_layer = config.decoder_layers if args.num_bias_layers < 0 else args.num_bias_layers
         self.match_n_head = config.decoder_attention_heads
         self.n_embd = config.d_model
         self.match_n_embd = self.n_embd // self.match_n_head
@@ -181,9 +181,11 @@ class MLP_Bias(nn.Module):
 
 
 class Bias(nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, config):
         super().__init__()
         self.args = args
+        self.match_n_layer = config.decoder_layers if args.num_bias_layers < 0 else args.num_bias_layers
+        self.n_embd = config.d_model
 
         # Option 1: a simple version, no transformations, each attention layer has its own bias parameters
         self.encoder_attn_bias = nn.ModuleList([nn.Embedding(args.max_source_length + 2, self.n_embd)
@@ -215,4 +217,46 @@ class Bias(nn.Module):
                          "self": self.decoder_self_attn_bias[ii].forward(tgt_positions),
                          "encoder_decoder": self.decoder_cross_attn_bias[ii].forward(tgt_positions)}
             result.append(temp_dict)
+        return
+
+class InputBias(nn.Module):
+    def __init__(self, args):
+        super().__init__()
+        self.args = args
+
+        self.prefix_embs = nn.Embedding(args.max_source_length + 2, self.n_embd)
+        # Option 1: a simple version, no transformations, each attention layer has its own bias parameters
+        self.encoder_attn_bias = nn.ModuleList([nn.Embedding(args.max_source_length + 2, self.n_embd)
+                                                for _ in range(self.match_n_layer)])
+        self.decoder_self_attn_bias = nn.ModuleList([nn.Embedding(args.max_target_length + 2, self.n_embd)
+                                                     for _ in range(self.match_n_layer)])
+
+        self.decoder_cross_attn_bias = nn.ModuleList([nn.Embedding(args.max_target_length + 2, self.n_embd)
+                                                      for _ in range(self.match_n_layer)])
+        for embed in self.encoder_attn_bias:
+            assert isinstance(embed, nn.Embedding)
+            nn.init.constant_(embed.weight, 0.0)
+        for embed in self.decoder_self_attn_bias:
+            assert isinstance(embed, nn.Embedding)
+            nn.init.constant_(embed.weight, 0.0)
+        for embed in self.decoder_cross_attn_bias:
+            assert isinstance(embed, nn.Embedding)
+            nn.init.constant_(embed.weight, 0.0)
+
+    def forward(self, bsz, nsamples=1, device="gpu"):
+        result = []
+        max_src_len = self.args.max_source_length + 2
+        max_tgt_len = self.args.max_target_length + 2
+
+        src_positions = torch.arange(0, max_src_len, dtype=torch.long, device=device)
+        tgt_positions = torch.arange(0, max_tgt_len, dtype=torch.long, device=device)
+        for ii in range(self.match_n_layer):
+            temp_dict = {"encoder": self.encoder_attn_bias[ii].forward(src_positions),
+                         "self": self.decoder_self_attn_bias[ii].forward(tgt_positions),
+                         "encoder_decoder": self.decoder_cross_attn_bias[ii].forward(tgt_positions)}
+            result.append(temp_dict)
         return result
+
+class CrossAttnBias(nn.Module):
+    def __init__(self, args, config, embed_dim, num_heads, bias=True):
+        super().__init__()

@@ -465,9 +465,9 @@ def main():
     logger.info(args)
     # put useful args into config: these arguments will be used in models, thus adding them to config
     # todo: smarter ways to merge useful args into config
-    interested_args = ['use_prefix', 'mid_dim', 'preseqlen', 'prefix_dropout', 'unfreeze_params', "luna_option", "num_bias_layers"]
+    interested_args = ['num_beams', 'use_prefix', 'mid_dim', 'preseqlen', 'prefix_dropout', 'unfreeze_params', "luna_option", "num_bias_layers", "lisa_option"]
     for key in args.__dict__:
-        if not hasattr(config, key) and key in interested_args:
+        if key in interested_args:
             setattr(config, key, args.__dict__[key])
 
     if args.tokenizer_name:
@@ -550,6 +550,27 @@ def main():
         model_inputs["labels"] = labels["input_ids"]
         return model_inputs
 
+    def preprocess_function_full(examples):
+        inputs = examples[text_column]
+        targets = examples[summary_column]
+
+        inputs = [prefix + inp for inp in inputs]
+        model_inputs = tokenizer(inputs, max_length=args.max_source_length, padding=padding, truncation=True)
+
+        # Setup the tokenizer for targets
+        with tokenizer.as_target_tokenizer():
+            labels = tokenizer(targets, max_length=max_target_length, padding=padding, truncation=True)
+
+        # If we are padding here, replace all tokenizer.pad_token_id in the labels by -100 when we want to ignore
+        # padding in the loss.
+        if padding == "max_length" and args.ignore_pad_token_for_loss:
+            labels["input_ids"] = [
+                [(l if l != tokenizer.pad_token_id else -100) for l in label] for label in labels["input_ids"]
+            ]
+
+        model_inputs["labels"] = labels["input_ids"]
+        return model_inputs
+
     label_pad_token_id = -100 if args.ignore_pad_token_for_loss else tokenizer.pad_token_id
     data_collator = DataCollatorForSeq2Seq(
         tokenizer,
@@ -570,6 +591,15 @@ def main():
         train_dataset = processed_datasets["train"]
         eval_dataset = processed_datasets["validation"]
         test_dataset = processed_datasets["test"]
+
+        if args.debug:
+            test_dataset = raw_datasets['test'].map(
+                preprocess_function_full,
+                batched=True,
+                remove_columns=column_names,
+                load_from_cache_file=not args.overwrite_cache,
+                desc="Running tokenizer on dataset",
+            )
 
         logger.info(len(train_dataset))
         logger.info(len(eval_dataset))
@@ -605,8 +635,8 @@ def main():
     if args.use_prefix != "none":
         model = PrefixTuning(config, args, model)
 
-    # for n, p in model.named_parameters():
-    #     print(n, p.requires_grad)
+    for n, p in model.named_parameters():
+        print(n, p.requires_grad)
 
     # Optimizer
     # Split weights in two groups, one with weight decay and the other not.
@@ -647,7 +677,6 @@ def main():
             num_warmup_steps=args.num_warmup_steps,
             num_training_steps=args.max_train_steps,
         )
-
 
         # Train!
         total_batch_size = args.per_device_train_batch_size * accelerator.num_processes * args.gradient_accumulation_steps
@@ -703,8 +732,10 @@ def main():
                 num_tgt_tokens = (batch["labels"].ne(-100)).sum().long()
                 log_metrics("loss", loss, num_tgt_tokens)
                 if step % args.log_intervals == 0:
-                    logger.info("epoch = {}, step = {}/{}, loss = {}".format(epoch, step, len(train_dataloader),
-                                                                             get_aggerators()["loss"].smoothed_value))
+                    logger.info("epoch = {}, step = {}/{}, lr = {:.3E}, loss = {}".format(epoch, step,
+                                                                                    len(train_dataloader),
+                                                                                    lr_scheduler.get_last_lr()[-1],
+                                                                                    get_aggerators()["loss"].smoothed_value))
 
                 if completed_steps >= args.max_train_steps:
                     break

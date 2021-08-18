@@ -39,7 +39,7 @@ class TuneArguments:
     use_prefix: Optional[str] = field(
         default="none",
         metadata={
-            "help": "", "choices": ["lisa", "learn_bias", "luna", "none"]
+            "help": "", "choices": ["lisa", "learn_bias", "luna", "none", "dlisa"]
         },
     )
 

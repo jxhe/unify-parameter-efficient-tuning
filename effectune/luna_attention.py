@@ -20,6 +20,18 @@ def _expand_mask(mask: torch.Tensor, dtype: torch.dtype, tgt_len: Optional[int] 
     return inverted_mask.masked_fill(inverted_mask.bool(), torch.finfo(dtype).min)
 
 
+def init_lisa_params(module):
+    std = 0.01
+    if isinstance(module, nn.Linear):
+        module.weight.data.normal_(mean=0.0, std=std)
+        if module.bias is not None:
+            module.bias.data.zero_()
+    elif isinstance(module, nn.Embedding):
+        module.weight.data.normal_(mean=0.0, std=std)
+        if module.padding_idx is not None:
+            module.weight.data[module.padding_idx].zero_()
+
+
 def zeros_init_params(module):
     if isinstance(module, nn.Linear):
         module.weight.data.zero_()
@@ -169,13 +181,14 @@ class luna_attention(nn.Module):
 
 
 class luna_attention_enc_dec(nn.Module):
-    def __init__(self, args, config, embed_dim, num_heads, num_enc_layers=1, num_dec_layers=1, share_params=True, bias=True):
+    def __init__(self, args, config, embed_dim, num_heads, share_params=True, bias=True):
         super().__init__()
 
         self.config = config
         self.p_len = args.preseqlen
 
         self.share_params = share_params
+        num_enc_layers = num_dec_layers = args.num_bias_layers
         if share_params:
             self.encoder_luna_attns = luna_attention(args, config, embed_dim, num_heads, 1, bias=bias)
             self.decoder_luna_attns = luna_attention(args, config, embed_dim, num_heads, 1, bias=bias, do_pe_once=True)
@@ -206,3 +219,118 @@ class luna_attention_enc_dec(nn.Module):
             layer_id = 0
         d_prime = self.decoder_luna_attns.forward_dp(decoder_states, p_prime, layer_id)
         return d_prime
+
+
+class SimpleAttnBias(nn.Module):
+    def __init__(self, args, config, embed_dim, num_heads, bias=True):
+        super().__init__()
+        self.config = config
+
+        # self.match_n_layer = config.decoder_layers if args.num_bias_layers < 0 else args.num_bias_layers
+        self.match_n_layer = args.num_bias_layers
+        self.match_n_head = config.decoder_attention_heads
+        self.n_embd = config.d_model
+        self.match_n_embd = self.n_embd // self.match_n_head
+
+        self.mid_dim = args.mid_dim
+        self.preseqlen = args.preseqlen
+        self.prefix_dropout = args.prefix_dropout
+
+        self.dropout = nn.Dropout(self.prefix_dropout)
+        self.P = nn.Embedding(self.preseqlen, embed_dim)
+        # attention from P to input embedding
+        self.pe_attn = attention(embed_dim, num_heads, self.prefix_dropout, bias, use_output_proj=True)
+        self.pds_attn = attention(embed_dim, num_heads, self.prefix_dropout, bias, use_output_proj=True)
+        self.pdc_attn = attention(embed_dim, num_heads, self.prefix_dropout, bias, use_output_proj=True)
+
+        self.input_tokens = torch.arange(self.preseqlen).long()
+        self.control_trans = nn.Sequential(
+            nn.Linear(self.n_embd, self.mid_dim),
+            nn.Tanh(),
+            nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
+
+        self.control_trans_enc = nn.Sequential(
+            nn.Linear(self.n_embd, self.mid_dim),
+            nn.Tanh(),
+            nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
+
+        self.control_trans2 = nn.Sequential(
+            nn.Linear(self.n_embd, self.mid_dim),
+            nn.Tanh(),
+            nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
+
+        self.beam_size = config.num_beams
+        self.apply(init_lisa_params)
+
+        self.biases = None
+
+    def forward_pe_attn(self, inputs_embeds, inputs_masks):
+        bsz = inputs_embeds.size(0)
+        input_tokens = self.input_tokens.unsqueeze(0).expand(bsz, -1).to(inputs_embeds.device)
+        p = self.P(input_tokens)
+        p_prime_e = self.pe_attn(p, inputs_embeds, inputs_masks)
+        p_prime_ds = self.pds_attn(p, inputs_embeds, inputs_masks)
+        p_prime_dc = self.pdc_attn(p, inputs_embeds, inputs_masks)
+        return p_prime_e, p_prime_ds, p_prime_dc
+
+    def forward(self, p_prime_e, p_prime_ds, p_prime_dc, layer_idx=0):
+        # p_prime: bsz x p_len x dim
+        bsz = p_prime_e.size(0)
+        old_bsz = bsz
+        seqlen = self.preseqlen
+
+        if not self.training:
+            expanded_return_idx = (
+                torch.arange(bsz).view(-1, 1).repeat(1, self.beam_size).view(-1).to(p_prime_e.device)
+            )
+
+        past_key_values = self.control_trans(p_prime_ds) # bsz, seqlen, layer*emb
+        past_key_values = past_key_values.view(bsz, seqlen, self.match_n_layer * 2, self.match_n_head,
+                                               self.match_n_embd)
+        if not self.training:
+            past_key_values = past_key_values.index_select(0, expanded_return_idx)
+
+        past_key_values = self.dropout(past_key_values)
+        past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).split(2)
+
+        past_key_values2 = self.control_trans2(p_prime_dc)  # bsz, seqlen, layer*emb
+        past_key_values2 = past_key_values2.view(bsz, seqlen, self.match_n_layer * 2, self.match_n_head,
+                                                 self.match_n_embd)
+        if not self.training:
+            past_key_values2 = past_key_values2.index_select(0, expanded_return_idx)
+
+        past_key_values2 = self.dropout(past_key_values2)
+        past_key_values2 = past_key_values2.permute([2, 0, 3, 1, 4]).split(2)
+
+        past_key_values_enc = self.control_trans_enc(p_prime_e)  # bsz, seqlen, layer*emb
+        bsz_enc, seqlen, _ = past_key_values_enc.shape
+        past_key_values_enc = past_key_values_enc.view(bsz_enc, seqlen, self.match_n_layer * 2, self.match_n_head,
+                                                       self.match_n_embd)
+        past_key_values_enc = self.dropout(past_key_values_enc)
+        past_key_values_enc = past_key_values_enc.permute([2, 0, 3, 1, 4]).split(2)
+
+        if not self.training:
+            bsz = bsz * self.beam_size
+
+        result = []
+        for i, key_val in enumerate(past_key_values):
+            temp_dict = {'self': {"prev_key": key_val[0].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
+                                  "prev_value": key_val[1].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
+                                  "prev_key_padding_mask": torch.zeros(bsz, seqlen).to(key_val.device) #bsz, preseqlen
+                                  },
+                         }
+
+            key_val2 = past_key_values2[i]
+            temp_dict['encoder_decoder'] = {"prev_key": key_val2[0].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
+                                            "prev_value": key_val2[1].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
+                                            "prev_key_padding_mask": torch.zeros(bsz, seqlen).to(key_val2.device)
+                                            }
+            key_val_enc = past_key_values_enc[i]
+            # at generation time, this is expanded automatically to the beam size
+            temp_dict['encoder'] = {"prev_key": key_val_enc[0].contiguous().view(old_bsz*self.match_n_head, -1, self.match_n_embd),
+                                    "prev_value": key_val_enc[1].contiguous().view(old_bsz*self.match_n_head, -1, self.match_n_embd),
+                                    "prev_key_padding_mask": torch.zeros(bsz_enc, seqlen).to(key_val_enc.device)
+                                    }
+            result.append(temp_dict)
+
+        return result
