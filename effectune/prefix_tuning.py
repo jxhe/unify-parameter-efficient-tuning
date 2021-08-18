@@ -32,7 +32,10 @@ class PrefixTuning(PretrainedBartModel):
             self.get_prompt = self.get_fake_prompt
 
         logger.info("Declare PrefixTuning model!")
-        not_freeze_set = []
+        if args.unfreeze_params != "none":
+            not_freeze_set = [args.unfreeze_params]
+        else:
+            not_freeze_set = []
         if args.unfreeze_params != 'none' and args.use_prefix != 'luna':
             if args.unfreeze_params == 'LN':
                 # not_freeze_set = ['layernorm']  # input layernorm
