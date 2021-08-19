@@ -162,9 +162,12 @@ class BartAttention(nn.Module):
         self.config = config
         self.cache_key = cache_key
 
-        if self.use_prefix == 'lisa' and self.config.lisa_option == 'cross_attn':
-            self.ef_gate = nn.Parameter(torch.zeros(num_heads, self.head_dim, requires_grad=True))
-            self.ef_gate_bias = nn.Parameter(torch.full((self.num_heads,), 5., requires_grad=True))
+        if self.use_prefix == 'lisa':
+            if self.config.lisa_option == 'gate_cross_attn':
+                self.ef_gate = nn.Parameter(torch.zeros(num_heads, self.head_dim, requires_grad=True))
+                self.ef_gate_bias = nn.Parameter(torch.full((self.num_heads,), 5., requires_grad=True))
+            elif self.config.lisa_option == 'cross_attn':
+                self.ef_ln_before = nn.LayerNorm(embed_dim)
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
@@ -219,7 +222,7 @@ class BartAttention(nn.Module):
             # if encoder bi-directional self-attention `past_key_value` is always `None`
             past_key_value = (key_states, value_states)
 
-        if self.use_prefix == "lisa" and self.config.lisa_option == "cross_attn":
+        if self.use_prefix == "lisa" and self.config.lisa_option == "gate_cross_attn":
             x = query_states.view(bsz, tgt_len, self.num_heads, self.head_dim)
             gates = torch.sigmoid((x * self.ef_gate[None, None, :, :]).sum(-1) + self.ef_gate_bias).unsqueeze(-1) # bsz, tgt_len, num_heads, 1
         # import pdb; pdb.set_trace()
@@ -244,7 +247,7 @@ class BartAttention(nn.Module):
                     expanded_prefix_mask = prefix_mask[:, None, None, :].expand(bsz, 1, tgt_len, prefix_mask.size(1)).to(attention_mask.dtype)
                     attention_mask = torch.cat([expanded_prefix_mask, attention_mask], dim=-1)
 
-            elif self.config.lisa_option == "cross_attn":
+            elif self.config.lisa_option == "gate_cross_attn":
                 cross_attn_weights = torch.bmm(query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
                 # bsz * num_heads, tgt_len, prefix_len
                 cross_attn_weights = nn.functional.softmax(cross_attn_weights, dim=-1)
