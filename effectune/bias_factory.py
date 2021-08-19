@@ -57,8 +57,8 @@ class Prefix(nn.Module):
             nn.Tanh(),
             nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
 
-        if args.lisa_option == "cross_attn":
-            self.apply(init_lisa_params)
+        # if args.lisa_option == "cross_attn":
+        #     self.apply(init_lisa_params)
 
     def forward(self, bsz, nsamples=1, device="gpu"):
         old_bsz = bsz

@@ -248,6 +248,7 @@ class BartAttention(nn.Module):
                     attention_mask = torch.cat([expanded_prefix_mask, attention_mask], dim=-1)
 
             elif self.config.lisa_option == "gate_cross_attn":
+                # optimize the an added layernorm 
                 cross_attn_weights = torch.bmm(query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
                 # bsz * num_heads, tgt_len, prefix_len
                 cross_attn_weights = nn.functional.softmax(cross_attn_weights, dim=-1)
@@ -257,6 +258,22 @@ class BartAttention(nn.Module):
                 cross_attn_output = cross_attn_output.transpose(1, 2)
 
                 cross_attn_output = cross_attn_output * (1 - gates)
+                cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
+
+            elif self.config.lisa_option == "cross_attn":
+                # optimize an added layernorm 
+                cross_hidden = self.ef_ln_before(hidden_states)
+                cross_query_states = self.q_proj(cross_hidden) * self.scaling
+                cross_query_states = self._shape(cross_query_states, tgt_len, bsz).view(*proj_shape)
+
+                cross_attn_weights = torch.bmm(cross_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
+                # bsz * num_heads, tgt_len, prefix_len
+                cross_attn_weights = nn.functional.softmax(cross_attn_weights, dim=-1)
+                cross_attn_probs = nn.functional.dropout(cross_attn_weights, p=self.dropout, training=self.training)
+                cross_attn_output = torch.bmm(cross_attn_probs, prefix_value)
+                cross_attn_output = cross_attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
+                cross_attn_output = cross_attn_output.transpose(1, 2)
+
                 cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
         src_len = key_states.size(1)
@@ -307,7 +324,7 @@ class BartAttention(nn.Module):
         attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
         attn_output = attn_output.transpose(1, 2)
 
-        if cross_attn_output is not None:
+        if self.config.lisa_option == "gate_cross_attn":
             attn_output = attn_output * gates
 
         attn_output = attn_output.reshape(bsz, tgt_len, embed_dim)
