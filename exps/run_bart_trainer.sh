@@ -21,7 +21,7 @@ DATE=`date +%Y%m%d`
 dataset="xsum"
 
 use_prefix="lisa"
-lisa_option="default"
+lisa_option="gate_cross_attn"
 
 max_steps=80000
 num_train_epochs=30

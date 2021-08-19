@@ -95,7 +95,7 @@ class TuneArguments:
     lisa_option: Optional[str] = field(
         default="default",
         metadata={
-            "help": "", "choices": ["default", "cross_attn"]
+            "help": "", "choices": ["default", "cross_attn", "gate_cross_attn"]
         },
     )
 
