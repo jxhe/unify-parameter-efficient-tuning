@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=xsum
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:v100:1
+#SBATCH --gres=gpu:A6000:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=2
 #SBATCH --time=0
@@ -21,9 +21,9 @@ DATE=`date +%Y%m%d`
 dataset="xsum"
 
 use_prefix="lisa"
-lisa_option="gate_cross_attn"
+lisa_option="default"
 
-max_steps=80000
+max_steps=100000
 num_train_epochs=30
 warmup_updates=0
 lr=5e-5
@@ -33,7 +33,7 @@ weight_decay=0
 bsz=16
 gradient_steps=4
 metric=rouge2
-ft='ef_gate'
+ft='ef_'
 top_layers=12
 max_eval_samples=1600
 max_train_samples=2000
