@@ -166,7 +166,7 @@ class BartAttention(nn.Module):
             if self.config.lisa_option == 'gate_cross_attn':
                 self.ef_gate = nn.Parameter(torch.zeros(num_heads, self.head_dim, requires_grad=True))
                 self.ef_gate_bias = nn.Parameter(torch.full((self.num_heads,), 5., requires_grad=True))
-            elif self.config.lisa_option == 'cross_attn':
+            elif self.config.lisa_option == 'cross_attn' or self.config.lisa_option == 'cross_attn_plug':
                 self.ef_ln_before = nn.LayerNorm(embed_dim)
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
@@ -260,11 +260,14 @@ class BartAttention(nn.Module):
                 cross_attn_output = cross_attn_output * (1 - gates)
                 cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
-            elif self.config.lisa_option == "cross_attn":
+            elif self.config.lisa_option == "cross_attn" or self.config.lisa_option == "cross_attn_noln":
                 # optimize an added layernorm 
-                cross_hidden = self.ef_ln_before(hidden_states)
-                cross_query_states = self.q_proj(cross_hidden) * self.scaling
-                cross_query_states = self._shape(cross_query_states, tgt_len, bsz).view(*proj_shape)
+                if self.config.lisa_option == "cross_attn":
+                    cross_hidden = self.ef_ln_before(hidden_states)
+                    cross_query_states = self.q_proj(cross_hidden) * self.scaling
+                    cross_query_states = self._shape(cross_query_states, tgt_len, bsz).view(*proj_shape)
+                else:
+                    cross_query_states = query_states
 
                 cross_attn_weights = torch.bmm(cross_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
                 # bsz * num_heads, tgt_len, prefix_len
@@ -333,6 +336,23 @@ class BartAttention(nn.Module):
             attn_output = attn_output + cross_attn_output
 
         attn_output = self.out_proj(attn_output)
+
+        if self.use_prefix == 'lisa' and self.config.lisa_option == 'cross_attn_plug':
+            ef_query_states = self.q_proj(self.ef_ln_before(attn_output)) * self.scaling
+            ef_query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)
+
+            ef_cross_attn_weights = torch.bmm(ef_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
+            # bsz * num_heads, tgt_len, prefix_len
+            ef_cross_attn_weights = nn.functional.softmax(ef_cross_attn_weights, dim=-1)
+            ef_cross_attn_probs = nn.functional.dropout(ef_cross_attn_weights, p=self.dropout, training=self.training)
+            ef_cross_attn_output = torch.bmm(ef_cross_attn_weights, prefix_value)
+            ef_cross_attn_output = ef_cross_attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
+            ef_cross_attn_output = ef_cross_attn_output.transpose(1, 2)
+
+            ef_cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
+
+            # residule
+            attn_output = attn_output + ef_cross_attn_output
 
         if prefix_state is not None and self.use_prefix == 'learn_bias':
             bias_embeds = prefix_state.get(self.cache_key)
