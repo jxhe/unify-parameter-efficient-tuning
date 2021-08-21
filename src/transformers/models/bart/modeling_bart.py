@@ -248,7 +248,7 @@ class BartAttention(nn.Module):
                     attention_mask = torch.cat([expanded_prefix_mask, attention_mask], dim=-1)
 
             elif self.config.lisa_option == "gate_cross_attn":
-                # optimize the an added layernorm 
+                # optimize the an added layernorm
                 cross_attn_weights = torch.bmm(query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
                 # bsz * num_heads, tgt_len, prefix_len
                 cross_attn_weights = nn.functional.softmax(cross_attn_weights, dim=-1)
@@ -261,7 +261,7 @@ class BartAttention(nn.Module):
                 cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
             elif self.config.lisa_option == "cross_attn" or self.config.lisa_option == "cross_attn_noln":
-                # optimize an added layernorm 
+                # optimize an added layernorm
                 if self.config.lisa_option == "cross_attn":
                     cross_hidden = self.ef_ln_before(hidden_states)
                     cross_query_states = self.q_proj(cross_hidden) * self.scaling
@@ -349,7 +349,7 @@ class BartAttention(nn.Module):
             ef_cross_attn_output = ef_cross_attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
             ef_cross_attn_output = ef_cross_attn_output.transpose(1, 2)
 
-            ef_cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
+            ef_cross_attn_output = ef_cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
             # residule
             attn_output = attn_output + ef_cross_attn_output

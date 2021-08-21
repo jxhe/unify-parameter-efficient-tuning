@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=xsum
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:A6000:1
+#SBATCH --gres=gpu:v100:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=2
 #SBATCH --time=0
@@ -21,15 +21,15 @@ DATE=`date +%Y%m%d`
 dataset="xsum"
 
 use_prefix="lisa"
-lisa_option="default"
+lisa_option="gate_cross_attn"
 
 max_steps=100000
 num_train_epochs=30
-warmup_updates=0
+warmup_updates=1000
 lr=5e-5
 lr_scheduler_type="polynomial"
-max_grad_norm=1
-weight_decay=0
+max_grad_norm=0.1
+weight_decay=0.01
 bsz=16
 gradient_steps=4
 metric=rouge2
@@ -38,7 +38,7 @@ top_layers=12
 max_eval_samples=1600
 max_train_samples=2000
 logging_steps=100
-label_smoothing_factor=0
+label_smoothing_factor=0.1
 
 eval_strategy="steps"
 # eval_strategy="steps"
@@ -65,7 +65,7 @@ then
 fi
 
 
-exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.ms${max_steps}.ls${label_smoothing_factor}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
