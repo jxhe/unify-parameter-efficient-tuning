@@ -168,6 +168,7 @@ class BartAttention(nn.Module):
                 self.ef_gate_bias = nn.Parameter(torch.full((self.num_heads,), 5., requires_grad=True))
             elif self.config.lisa_option == 'cross_attn' or self.config.lisa_option == 'cross_attn_plug':
                 self.ef_ln_before = nn.LayerNorm(embed_dim)
+                self.plug_q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
@@ -338,7 +339,7 @@ class BartAttention(nn.Module):
         attn_output = self.out_proj(attn_output)
 
         if self.use_prefix == 'lisa' and self.config.lisa_option == 'cross_attn_plug':
-            ef_query_states = self.q_proj(self.ef_ln_before(attn_output)) * self.scaling
+            ef_query_states = self.plug_q_proj(self.ef_ln_before(attn_output)) * self.scaling
             ef_query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)
 
             ef_cross_attn_weights = torch.bmm(ef_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
