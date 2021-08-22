@@ -95,7 +95,16 @@ class TuneArguments:
     lisa_option: Optional[str] = field(
         default="default",
         metadata={
-            "help": "", "choices": ["default", "cross_attn", "gate_cross_attn", "cross_attn_noln", "cross_attn_plug"]
+            "help": "", \
+            "choices": ["default", "cross_attn", "gate_cross_attn",
+                "cross_attn_noln", "cross_attn_plug", "mh_adaptor"]
+        },
+    )
+
+    mh_reuse_proj: Optional[bool] = field(
+        default=False,
+        metadata={
+            "help": ""
         },
     )
 

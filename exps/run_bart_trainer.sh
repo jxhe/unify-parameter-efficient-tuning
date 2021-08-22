@@ -21,11 +21,12 @@ DATE=`date +%Y%m%d`
 dataset="xsum"
 
 use_prefix="lisa"
-lisa_option="gate_cross_attn"
+lisa_option="cross_attn_plug"
+mh_reuse_proj="True"
 
 max_steps=100000
 num_train_epochs=30
-warmup_updates=1000
+warmup_updates=0
 lr=5e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=0.1
@@ -45,12 +46,15 @@ eval_strategy="steps"
 save_steps=3000
 report_to="wandb"
 
-debug=0
+debug=1
 extra_cmd=""
 debug_str=""
 
 if [ "${debug}" = 1 ];
 then
+    label_smoothing_factor=0
+    weight_decay=0
+    max_grad_norm=1
     max_train_samples=2000
     bsz=24
     gradient_steps=2
@@ -65,7 +69,7 @@ then
 fi
 
 
-exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.mh_reuse_proj_${mh_reuse_proj}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
@@ -76,6 +80,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --cache_dir ${cache_dir} \
     --use_prefix ${use_prefix} \
     --lisa_option ${lisa_option} \
+    --mh_reuse_proj ${mh_reuse_proj} \
     --mid_dim 800 \
     --preseqlen 200 \
     --unfreeze_params ${ft} \
@@ -117,7 +122,8 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --metric_for_best_model ${metric} \
     --greater_is_better "True" \
     --predict_with_generate \
-    --output_dir ${SAVE} ${extra_cmd} 2>&1 | tee ${SAVE}/log.txt
+    --output_dir ${SAVE} ${extra_cmd} \
+        # 2>&1 | tee ${SAVE}/log.txt
     # --predict_with_generate
     # --metric_for_best_model ${metric} \
     # --greater_is_better "True" \
