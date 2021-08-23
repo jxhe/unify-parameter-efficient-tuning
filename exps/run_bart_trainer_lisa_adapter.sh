@@ -80,6 +80,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --cache_dir ${cache_dir} \
     --use_prefix ${use_prefix} \
     --lisa_option ${lisa_option} \
+    --init_with_bert 1 \
     --mid_dim 800 \
     --preseqlen 200 \
     --unfreeze_params ${ft} \
