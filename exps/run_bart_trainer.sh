@@ -20,9 +20,9 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-use_prefix="lisa"
-lisa_option="cross_attn_plug"
-mh_reuse_proj="True"
+use_prefix="adapter"
+lisa_option="attn_adapter"
+mh_reuse_proj="False"
 
 max_steps=100000
 num_train_epochs=30
@@ -83,6 +83,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --mh_reuse_proj ${mh_reuse_proj} \
     --mid_dim 800 \
     --preseqlen 200 \
+    --init_with_bert 1 \
     --unfreeze_params ${ft} \
     --num_bias_layers ${top_layers} \
     --preprocessing_num_workers 2 \

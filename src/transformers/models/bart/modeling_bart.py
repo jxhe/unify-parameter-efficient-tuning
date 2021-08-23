@@ -171,8 +171,9 @@ class BartAttention(nn.Module):
                     or self.config.lisa_option == 'cross_attn_cz':
                 self.ef_transform_layer_norm = nn.LayerNorm(embed_dim)
 
-                if not self.config.mh_reuse_proj:
-                    self.plug_q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
+
+            if self.config.lisa_option == 'cross_attn_plug' and not self.config.mh_reuse_proj:
+                self.plug_q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
