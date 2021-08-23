@@ -39,7 +39,8 @@ class TuneArguments:
     use_prefix: Optional[str] = field(
         default="none",
         metadata={
-            "help": "", "choices": ["lisa", "learn_bias", "luna", "none", "dlisa"]
+            "help": "", 
+            "choices": ["lisa", "learn_bias", "luna", "none", "dlisa", "adapter"]
         },
     )
 
@@ -100,6 +101,14 @@ class TuneArguments:
                 "cross_attn_noln", "cross_attn_plug", "mh_adaptor",
                 "with_adapter", "lisa_no_mlp", "cross_attn_before_norm",
                 "cross_attn_cz"]
+        },
+    )
+
+    adapter_option: Optional[str] = field(
+        default="attn_adapter",
+        metadata={
+            "help": "", \
+            "choices": ["attn_adapter"]
         },
     )
 
