@@ -339,6 +339,7 @@ class BartAttention(nn.Module):
         if cross_attn_output is not None:
             attn_output = attn_output + cross_attn_output
 
+        import pdb; pdb.set_trace()
         attn_output = self.out_proj(attn_output)
 
         if self.use_prefix == 'lisa' and (self.config.lisa_option == 'cross_attn_plug' or self.config.lisa_option == 'mh_adaptor'):
