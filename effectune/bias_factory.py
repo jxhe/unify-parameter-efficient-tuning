@@ -320,16 +320,16 @@ class Adapter_Layer(nn.Module):
         if config.init_with_bert:
             self.apply(init_bert_weights)
 
-    def forward(self, x, residual=True):
+    def forward(self, x, if_residual=True):
         residual = x
         down = self.non_linear_func(self.down_proj(self.adapter_layer_norm_before(x)))
         up = self.up_proj(down)
 
-        if residual:
+        if if_residual:
             output = up + residual
         else:
             output = up
-            
+
         return output
 
 

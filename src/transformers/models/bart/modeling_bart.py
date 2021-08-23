@@ -178,7 +178,7 @@ class BartAttention(nn.Module):
                 self.plug_q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
         elif self.use_prefix == 'adapter':
-            if self.config.adapter_option == "attn_adapter":
+            if self.config.lisa_option == "attn_adapter":
                 self.ef_attn_adapter = Adapter_Layer(self.config)
             else:
                 raise ValueError("adapter option not supported")
@@ -323,9 +323,9 @@ class BartAttention(nn.Module):
 
                 cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
-        if use_prefix == 'adapter':
-            if self.config.adapter_option == "attn_adapter":
-                cross_attn_output = self.attn_adapter(hidden_states, residule=False)
+        if self.use_prefix == 'adapter':
+            if self.config.lisa_option == "attn_adapter":
+                cross_attn_output = self.ef_attn_adapter.forward(hidden_states, if_residual=False)
 
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
@@ -375,7 +375,7 @@ class BartAttention(nn.Module):
         attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
         attn_output = attn_output.transpose(1, 2)
 
-        if self.config.lisa_option == "cross_attn_gate":
+        if self.config.use_prefix == "lisa" and self.config.lisa_option == "cross_attn_gate":
             attn_output = attn_output * gates
 
 
@@ -1496,7 +1496,7 @@ class BartModel(BartPretrainedModel):
 )
 class BartForConditionalGeneration(BartPretrainedModel):
     base_model_prefix = "model"
-    _keys_to_ignore_on_load_missing = [r"final_logits_bias", r"lm_head\.weight"]
+    _keys_to_ignore_on_load_missing = [r"final_logits_bias", r"lm_head\.weight", r"ef_"]
 
     def __init__(self, config: BartConfig):
         super().__init__(config)

@@ -22,6 +22,7 @@ dataset="xsum"
 
 use_prefix="adapter"
 lisa_option="attn_adapter"
+# adapter_option="attn_adapter"
 mh_reuse_proj="False"
 
 max_steps=100000
