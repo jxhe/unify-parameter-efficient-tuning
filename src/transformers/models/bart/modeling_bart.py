@@ -164,7 +164,7 @@ class BartAttention(nn.Module):
         self.config = config
         self.cache_key = cache_key
 
-        if self.use_prefix == 'lisa':
+        if 'lisa' in self.use_prefix:
             if self.config.lisa_option == 'cross_attn_gate':
                 self.ef_transform_gate = nn.Parameter(torch.zeros(num_heads, self.head_dim, requires_grad=True))
                 self.ef_transform_gate_bias = nn.Parameter(torch.full((self.num_heads,), 2.0, requires_grad=True))
@@ -239,7 +239,7 @@ class BartAttention(nn.Module):
             past_key_value = (key_states, value_states)
 
 
-        if self.use_prefix == "lisa" and self.config.lisa_option == "cross_attn_gate":
+        if 'lisa' in self.use_prefix and self.config.lisa_option == "cross_attn_gate":
             x = query_states.view(bsz, tgt_len, self.num_heads, self.head_dim)
             gates = torch.sigmoid((x * self.ef_transform_gate[None, None, :, :]).sum(-1) + self.ef_transform_gate_bias).unsqueeze(-1) # bsz, tgt_len, num_heads, 1
             # print(gates)
@@ -376,7 +376,7 @@ class BartAttention(nn.Module):
         attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
         attn_output = attn_output.transpose(1, 2)
 
-        if self.config.use_prefix == "lisa" and self.config.lisa_option == "cross_attn_gate":
+        if 'lisa' in self.config.use_prefix and self.config.lisa_option == "cross_attn_gate":
             attn_output = attn_output * gates
 
 
@@ -385,7 +385,7 @@ class BartAttention(nn.Module):
         if cross_attn_output is not None:
             attn_output = attn_output + cross_attn_output
 
-        if self.use_prefix == 'lisa' and (self.config.lisa_option == 'cross_attn_plug_before_outproj' or self.config.lisa_option == 'mh_adaptor_before_outproj'):
+        if 'lisa' in self.use_prefix and (self.config.lisa_option == 'cross_attn_plug_before_outproj' or self.config.lisa_option == 'mh_adaptor_before_outproj'):
             if self.config.mh_reuse_proj:
                 ef_query_states = self.q_proj(self.ef_ln_before(attn_output))
             else:
@@ -417,7 +417,7 @@ class BartAttention(nn.Module):
         # import pdb; pdb.set_trace()
         attn_output = self.out_proj(attn_output)
 
-        if self.use_prefix == 'lisa' and (self.config.lisa_option == 'cross_attn_plug' or self.config.lisa_option == 'mh_adaptor'):
+        if 'lisa' in self.use_prefix and (self.config.lisa_option == 'cross_attn_plug' or self.config.lisa_option == 'mh_adaptor'):
             if self.config.mh_reuse_proj:
                 ef_query_states = self.q_proj(self.ef_ln_before(attn_output))
             else:
@@ -540,7 +540,7 @@ class BartEncoderLayer(nn.Module):
 
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
-        if self.config.use_prefix == 'lisa' and self.config.lisa_option == 'with_adapter':
+        if 'lisa' in self.config.use_prefix and self.config.lisa_option == 'with_adapter':
             hidden_states = prefix_state["encoder_adapters"](hidden_states)
 
         hidden_states = residual + hidden_states
@@ -688,7 +688,7 @@ class BartDecoderLayer(nn.Module):
         hidden_states = self.fc2(hidden_states)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
-        if self.config.use_prefix == 'lisa' and self.config.lisa_option == 'with_adapter':
+        if 'lisa' in self.config.use_prefix == 'lisa' and self.config.lisa_option == 'with_adapter':
             hidden_states = prefix_state["decoder_adapters"](hidden_states)
 
         hidden_states = residual + hidden_states

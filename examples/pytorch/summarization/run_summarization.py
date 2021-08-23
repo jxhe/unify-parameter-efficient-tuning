@@ -498,7 +498,7 @@ def main():
     )
 
     # added by Chunting: prepare the finetuning model
-    if tune_args.use_prefix == "lisa":
+    if "lisa" in tune_args.use_prefix:
         model = PrefixTuning(config, tune_args, model)
 
     # import pdb; pdb.set_trace()
