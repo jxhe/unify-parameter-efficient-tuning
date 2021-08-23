@@ -48,6 +48,8 @@ from .configuration_bart import BartConfig
 import sys
 sys.path.insert(2, "./")
 from effectune.luna_attention import luna_attention, luna_attention_enc_dec
+from effectune.bias_factory import Adapter_Layer
+
 import pdb
 
 logger = logging.get_logger(__name__)
@@ -173,6 +175,13 @@ class BartAttention(nn.Module):
 
                 if not self.config.mh_reuse_proj:
                     self.plug_q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
+
+        elif self.use_prefix == 'adapter':
+            if self.config.adapter_option == "attn_adapter":
+                self.ef_attn_adapter = Adapter_Layer(self.config)
+            else:
+                raise ValueError("adapter option not supported")
+
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
@@ -312,6 +321,10 @@ class BartAttention(nn.Module):
                 cross_attn_output = cross_attn_output.transpose(1, 2)
 
                 cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
+
+        if use_prefix == 'adapter':
+            if self.config.adapter_option == "attn_adapter":
+                cross_attn_output = self.attn_adapter(hidden_states, residule=False)
 
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
@@ -689,6 +702,7 @@ class BartPretrainedModel(PreTrainedModel):
     config_class = BartConfig
     base_model_prefix = "model"
     _keys_to_ignore_on_load_unexpected = [r"encoder\.version", r"decoder\.version"]
+    _keys_to_ignore_on_load_missing = [r"ef_"]
 
     def _init_weights(self, module):
         print("============================ init weights is called! ====================================")
