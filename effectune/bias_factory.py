@@ -305,7 +305,7 @@ class Bias(nn.Module):
 
 
 class Adapter_Layer(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, dropout=0):
         super().__init__()
         self.n_embd = config.d_model
         self.down_size = config.preseqlen
@@ -317,12 +317,15 @@ class Adapter_Layer(nn.Module):
         self.non_linear_func = nn.ReLU()
         self.up_proj = nn.Linear(self.down_size, self.n_embd)
 
+        self.dropout = dropout
+
         if config.init_with_bert:
             self.apply(init_bert_weights)
 
     def forward(self, x, if_residual=True):
         residual = x
         down = self.non_linear_func(self.down_proj(self.adapter_layer_norm_before(x)))
+        down = nn.functional.dropout(down, p=self.dropout, training=self.training)
         up = self.up_proj(down)
 
         if if_residual:

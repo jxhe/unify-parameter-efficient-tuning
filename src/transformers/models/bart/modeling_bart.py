@@ -179,7 +179,7 @@ class BartAttention(nn.Module):
 
         elif self.use_prefix == 'adapter':
             if self.config.lisa_option == "attn_adapter":
-                self.ef_attn_adapter = Adapter_Layer(self.config)
+                self.ef_attn_adapter = Adapter_Layer(self.config, dropout=self.dropout)
             else:
                 raise ValueError("adapter option not supported")
 
