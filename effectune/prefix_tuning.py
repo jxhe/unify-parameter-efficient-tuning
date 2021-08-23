@@ -3,7 +3,7 @@ from transformers import PretrainedBartModel
 import torch.nn as nn
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 from effectune.luna_attention import luna_attention, luna_attention_enc_dec, SimpleAttnBias
-from effectune.bias_factory import Prefix, MLP_Bias, Bias
+from effectune.bias_factory import Prefix, MLP_Bias, Bias, Prefix_Adapter, PrefixDirectInit
 from transformers.utils import logging
 logger = logging.get_logger(__name__)
 
@@ -32,11 +32,8 @@ class PrefixTuning(PretrainedBartModel):
             self.get_prompt = self.get_fake_prompt
 
         logger.info("Declare PrefixTuning model!")
-        all_match = True
-        if args.unfreeze_params != "none":
-            not_freeze_set = [args.unfreeze_params]
-        else:
-            not_freeze_set = []
+
+        not_freeze_set = []
         if args.unfreeze_params != 'none' and args.use_prefix != 'luna':
             if args.unfreeze_params == 'LN':
                 # not_freeze_set = ['layernorm']  # input layernorm
@@ -69,7 +66,12 @@ class PrefixTuning(PretrainedBartModel):
         return all(check) if all_match else any(check)
 
     def setup_lisa(self, args, config):
-        self.lisa_model = Prefix(args, config)
+        if args.lisa_option == "with_adapter":
+            self.lisa_model = Prefix_Adapter(args, config)
+        elif args.lisa_option == "lisa_no_mlp":
+            self.lisa_model = PrefixDirectInit(args, config)
+        else:
+            self.lisa_model = Prefix(args, config)
         self.get_prompt = self.get_prompt_lisa
 
     def get_prompt_lisa(self, bsz, nsamples=1):

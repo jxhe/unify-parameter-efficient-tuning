@@ -95,9 +95,23 @@ class TuneArguments:
     lisa_option: Optional[str] = field(
         default="default",
         metadata={
-            "help": "", "choices": ["default", "cross_attn"]
+            "help": "", "choices": ["default", "cross_attn", "cross_attn_gate", "with_adapter", "lisa_no_mlp", "cross_attn_before_norm"]
         },
     )
+
+    init_with_bert: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": ""
+        },
+    )
+
+    # down_size: Optional[int] = field(
+    #     default=0,
+    #     metadata={
+    #         "help": ""
+    #     },
+    # )
 
 # @dataclass
 # class TuneArguments:

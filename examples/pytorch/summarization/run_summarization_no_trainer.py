@@ -749,13 +749,14 @@ def main():
             result = generate(args, config, val_batches, accelerator.unwrap_model(model), accelerator, tokenizer, metric)
 
             if result[args.val_metric] > best_metric:
+                best_metric = result[args.val_metric]
                 accelerator.wait_for_everyone()
                 unwrapped_model = accelerator.unwrap_model(model)
                 if os.path.exists(best_checkpoint_path):
                     os.remove(best_checkpoint_path)
-                logger.info("save best checkpoints .......")
-                unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
-                best_metric = result[args.val_metric]
+                if not args.debug:
+                    logger.info("save best checkpoints .......")
+                    unwrapped_model.save_pretrained(args.output_dir, save_function=accelerator.save)
 
             logger.info(result)
             logger.info("best = {}".format(best_metric))
