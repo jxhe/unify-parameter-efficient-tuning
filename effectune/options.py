@@ -96,8 +96,10 @@ class TuneArguments:
         default="default",
         metadata={
             "help": "", \
-            "choices": ["default", "cross_attn", "gate_cross_attn",
-                "cross_attn_noln", "cross_attn_plug", "mh_adaptor"]
+            "choices": ["default", "cross_attn", "cross_attn_gate",
+                "cross_attn_noln", "cross_attn_plug", "mh_adaptor",
+                "with_adapter", "lisa_no_mlp", "cross_attn_before_norm",
+                "cross_attn_cz"]
         },
     )
 
@@ -107,6 +109,20 @@ class TuneArguments:
             "help": ""
         },
     )
+
+    init_with_bert: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": ""
+        },
+    )
+
+    # down_size: Optional[int] = field(
+    #     default=0,
+    #     metadata={
+    #         "help": ""
+    #     },
+    # )
 
 # @dataclass
 # class TuneArguments:

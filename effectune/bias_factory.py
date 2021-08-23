@@ -22,6 +22,23 @@ def init_bias_mlp(module):
         module.bias.data.zero_()
 
 
+def init_bert_weights(module):
+    """Initialize the weights."""
+    if isinstance(module, (nn.Linear, nn.Embedding)):
+        # std defaults to 0.02, this might need to be changed
+        module.weight.data.normal_(mean=0.0, std=0.02)
+    elif isinstance(module, nn.LayerNorm):
+        module.bias.data.zero_()
+        module.weight.data.fill_(1.0)
+    if isinstance(module, nn.Linear) and module.bias is not None:
+        module.bias.data.zero_()
+
+
+def init_zero_weights(module):
+    if isinstance(module, nn.Embedding):
+        nn.init.constant_(module.weight, 0.0)
+
+
 class Prefix(nn.Module):
     def __init__(self, args, config):
         super().__init__()
@@ -111,6 +128,73 @@ class Prefix(nn.Module):
         return result
 
 
+class PrefixDirectInit(nn.Module):
+    def __init__(self, args, config):
+        super().__init__()
+
+        # self.match_n_layer = config.decoder_layers if args.num_bias_layers < 0 else args.num_bias_layers
+        self.match_n_layer = args.num_bias_layers
+        self.match_n_head = config.decoder_attention_heads
+        self.n_embd = config.d_model
+        self.match_n_embd = self.n_embd // self.match_n_head
+
+        self.mid_dim = args.mid_dim
+        self.preseqlen = args.preseqlen
+        self.prefix_dropout = args.prefix_dropout
+
+        self.dropout = nn.Dropout(self.prefix_dropout)
+        self.input_tokens = torch.arange(self.preseqlen).long()
+        self.encoder_attn_key = nn.ModuleList([nn.Embedding(self.preseqlen, self.n_embd)
+                                                for _ in range(self.match_n_layer)])
+        self.encoder_attn_value = nn.ModuleList([nn.Embedding(self.preseqlen, self.n_embd)
+                                               for _ in range(self.match_n_layer)])
+        self.decoder_self_attn_key = nn.ModuleList([nn.Embedding(self.preseqlen, self.n_embd)
+                                                     for _ in range(self.match_n_layer)])
+        self.decoder_self_attn_value = nn.ModuleList([nn.Embedding(self.preseqlen, self.n_embd)
+                                                    for _ in range(self.match_n_layer)])
+
+        self.decoder_cross_attn_key = nn.ModuleList([nn.Embedding(self.preseqlen, self.n_embd)
+                                                      for _ in range(self.match_n_layer)])
+        self.decoder_cross_attn_value = nn.ModuleList([nn.Embedding(self.preseqlen, self.n_embd)
+                                                     for _ in range(self.match_n_layer)])
+
+        # fixme: choose a favorable init method
+        self.apply(init_bert_weights)
+        # self.apply(init_zero_weights)
+
+    def _shape(self, x, bsz):
+        y = x.view(bsz, self.preseqlen, self.match_n_head, self.match_n_embd)
+        y = y.permute([0, 2, 1, 3])
+        y = y.contiguous().view(bsz * self.match_n_head, -1, self.match_n_embd)
+        return y
+
+    def forward(self, bsz, nsamples=1, device="cuda"):
+        old_bsz = bsz
+        bsz = bsz * nsamples
+        input_tokens = self.input_tokens.unsqueeze(0).expand(bsz, -1).to(device)
+        input_tokens_enc = self.input_tokens.unsqueeze(0).expand(old_bsz, -1).to(device)
+
+        result = []
+        for i, (enc_attn_k, enc_attn_v, dec_self_attn_k, dec_self_attn_v, dec_xattn_k, dec_xattn_v) in \
+                enumerate(zip(self.encoder_attn_key, self.encoder_attn_value, self.decoder_self_attn_key,
+                              self.decoder_self_attn_value, self.decoder_cross_attn_key, self.decoder_cross_attn_value)):
+            temp_dict = {'self': {"prev_key": self._shape(dec_self_attn_k(input_tokens), bsz),
+                                  "prev_value": self._shape(dec_self_attn_v(input_tokens), bsz),
+                                  "prev_key_padding_mask": torch.zeros(bsz, self.preseqlen).to(device) #bsz, preseqlen
+                                  },
+                         'encoder_decoder': {"prev_key": self._shape(dec_xattn_k(input_tokens), bsz),
+                                  "prev_value": self._shape(dec_xattn_v(input_tokens), bsz),
+                                  "prev_key_padding_mask": torch.zeros(bsz, self.preseqlen).to(device)  #bsz, preseqlen
+                                  },
+                         'encoder': {"prev_key": self._shape(enc_attn_k(input_tokens_enc), old_bsz),
+                                  "prev_value": self._shape(enc_attn_v(input_tokens_enc), old_bsz),
+                                  "prev_key_padding_mask": torch.zeros(old_bsz, self.preseqlen).to(device) #bsz, preseqlen
+                                  },
+                        }
+            result.append(temp_dict)
+        return result
+
+
 class MLP_Bias(nn.Module):
     def __init__(self, args, config):
         super().__init__()
@@ -155,7 +239,7 @@ class MLP_Bias(nn.Module):
         nn.init.constant_(self.wte_enc.weight, 0.0)
         nn.init.constant_(self.wte2.weight, 0.0)
 
-    def forward(self, bsz, nsamples=1, device="gpu"):
+    def forward(self, bsz, nsamples=1, device="cuda"):
         temp_control = self.wte(self.tgt_input_tokens.to(self.device))
         past_key_values = self.control_trans(temp_control)  # tgt_len, layer*emb
         past_key_values = past_key_values.view(self.tgt_len, self.match_n_layer, self.n_embd)
@@ -205,7 +289,7 @@ class Bias(nn.Module):
             assert isinstance(embed, nn.Embedding)
             nn.init.constant_(embed.weight, 0.0)
 
-    def forward(self, bsz, nsamples=1, device="gpu"):
+    def forward(self, bsz, nsamples=1, device="cuda"):
         result = []
         max_src_len = self.args.max_source_length + 2
         max_tgt_len = self.args.max_target_length + 2
@@ -219,44 +303,97 @@ class Bias(nn.Module):
             result.append(temp_dict)
         return
 
-class InputBias(nn.Module):
-    def __init__(self, args):
+
+class Adapter_Layer(nn.Module):
+    def __init__(self, args, config):
         super().__init__()
-        self.args = args
+        self.n_embd = config.d_model
+        self.down_size = args.preseqlen
+        # self.non_linearity = args.non_linearity  # use ReLU by default
+        self.layer_norm_before = True
 
-        self.prefix_embs = nn.Embedding(args.max_source_length + 2, self.n_embd)
-        # Option 1: a simple version, no transformations, each attention layer has its own bias parameters
-        self.encoder_attn_bias = nn.ModuleList([nn.Embedding(args.max_source_length + 2, self.n_embd)
-                                                for _ in range(self.match_n_layer)])
-        self.decoder_self_attn_bias = nn.ModuleList([nn.Embedding(args.max_target_length + 2, self.n_embd)
-                                                     for _ in range(self.match_n_layer)])
+        self.adapter_layer_norm_before = nn.LayerNorm(self.n_embd)
+        self.down_proj = nn.Linear(self.n_embd, self.down_size)
+        self.non_linear_func = nn.ReLU()
+        self.up_proj = nn.Linear(self.down_size, self.n_embd)
 
-        self.decoder_cross_attn_bias = nn.ModuleList([nn.Embedding(args.max_target_length + 2, self.n_embd)
-                                                      for _ in range(self.match_n_layer)])
-        for embed in self.encoder_attn_bias:
-            assert isinstance(embed, nn.Embedding)
-            nn.init.constant_(embed.weight, 0.0)
-        for embed in self.decoder_self_attn_bias:
-            assert isinstance(embed, nn.Embedding)
-            nn.init.constant_(embed.weight, 0.0)
-        for embed in self.decoder_cross_attn_bias:
-            assert isinstance(embed, nn.Embedding)
-            nn.init.constant_(embed.weight, 0.0)
+        if args.init_with_bert:
+            self.apply(init_bert_weights)
 
-    def forward(self, bsz, nsamples=1, device="gpu"):
-        result = []
-        max_src_len = self.args.max_source_length + 2
-        max_tgt_len = self.args.max_target_length + 2
+    def forward(self, x):
+        residual = x
+        down = self.non_linear_func(self.down_proj(self.adapter_layer_norm_before(x)))
+        up = self.up_proj(down)
+        output = up + residual
+        return output
 
-        src_positions = torch.arange(0, max_src_len, dtype=torch.long, device=device)
-        tgt_positions = torch.arange(0, max_tgt_len, dtype=torch.long, device=device)
-        for ii in range(self.match_n_layer):
-            temp_dict = {"encoder": self.encoder_attn_bias[ii].forward(src_positions),
-                         "self": self.decoder_self_attn_bias[ii].forward(tgt_positions),
-                         "encoder_decoder": self.decoder_cross_attn_bias[ii].forward(tgt_positions)}
-            result.append(temp_dict)
-        return result
 
-class CrossAttnBias(nn.Module):
-    def __init__(self, args, config, embed_dim, num_heads, bias=True):
+class Adapter(nn.Module):
+    def __init__(self, args, config):
         super().__init__()
+        self.num_layers = args.num_bias_layers
+        self.encoder_adapters = nn.ModuleList([Adapter_Layer(args, config) for _ in range(args.num_bias_layers)])
+        self.decoder_adapters = nn.ModuleList([Adapter_Layer(args, config) for _ in range(args.num_bias_layers)])
+
+    def forward(self, bsz, nsamples=1, device="cuda"):
+        results = []
+        for ii in range(self.num_layers):
+            results.append({"encoder_adapters": self.encoder_adapters[ii],
+                            "decoder_adapters": self.decoder_adapters[ii]})
+        return results
+
+
+class Prefix_Adapter(nn.Module):
+    def __init__(self, args, config):
+        super().__init__()
+        self.prefix = Prefix(args, config)
+        self.adapters = Adapter(args, config)
+
+    def forward(self, bsz, nsamples=1, device="cuda"):
+        prefix = self.prefix(bsz, nsamples, device)
+        adapters = self.adapters(bsz)
+
+        for ii, dic in enumerate(adapters):
+            for key, value in dic.items():
+                prefix[ii][key] = value
+        return prefix
+
+
+# class InputBias(nn.Module):
+    # def __init__(self, args):
+    #     super().__init__()
+    #     self.args = args
+    #
+    #     self.prefix_embs = nn.Embedding(args.max_source_length + 2, self.n_embd)
+    #     # Option 1: a simple version, no transformations, each attention layer has its own bias parameters
+    #     self.encoder_attn_bias = nn.ModuleList([nn.Embedding(args.max_source_length + 2, self.n_embd)
+    #                                             for _ in range(self.match_n_layer)])
+    #     self.decoder_self_attn_bias = nn.ModuleList([nn.Embedding(args.max_target_length + 2, self.n_embd)
+    #                                                  for _ in range(self.match_n_layer)])
+    #
+    #     self.decoder_cross_attn_bias = nn.ModuleList([nn.Embedding(args.max_target_length + 2, self.n_embd)
+    #                                                   for _ in range(self.match_n_layer)])
+    #     for embed in self.encoder_attn_bias:
+    #         assert isinstance(embed, nn.Embedding)
+    #         nn.init.constant_(embed.weight, 0.0)
+    #     for embed in self.decoder_self_attn_bias:
+    #         assert isinstance(embed, nn.Embedding)
+    #         nn.init.constant_(embed.weight, 0.0)
+    #     for embed in self.decoder_cross_attn_bias:
+    #         assert isinstance(embed, nn.Embedding)
+    #         nn.init.constant_(embed.weight, 0.0)
+    #
+    # def forward(self, bsz, nsamples=1, device="gpu"):
+    #     result = []
+    #     max_src_len = self.args.max_source_length + 2
+    #     max_tgt_len = self.args.max_target_length + 2
+    #
+    #     src_positions = torch.arange(0, max_src_len, dtype=torch.long, device=device)
+    #     tgt_positions = torch.arange(0, max_tgt_len, dtype=torch.long, device=device)
+    #     for ii in range(self.match_n_layer):
+    #         temp_dict = {"encoder": self.encoder_attn_bias[ii].forward(src_positions),
+    #                      "self": self.decoder_self_attn_bias[ii].forward(tgt_positions),
+    #                      "encoder_decoder": self.decoder_cross_attn_bias[ii].forward(tgt_positions)}
+    #         result.append(temp_dict)
+    #     return result
+
