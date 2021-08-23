@@ -170,11 +170,12 @@ class BartAttention(nn.Module):
                 self.ef_transform_gate_bias = nn.Parameter(torch.full((self.num_heads,), 2.0, requires_grad=True))
             elif self.config.lisa_option == 'cross_attn' or self.config.lisa_option == 'cross_attn_plug' \
                     or self.config.lisa_option == 'mh_adaptor' or self.config.lisa_option == 'cross_attn_before_norm' \
-                    or self.config.lisa_option == 'cross_attn_cz':
+                    or self.config.lisa_option == 'cross_attn_cz' or self.config.lisa_option == 'cross_attn_plug_before_outproj':
                 self.ef_transform_layer_norm = nn.LayerNorm(embed_dim)
 
 
-            if self.config.lisa_option == 'cross_attn_plug' and not self.config.mh_reuse_proj:
+            if (self.config.lisa_option == 'cross_attn_plug' or self.config.lisa_option == 'cross_attn_plug_before_outproj') \ 
+                    and not self.config.mh_reuse_proj:
                 self.plug_q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
         elif self.use_prefix == 'adapter':
@@ -383,6 +384,35 @@ class BartAttention(nn.Module):
 
         if cross_attn_output is not None:
             attn_output = attn_output + cross_attn_output
+
+        if self.use_prefix == 'lisa' and (self.config.lisa_option == 'cross_attn_plug_before_outproj' or self.config.lisa_option == 'mh_adaptor_before_outproj'):
+            if self.config.mh_reuse_proj:
+                ef_query_states = self.q_proj(self.ef_ln_before(attn_output))
+            else:
+                ef_query_states = self.plug_q_proj(self.ef_ln_before(attn_output))
+            # ef_query_states = self.q_proj(self.ef_ln_before(attn_output))
+            if self.config.lisa_option != 'mh_adaptor_before_outproj':
+                ef_query_states = ef_query_states * self.scaling
+
+            ef_query_states = self._shape(ef_query_states, tgt_len, bsz).view(*proj_shape)
+
+            ef_cross_attn_weights = torch.bmm(ef_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
+            # bsz * num_heads, tgt_len, prefix_len
+            if self.config.lisa_option == 'cross_attn_plug_before_outproj':
+                ef_cross_attn_weights = nn.functional.softmax(ef_cross_attn_weights, dim=-1)
+                ef_cross_attn_weights = nn.functional.dropout(ef_cross_attn_weights, p=self.dropout, training=self.training)
+            elif self.config.lisa_option == 'mh_adaptor_before_outproj':
+                ef_cross_attn_weights = nn.functional.relu(ef_cross_attn_weights)
+
+            ef_cross_attn_output = torch.bmm(ef_cross_attn_weights, prefix_value)
+            ef_cross_attn_output = ef_cross_attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
+            ef_cross_attn_output = ef_cross_attn_output.transpose(1, 2)
+
+            ef_cross_attn_output = ef_cross_attn_output.reshape(bsz, tgt_len, embed_dim)
+
+            # residule
+            attn_output = attn_output + ef_cross_attn_output
+
 
         # import pdb; pdb.set_trace()
         attn_output = self.out_proj(attn_output)

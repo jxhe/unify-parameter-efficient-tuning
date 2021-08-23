@@ -100,7 +100,7 @@ class TuneArguments:
             "choices": ["default", "cross_attn", "cross_attn_gate",
                 "cross_attn_noln", "cross_attn_plug", "mh_adaptor",
                 "with_adapter", "lisa_no_mlp", "cross_attn_before_norm",
-                "cross_attn_cz", "attn_adapter"]
+                "cross_attn_cz", "attn_adapter", "cross_attn_plug_before_outproj"]
         },
     )
 
