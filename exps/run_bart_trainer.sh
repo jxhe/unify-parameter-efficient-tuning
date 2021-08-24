@@ -20,10 +20,10 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-use_prefix="lisa_nomlp"
-lisa_option="cross_attn"
+use_prefix="adapter"
+lisa_option="attn_adapter"
 # adapter_option="attn_adapter"
-mh_reuse_proj="False"
+mh_reuse_proj="True"
 
 max_steps=100000
 num_train_epochs=30
@@ -47,7 +47,7 @@ eval_strategy="steps"
 save_steps=3000
 report_to="wandb"
 
-debug=1
+debug=0
 extra_cmd=""
 debug_str=""
 

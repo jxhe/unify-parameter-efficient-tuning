@@ -181,16 +181,17 @@ class PrefixDirectInit(nn.Module):
             nn.Tanh(),
             nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
 
-        def init_mlp_lisa_local(key_module, val_module, wte_t, control_t)
+        def init_mlp_lisa_local(key_module, val_module, wte_t, control_t):
             key_val = control_t(wte_t(self.input_tokens))
             seqlen, _ = key_val.shape
             key_val = key_val.view(seqlen, self.match_n_layer * 2, self.n_embd)
-            key, val = key_val.permute([1, 0, 2]).split(2)
+            key_val = key_val.permute([1, 0, 2]).split(2)
 
             for i in range(self.match_n_layer):
-                key_module[i].weight.data = key[i].data
-                val_module[i].weight.data = val[i].data
+                key_module[i].weight.data = key_val[i][0].data
+                val_module[i].weight.data = key_val[i][1].data
 
+        # import pdb; pdb.set_trace()
         init_mlp_lisa_local(self.decoder_self_attn_key, self.decoder_self_attn_value,
             wte, control_trans)
 
