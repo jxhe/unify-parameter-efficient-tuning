@@ -314,7 +314,7 @@ class BartAttention(nn.Module):
                     cross_hidden = self.ef_transform_layer_norm(hidden_states)
                     cross_query_states = self.q_proj(cross_hidden)
                     cross_query_states = self._shape(cross_query_states, tgt_len, bsz).view(*proj_shape)
-                else:                    
+                else:
                     cross_hidden = self.ef_transform_layer_norm(hidden_states)
                     cross_query_states = self.q_proj(cross_hidden) * self.scaling
                     cross_query_states = self._shape(cross_query_states, tgt_len, bsz).view(*proj_shape)
@@ -334,7 +334,7 @@ class BartAttention(nn.Module):
                 cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
         if self.use_prefix == 'adapter':
-            if self.config.lisa_option == "attn_adapter":
+            if self.config.lisa_option == "attn_adapter_drop":
                 cross_attn_output = self.ef_attn_adapter.forward(hidden_states, if_residual=False)
 
         src_len = key_states.size(1)

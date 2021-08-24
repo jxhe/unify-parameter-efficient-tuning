@@ -20,8 +20,8 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-use_prefix="adapter"
-lisa_option="attn_adapter"
+use_prefix="lisa_nomlp"
+lisa_option="cross_attn_relu"
 # adapter_option="attn_adapter"
 mh_reuse_proj="True"
 
