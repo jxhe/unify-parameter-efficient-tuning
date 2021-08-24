@@ -24,7 +24,7 @@ DATE=`date +%Y%m%d`
 dataset="xsum"
 
 use_prefix="lisa"
-lisa_option="lisa_no_mlp"
+lisa_option="cross_attn_before_norm"
 
 max_steps=80000
 warmup_updates=0
@@ -69,6 +69,7 @@ then
     debug_str=".debug"
 fi
 
+
 exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.ms${max_steps}.ls${label_smoothing_factor}.wd${weight_decay}.mgn${max_grad_norm}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
@@ -80,6 +81,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --cache_dir ${cache_dir} \
     --use_prefix ${use_prefix} \
     --lisa_option ${lisa_option} \
+    --init_with_bert 1 \
     --mid_dim 800 \
     --preseqlen 200 \
     --unfreeze_params ${ft} \
