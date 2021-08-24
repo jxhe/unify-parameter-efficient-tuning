@@ -159,47 +159,47 @@ class PrefixDirectInit(nn.Module):
                                                      for _ in range(self.match_n_layer)])
 
         # fixme: choose a favorable init method
-        # self.apply(init_bert_weights)
+        self.apply(init_bert_weights)
         # self.apply(init_zero_weights)
 
         # lisa mlp init
-        wte = nn.Embedding(self.preseqlen, self.n_embd)
-        control_trans = nn.Sequential(
-            nn.Linear(self.n_embd, self.mid_dim),
-            nn.Tanh(),
-            nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
+        # wte = nn.Embedding(self.preseqlen, self.n_embd)
+        # control_trans = nn.Sequential(
+        #     nn.Linear(self.n_embd, self.mid_dim),
+        #     nn.Tanh(),
+        #     nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
 
-        wte_enc = nn.Embedding(self.preseqlen, self.n_embd)
-        control_trans_enc = nn.Sequential(
-            nn.Linear(self.n_embd, self.mid_dim),
-            nn.Tanh(),
-            nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
+        # wte_enc = nn.Embedding(self.preseqlen, self.n_embd)
+        # control_trans_enc = nn.Sequential(
+        #     nn.Linear(self.n_embd, self.mid_dim),
+        #     nn.Tanh(),
+        #     nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
 
-        wte2 = nn.Embedding(self.preseqlen, self.n_embd)
-        control_trans2 = nn.Sequential(
-            nn.Linear(self.n_embd, self.mid_dim),
-            nn.Tanh(),
-            nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
+        # wte2 = nn.Embedding(self.preseqlen, self.n_embd)
+        # control_trans2 = nn.Sequential(
+        #     nn.Linear(self.n_embd, self.mid_dim),
+        #     nn.Tanh(),
+        #     nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
 
-        def init_mlp_lisa_local(key_module, val_module, wte_t, control_t):
-            key_val = control_t(wte_t(self.input_tokens))
-            seqlen, _ = key_val.shape
-            key_val = key_val.view(seqlen, self.match_n_layer * 2, self.n_embd)
-            key_val = key_val.permute([1, 0, 2]).split(2)
+        # def init_mlp_lisa_local(key_module, val_module, wte_t, control_t):
+        #     key_val = control_t(wte_t(self.input_tokens))
+        #     seqlen, _ = key_val.shape
+        #     key_val = key_val.view(seqlen, self.match_n_layer * 2, self.n_embd)
+        #     key_val = key_val.permute([1, 0, 2]).split(2)
 
-            for i in range(self.match_n_layer):
-                key_module[i].weight.data = key_val[i][0].data
-                val_module[i].weight.data = key_val[i][1].data
+        #     for i in range(self.match_n_layer):
+        #         key_module[i].weight.data = key_val[i][0].data
+        #         val_module[i].weight.data = key_val[i][1].data
 
-        # import pdb; pdb.set_trace()
-        init_mlp_lisa_local(self.decoder_self_attn_key, self.decoder_self_attn_value,
-            wte, control_trans)
+        # # import pdb; pdb.set_trace()
+        # init_mlp_lisa_local(self.decoder_self_attn_key, self.decoder_self_attn_value,
+        #     wte, control_trans)
 
-        init_mlp_lisa_local(self.encoder_attn_key, self.encoder_attn_value,
-            wte_enc, control_trans_enc)
+        # init_mlp_lisa_local(self.encoder_attn_key, self.encoder_attn_value,
+        #     wte_enc, control_trans_enc)
 
-        init_mlp_lisa_local(self.decoder_cross_attn_key, self.decoder_cross_attn_value,
-            wte2, control_trans2)
+        # init_mlp_lisa_local(self.decoder_cross_attn_key, self.decoder_cross_attn_value,
+        #     wte2, control_trans2)
 
 
 

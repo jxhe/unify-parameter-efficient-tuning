@@ -169,7 +169,7 @@ class BartAttention(nn.Module):
                 self.ef_transform_gate = nn.Parameter(torch.zeros(num_heads, self.head_dim, requires_grad=True))
                 self.ef_transform_gate_bias = nn.Parameter(torch.full((self.num_heads,), 2.0, requires_grad=True))
             elif self.config.lisa_option == 'cross_attn' or self.config.lisa_option == 'cross_attn_plug' \
-                    or self.config.lisa_option == 'mh_adaptor' or self.config.lisa_option == 'cross_attn_before_norm' \
+                    or self.config.lisa_option == 'cross_attn_relu' or self.config.lisa_option == 'cross_attn_before_norm' \
                     or self.config.lisa_option == 'cross_attn_cz' or self.config.lisa_option == 'cross_attn_plug_before_outproj':
                 self.ef_transform_layer_norm = nn.LayerNorm(embed_dim)
 
@@ -179,8 +179,8 @@ class BartAttention(nn.Module):
                 self.ef_plug_q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
         elif self.use_prefix == 'adapter':
-            if self.config.lisa_option == "attn_adapter":
-                self.ef_attn_adapter = Adapter_Layer(self.config, dropout=0)
+            if self.config.lisa_option == "attn_adapter_drop":
+                self.ef_attn_adapter = Adapter_Layer(self.config, dropout=self.dropout)
             else:
                 raise ValueError("adapter option not supported")
 
@@ -305,18 +305,27 @@ class BartAttention(nn.Module):
                 cross_attn_output = cross_attn_output * (1 - gates)  # now only add gate here
                 cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
-            elif self.config.lisa_option == "cross_attn" or self.config.lisa_option == "cross_attn_noln":
+            elif self.config.lisa_option == "cross_attn" or self.config.lisa_option == "cross_attn_noln" \
+                or self.config.lisa_option == "cross_attn_relu":
                 # optimize an added layernorm
-                if self.config.lisa_option == "cross_attn":
+                if self.config.lisa_option == "cross_attn_noln":
+                    cross_query_states = query_states
+                elif self.config.lisa_option == "cross_attn_relu":
+                    cross_hidden = self.ef_transform_layer_norm(hidden_states)
+                    cross_query_states = self.q_proj(cross_hidden)
+                    cross_query_states = self._shape(cross_query_states, tgt_len, bsz).view(*proj_shape)
+                else:                    
                     cross_hidden = self.ef_transform_layer_norm(hidden_states)
                     cross_query_states = self.q_proj(cross_hidden) * self.scaling
                     cross_query_states = self._shape(cross_query_states, tgt_len, bsz).view(*proj_shape)
-                else:
-                    cross_query_states = query_states
 
                 cross_attn_weights = torch.bmm(cross_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
                 # bsz * num_heads, tgt_len, prefix_len
-                cross_attn_weights = nn.functional.softmax(cross_attn_weights, dim=-1)
+                if self.config.lisa_option == "cross_attn_relu":
+                    cross_attn_weights = nn.functional.relu(cross_attn_weights)
+                else:
+                    cross_attn_weights = nn.functional.softmax(cross_attn_weights, dim=-1)
+
                 cross_attn_probs = nn.functional.dropout(cross_attn_weights, p=self.dropout, training=self.training)
                 cross_attn_output = torch.bmm(cross_attn_probs, prefix_value)
                 cross_attn_output = cross_attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
