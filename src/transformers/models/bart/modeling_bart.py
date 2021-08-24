@@ -174,13 +174,13 @@ class BartAttention(nn.Module):
                 self.ef_transform_layer_norm = nn.LayerNorm(embed_dim)
 
 
-            if (self.config.lisa_option == 'cross_attn_plug' or self.config.lisa_option == 'cross_attn_plug_before_outproj') \ 
+            if (self.config.lisa_option == 'cross_attn_plug' or self.config.lisa_option == 'cross_attn_plug_before_outproj') \
                     and not self.config.mh_reuse_proj:
-                self.plug_q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
+                self.ef_plug_q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
         elif self.use_prefix == 'adapter':
             if self.config.lisa_option == "attn_adapter":
-                self.ef_attn_adapter = Adapter_Layer(self.config, dropout=self.dropout)
+                self.ef_attn_adapter = Adapter_Layer(self.config, dropout=0)
             else:
                 raise ValueError("adapter option not supported")
 
@@ -387,9 +387,9 @@ class BartAttention(nn.Module):
 
         if 'lisa' in self.use_prefix and (self.config.lisa_option == 'cross_attn_plug_before_outproj' or self.config.lisa_option == 'mh_adaptor_before_outproj'):
             if self.config.mh_reuse_proj:
-                ef_query_states = self.q_proj(self.ef_ln_before(attn_output))
+                ef_query_states = self.q_proj(self.ef_transform_layer_norm(attn_output))
             else:
-                ef_query_states = self.plug_q_proj(self.ef_ln_before(attn_output))
+                ef_query_states = self.ef_plug_q_proj(self.ef_transform_layer_norm(attn_output))
             # ef_query_states = self.q_proj(self.ef_ln_before(attn_output))
             if self.config.lisa_option != 'mh_adaptor_before_outproj':
                 ef_query_states = ef_query_states * self.scaling

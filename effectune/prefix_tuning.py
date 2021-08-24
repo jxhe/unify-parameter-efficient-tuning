@@ -30,6 +30,8 @@ class PrefixTuning(PretrainedBartModel):
             self.setup_dependent_lisa(args, config)
         elif args.use_prefix == 'bitfit':
             self.get_prompt = self.get_fake_prompt
+        elif args.use_prefix == 'adapter':
+            self.get_prompt = self.get_fake_prompt
 
         logger.info("Declare PrefixTuning model!")
 
@@ -66,14 +68,14 @@ class PrefixTuning(PretrainedBartModel):
         return all(check) if all_match else any(check)
 
     def setup_lisa(self, args, config):
-        if args.use_prefix == "lisa_no_mlp":
+        if args.use_prefix == "lisa_nomlp":
             self.lisa_model = PrefixDirectInit(args, config)
         elif args.use_prefix == "lisa":
             if args.lisa_option == "with_adapter":
                 self.lisa_model = Prefix_Adapter(args, config)
             else:
                 self.lisa_model = Prefix(args, config)
-                
+
         self.get_prompt = self.get_prompt_lisa
 
     def get_prompt_lisa(self, bsz, nsamples=1):

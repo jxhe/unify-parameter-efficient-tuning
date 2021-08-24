@@ -113,7 +113,7 @@ class TuneArguments:
     )
 
     init_with_bert: Optional[int] = field(
-        default=0,
+        default=1,
         metadata={
             "help": ""
         },

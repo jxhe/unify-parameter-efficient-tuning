@@ -20,8 +20,8 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-use_prefix="adapter"
-lisa_option="attn_adapter"
+use_prefix="lisa_nomlp"
+lisa_option="cross_attn"
 # adapter_option="attn_adapter"
 mh_reuse_proj="False"
 
@@ -57,8 +57,8 @@ then
     weight_decay=0
     max_grad_norm=1
     max_train_samples=2000
-    bsz=24
-    gradient_steps=2
+    bsz=16
+    gradient_steps=3
     num_train_epochs=30
     max_steps=-1
     eval_strategy='steps'
@@ -125,7 +125,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --greater_is_better "True" \
     --predict_with_generate \
     --output_dir ${SAVE} ${extra_cmd} \
-        # 2>&1 | tee ${SAVE}/log.txt
+        2>&1 | tee ${SAVE}/log.txt
     # --predict_with_generate
     # --metric_for_best_model ${metric} \
     # --greater_is_better "True" \
