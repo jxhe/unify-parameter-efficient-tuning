@@ -320,12 +320,12 @@ class Adapter_Layer(nn.Module):
         if config.init_with_bert:
             self.apply(init_bert_weights)
 
-    def forward(self, x, residual=True):
+    def forward(self, x, add_residual=True):
         residual = x
         down = self.non_linear_func(self.down_proj(self.adapter_layer_norm_before(x)))
         up = self.up_proj(down)
 
-        if residual:
+        if add_residual:
             output = up + residual
         else:
             output = up
@@ -337,8 +337,8 @@ class Adapter(nn.Module):
     def __init__(self, args, config):
         super().__init__()
         self.num_layers = args.num_bias_layers
-        self.encoder_adapters = nn.ModuleList([Adapter_Layer(args, config) for _ in range(args.num_bias_layers)])
-        self.decoder_adapters = nn.ModuleList([Adapter_Layer(args, config) for _ in range(args.num_bias_layers)])
+        self.encoder_adapters = nn.ModuleList([Adapter_Layer(config) for _ in range(args.num_bias_layers)])
+        self.decoder_adapters = nn.ModuleList([Adapter_Layer(config) for _ in range(args.num_bias_layers)])
 
     def forward(self, bsz, nsamples=1, device="cuda"):
         results = []
