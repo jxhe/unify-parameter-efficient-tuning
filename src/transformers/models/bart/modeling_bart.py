@@ -176,11 +176,8 @@ class BartAttention(nn.Module):
                 if not self.config.mh_reuse_proj:
                     self.plug_q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
-        elif self.use_prefix == 'adapter':
-            if self.config.adapter_option == "attn_adapter":
-                self.ef_attn_adapter = Adapter_Layer(self.config)
-            else:
-                raise ValueError("adapter option not supported")
+        elif (self.use_prefix == 'adapter' and self.config.adapter_option == "attn_adapter") or self.use_prefix == 'all_sh_adapters':
+            self.ef_attn_adapter = Adapter_Layer(self.config, dropout=dropout)
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
@@ -322,9 +319,8 @@ class BartAttention(nn.Module):
 
                 cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
-        if self.config.use_prefix == 'adapter':
-            if self.config.adapter_option == "attn_adapter":
-                cross_attn_output = self.attn_adapter(hidden_states, residule=False)
+        elif (self.config.use_prefix == 'adapter' and self.config.adapter_option == "attn_adapter") or self.config.use_prefix == 'all_sh_adapters':
+            cross_attn_output = self.ef_attn_adapter(hidden_states, add_residual=False)
 
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
@@ -376,7 +372,6 @@ class BartAttention(nn.Module):
 
         if self.config.lisa_option == "cross_attn_gate":
             attn_output = attn_output * gates
-
 
         attn_output = attn_output.reshape(bsz, tgt_len, embed_dim)
 
@@ -462,6 +457,9 @@ class BartEncoderLayer(nn.Module):
         self.fc2 = nn.Linear(config.encoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
+        if config.use_prefix == 'all_sh_adapters':
+            self.ef_ffn_adapter = Adapter_Layer(self.config)
+
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -510,7 +508,9 @@ class BartEncoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
         if self.config.use_prefix == 'lisa_adapter':
-            hidden_states = prefix_state["encoder_adapters"](hidden_states)
+            hidden_states = prefix_state["encoder_ffn_adapters"](hidden_states)
+        elif self.config.use_prefix == 'all_sh_adapters':
+            hidden_states = self.ef_ffn_adapter(hidden_states)
 
         hidden_states = residual + hidden_states
         hidden_states = self.final_layer_norm(hidden_states)
@@ -560,6 +560,9 @@ class BartDecoderLayer(nn.Module):
         self.fc1 = nn.Linear(self.embed_dim, config.decoder_ffn_dim)
         self.fc2 = nn.Linear(config.decoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
+
+        if config.use_prefix == 'all_sh_adapters':
+            self.ef_ffn_adapter = Adapter_Layer(self.config)
 
     def forward(
         self,
@@ -658,7 +661,9 @@ class BartDecoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
         if self.config.use_prefix == 'lisa_adapter':
-            hidden_states = prefix_state["decoder_adapters"](hidden_states)
+            hidden_states = prefix_state["decoder_ffn_adapters"](hidden_states)
+        elif self.config.use_prefix == 'all_sh_adapters':
+            hidden_states = self.ef_ffn_adapter(hidden_states)
 
         hidden_states = residual + hidden_states
         hidden_states = self.final_layer_norm(hidden_states)

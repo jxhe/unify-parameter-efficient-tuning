@@ -40,7 +40,8 @@ class TuneArguments:
         default="none",
         metadata={
             "help": "", 
-            "choices": ["lisa", "learn_bias", "luna", "none", "dlisa", "adapter", "lisa_adapter"]
+            "choices": ["lisa", "learn_bias", "luna", "none", "dlisa", "adapter", "lisa_adapter",
+                        "all_sh_adapters"]
         },
     )
 

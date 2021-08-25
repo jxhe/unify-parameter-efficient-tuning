@@ -15,11 +15,11 @@ def init_lisa_params(module):
 
 
 def init_bias_mlp(module):
-    std = 1e-3
+    std = 1e-2
     if isinstance(module, nn.Linear):
         module.weight.data.normal_(mean=0.0, std=std)
-    if module.bias is not None:
-        module.bias.data.zero_()
+        if module.bias is not None:
+            module.bias.data.zero_()
 
 
 def init_bert_weights(module):
@@ -210,8 +210,8 @@ class MLP_Bias(nn.Module):
 
         self.dropout = nn.Dropout(self.prefix_dropout)
 
-        self.src_len = args.max_source_length + 2
-        self.tgt_len = args.max_target_length + 2
+        self.src_len = config.max_source_length + 2
+        self.tgt_len = config.max_target_length + 2
         self.tgt_input_tokens = torch.arange(self.tgt_len).long()
         self.src_input_tokens = torch.arange(self.src_len).long()
 
@@ -234,23 +234,23 @@ class MLP_Bias(nn.Module):
             nn.Linear(self.mid_dim, self.match_n_layer * self.n_embd))
 
         self.apply(init_bias_mlp)
-        # initialization
-        nn.init.constant_(self.wte.weight, 0.0)
-        nn.init.constant_(self.wte_enc.weight, 0.0)
-        nn.init.constant_(self.wte2.weight, 0.0)
+        # # initialization
+        # nn.init.constant_(self.wte.weight, 0.0)
+        # nn.init.constant_(self.wte_enc.weight, 0.0)
+        # nn.init.constant_(self.wte2.weight, 0.0)
 
     def forward(self, bsz, nsamples=1, device="cuda"):
-        temp_control = self.wte(self.tgt_input_tokens.to(self.device))
+        temp_control = self.wte(self.tgt_input_tokens.to(device))
         past_key_values = self.control_trans(temp_control)  # tgt_len, layer*emb
         past_key_values = past_key_values.view(self.tgt_len, self.match_n_layer, self.n_embd)
         past_key_values = self.dropout(past_key_values)
 
-        temp_control2 = self.wte2(self.tgt_input_tokens.to(self.device))
+        temp_control2 = self.wte2(self.tgt_input_tokens.to(device))
         past_key_values2 = self.control_trans2(temp_control2)  # tgt_len, layer*emb
         past_key_values2 = past_key_values2.view(self.tgt_len, self.match_n_layer, self.n_embd)
         past_key_values2 = self.dropout(past_key_values2)
 
-        temp_control_enc = self.wte_enc(self.src_input_tokens.to(self.device))
+        temp_control_enc = self.wte_enc(self.src_input_tokens.to(device))
         past_key_values_enc = self.control_trans_enc(temp_control_enc)  # src_len, layer*emb
         past_key_values_enc = past_key_values_enc.view(self.src_len, self.match_n_layer, self.n_embd)
         past_key_values_enc = self.dropout(past_key_values_enc)
@@ -305,7 +305,7 @@ class Bias(nn.Module):
 
 
 class Adapter_Layer(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, dropout=0.0):
         super().__init__()
         self.n_embd = config.d_model
         self.down_size = config.preseqlen
@@ -317,12 +317,14 @@ class Adapter_Layer(nn.Module):
         self.non_linear_func = nn.ReLU()
         self.up_proj = nn.Linear(self.down_size, self.n_embd)
 
+        self.dropout = dropout
         if config.init_with_bert:
             self.apply(init_bert_weights)
 
     def forward(self, x, add_residual=True):
         residual = x
         down = self.non_linear_func(self.down_proj(self.adapter_layer_norm_before(x)))
+        down = nn.functional.dropout(down, p=self.dropout, training=self.training)
         up = self.up_proj(down)
 
         if add_residual:
@@ -343,8 +345,8 @@ class Adapter(nn.Module):
     def forward(self, bsz, nsamples=1, device="cuda"):
         results = []
         for ii in range(self.num_layers):
-            results.append({"encoder_adapters": self.encoder_adapters[ii],
-                            "decoder_adapters": self.decoder_adapters[ii]})
+            results.append({"encoder_ffn_adapters": self.encoder_adapters[ii],
+                            "decoder_ffn_adapters": self.decoder_adapters[ii]})
         return results
 
 
@@ -362,7 +364,6 @@ class Prefix_Adapter(nn.Module):
             for key, value in dic.items():
                 prefix[ii][key] = value
         return prefix
-
 
 # class InputBias(nn.Module):
     # def __init__(self, args):
