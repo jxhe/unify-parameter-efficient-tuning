@@ -28,7 +28,8 @@ class PrefixTuning(PretrainedBartModel):
             self.setup_luna(args)
         elif args.use_prefix == 'dlisa':
             self.setup_dependent_lisa(args, config)
-        elif args.use_prefix == 'bitfit' or args.use_prefix == 'adapter' or args.use_prefix == 'all_sh_adapters':
+        elif args.use_prefix == 'bitfit' or args.use_prefix == 'adapter' or \
+                args.use_prefix == 'all_sh_adapters' or args.use_prefix == 'ffn_adapters':
             self.get_prompt = self.get_fake_prompt
 
         logger.info("Declare PrefixTuning model!")

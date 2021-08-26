@@ -23,8 +23,7 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-use_prefix="all_sh_adapters"
-lisa_option="default"
+use_prefix="ffn_adapters"
 adapter_option="ffn_hi_input"
 
 max_steps=120000

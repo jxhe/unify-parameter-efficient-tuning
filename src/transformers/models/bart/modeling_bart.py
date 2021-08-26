@@ -260,6 +260,20 @@ class BartAttention(nn.Module):
                     expanded_prefix_mask = prefix_mask[:, None, None, :].expand(bsz, 1, tgt_len, prefix_mask.size(1)).to(attention_mask.dtype)
                     attention_mask = torch.cat([expanded_prefix_mask, attention_mask], dim=-1)
 
+            elif self.config.lisa_option == "kv_proj":
+                prefix_key = prefix_key.view(bsz, self.num_heads, -1, self.head_dim).transpose(1, 2).contiguous().view(bsz, -1, embed_dim)
+                prefix_value = prefix_value.view(bsz, self.num_heads, -1, self.head_dim).transpose(1, 2).contiguous().view(bsz, -1, embed_dim)
+                prefix_key = self._shape(self.k_proj(prefix_key), -1, bsz)
+                prefix_value = self._shape(self.v_proj(prefix_value), -1, bsz)
+                prefix_key = prefix_key.view(*proj_shape)
+                prefix_value = prefix_value.view(*proj_shape)
+
+                key_states = torch.cat([prefix_key, key_states], dim=1)
+                value_states = torch.cat([prefix_value, value_states], dim=1)
+                if attention_mask is not None:
+                    expanded_prefix_mask = prefix_mask[:, None, None, :].expand(bsz, 1, tgt_len, prefix_mask.size(1)).to(attention_mask.dtype)
+                    attention_mask = torch.cat([expanded_prefix_mask, attention_mask], dim=-1)
+
             elif self.config.lisa_option == "cross_attn_cz":
                 # normed_query_states = query_states
                 normed_query_states = self.ef_transform_layer_norm(query_states)
@@ -275,8 +289,11 @@ class BartAttention(nn.Module):
                 cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
             elif self.config.lisa_option == "cross_attn_before_norm":
-                normed_query_states = self.ef_transform_layer_norm(hidden_states)
-                normed_query_states = self.q_proj(normed_query_states) * self.scaling
+                # normed_query_states = self.ef_transform_layer_norm(hidden_states)
+                # normed_query_states = self.q_proj(normed_query_states) * self.scaling
+
+                normed_query_states = self.ef_transform_layer_norm(hidden_states) * self.scaling
+
                 normed_query_states = self._shape(normed_query_states, tgt_len, bsz).view(*proj_shape)
 
                 cross_attn_weights = torch.bmm(normed_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
@@ -457,7 +474,7 @@ class BartEncoderLayer(nn.Module):
         self.fc2 = nn.Linear(config.encoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
-        if config.use_prefix == 'all_sh_adapters':
+        if config.use_prefix == 'all_sh_adapters' or config.use_prefix == 'ffn_adapters':
             self.ef_ffn_adapter = Adapter_Layer(self.config)
 
     def forward(
@@ -500,6 +517,9 @@ class BartEncoderLayer(nn.Module):
         hidden_states = residual + hidden_states
         hidden_states = self.self_attn_layer_norm(hidden_states)
 
+        if (self.config.use_prefix == 'all_sh_adapters' or self.config.use_prefix == 'ffn_adapters') and self.config.adapter_option == 'ffn_hi_input':
+            adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
+
         residual = hidden_states
         hidden_states = self.activation_fn(self.fc1(hidden_states))
         hidden_states = nn.functional.dropout(hidden_states, p=self.activation_dropout, training=self.training)
@@ -509,8 +529,10 @@ class BartEncoderLayer(nn.Module):
 
         if self.config.use_prefix == 'lisa_adapter':
             hidden_states = prefix_state["encoder_ffn_adapters"](hidden_states)
-        elif self.config.use_prefix == 'all_sh_adapters':
+        elif (self.config.use_prefix == 'all_sh_adapters' or self.config.use_prefix == 'ffn_adapters') and self.config.adapter_option == 'ffn_ho_input':
             hidden_states = self.ef_ffn_adapter(hidden_states)
+        elif (self.config.use_prefix == 'all_sh_adapters' or self.config.use_prefix == 'ffn_adapters') and self.config.adapter_option == 'ffn_hi_input':
+            hidden_states = hidden_states + adapter_change
 
         hidden_states = residual + hidden_states
         hidden_states = self.final_layer_norm(hidden_states)
@@ -561,7 +583,7 @@ class BartDecoderLayer(nn.Module):
         self.fc2 = nn.Linear(config.decoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
-        if config.use_prefix == 'all_sh_adapters':
+        if config.use_prefix == 'all_sh_adapters' or config.use_prefix == 'ffn_adapters':
             self.ef_ffn_adapter = Adapter_Layer(self.config)
 
     def forward(
@@ -653,6 +675,9 @@ class BartDecoderLayer(nn.Module):
             # add cross-attn to positions 3,4 of present_key_value tuple
             present_key_value = present_key_value + cross_attn_present_key_value
 
+        if (self.config.use_prefix == 'all_sh_adapters' or self.config.use_prefix == 'ffn_adapters') and self.config.adapter_option == 'ffn_hi_input':
+            adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
+
         # Fully Connected
         residual = hidden_states
         hidden_states = self.activation_fn(self.fc1(hidden_states))
@@ -661,9 +686,11 @@ class BartDecoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
         if self.config.use_prefix == 'lisa_adapter':
-            hidden_states = prefix_state["decoder_ffn_adapters"](hidden_states)
-        elif self.config.use_prefix == 'all_sh_adapters':
+            hidden_states = prefix_state["encoder_ffn_adapters"](hidden_states)
+        elif (self.config.use_prefix == 'all_sh_adapters' or self.config.use_prefix == 'ffn_adapters') and self.config.adapter_option == 'ffn_ho_input':
             hidden_states = self.ef_ffn_adapter(hidden_states)
+        elif (self.config.use_prefix == 'all_sh_adapters' or self.config.use_prefix == 'ffn_adapters') and self.config.adapter_option == 'ffn_hi_input':
+            hidden_states = hidden_states + adapter_change
 
         hidden_states = residual + hidden_states
         hidden_states = self.final_layer_norm(hidden_states)

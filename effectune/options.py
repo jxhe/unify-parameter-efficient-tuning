@@ -41,7 +41,7 @@ class TuneArguments:
         metadata={
             "help": "", 
             "choices": ["lisa", "learn_bias", "luna", "none", "dlisa", "adapter", "lisa_adapter",
-                        "all_sh_adapters"]
+                        "all_sh_adapters", "ffn_adapters"]
         },
     )
 
@@ -101,15 +101,15 @@ class TuneArguments:
             "choices": ["default", "cross_attn", "cross_attn_gate",
                 "cross_attn_noln", "cross_attn_plug", "mh_adaptor",
                 "lisa_no_mlp", "cross_attn_before_norm",
-                "cross_attn_cz"]
+                "cross_attn_cz", "kv_proj"]
         },
     )
 
     adapter_option: Optional[str] = field(
         default="attn_adapter",
         metadata={
-            "help": "", \
-            "choices": ["attn_adapter"]
+            "help": "the latter two options only apply to FFN layers", \
+            "choices": ["attn_adapter", "ffn_hi_input", "ffn_ho_input"]
         },
     )
 
