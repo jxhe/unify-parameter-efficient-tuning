@@ -80,6 +80,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
     --use_prefix ${use_prefix} \
+    --adapter_option ${adapter_option} \
     --init_with_bert 1 \
     --mid_dim 800 \
     --preseqlen 200 \
