@@ -24,7 +24,7 @@ taskid=${SLURM_ARRAY_TASK_ID}
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-declare -a model_list=("checkpoints/xsum/20210813/xsum_adaptor.effectune.prefix_style_config.json.redfactor5.ms80000.ls0.wd0.biasFalse/checkpoint-66000/xsum" \
+declare -a model_list=("checkpoints/xsum/20210819/xsum_tride.prefix.lisa.cross_attn.ms100000.ls0.1.wd0.01"
     )
 arglen=${#model_list[@]}
 i=$(( taskid%arglen ))
@@ -34,8 +34,8 @@ SAVE=${model_path}
 
 log="test_log.txt"
 
-use_prefix="lisa_nomlp"
-lisa_option="cross_attn_relu"
+use_prefix="lisa"
+lisa_option="cross_attn"
 # adapter_option="attn_adapter"
 mh_reuse_proj="True"
 

@@ -498,7 +498,7 @@ def main():
     )
 
     # added by Chunting: prepare the finetuning model
-    if tune_args.use_prefix != "none":
+    if tune_args.use_prefix != "none" and not training_args.do_predict:
         model = PrefixTuning(config, tune_args, model)
 
     # import pdb; pdb.set_trace()
