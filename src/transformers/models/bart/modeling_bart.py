@@ -289,11 +289,8 @@ class BartAttention(nn.Module):
                 cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
             elif self.config.lisa_option == "cross_attn_before_norm":
-                # normed_query_states = self.ef_transform_layer_norm(hidden_states)
-                # normed_query_states = self.q_proj(normed_query_states) * self.scaling
-
-                normed_query_states = self.ef_transform_layer_norm(hidden_states) * self.scaling
-
+                normed_query_states = self.ef_transform_layer_norm(hidden_states)
+                normed_query_states = self.q_proj(normed_query_states) * self.scaling
                 normed_query_states = self._shape(normed_query_states, tgt_len, bsz).view(*proj_shape)
 
                 cross_attn_weights = torch.bmm(normed_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
@@ -686,7 +683,7 @@ class BartDecoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
         if self.config.use_prefix == 'lisa_adapter':
-            hidden_states = prefix_state["encoder_ffn_adapters"](hidden_states)
+            hidden_states = prefix_state["decoder_ffn_adapters"](hidden_states)
         elif (self.config.use_prefix == 'all_sh_adapters' or self.config.use_prefix == 'ffn_adapters') and self.config.adapter_option == 'ffn_ho_input':
             hidden_states = self.ef_ffn_adapter(hidden_states)
         elif (self.config.use_prefix == 'all_sh_adapters' or self.config.use_prefix == 'ffn_adapters') and self.config.adapter_option == 'ffn_hi_input':
