@@ -40,7 +40,9 @@ class TuneArguments:
         default="none",
         metadata={
             "help": "",
-            "choices": ["lisa", "lisa_nomlp", "learn_bias", "luna", "none", "dlisa", "adapter"]
+            "choices": ["lisa", "lisa_nomlp", 
+            "learn_bias", "luna", "none", 
+            "dlisa", "adapter", "lisa_adapter"]
         },
     )
 
@@ -101,7 +103,9 @@ class TuneArguments:
                 "cross_attn_noln", "cross_attn_plug", "mh_adaptor",
                 "with_adapter", "cross_attn_before_norm",
                 "cross_attn_cz", "attn_adapter_drop", "cross_attn_plug_before_outproj",
-                "cross_attn_relu"]
+                "cross_attn_relu",
+                "cross_attn_before_norm"]
+
         },
     )
 

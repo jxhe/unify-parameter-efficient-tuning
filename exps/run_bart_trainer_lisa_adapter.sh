@@ -23,21 +23,19 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-use_prefix="lisa"
-lisa_option="with_adapter"
+use_prefix="lisa_adapter"
+lisa_option="cross_attn_before_norm"
 
 max_steps=80000
-warmup_updates=5000
+warmup_updates=0
 lr=5e-5
 lr_scheduler_type="polynomial"
-max_grad_norm=1
+max_grad_norm=0.1
 weight_decay=0.01
 bsz=24
 gradient_steps=3
 metric=rouge2
-ft='none'
-
-#ft='layernorm,layer_norm'
+ft='ef_'
 top_layers=12
 max_eval_samples=1600
 logging_steps=100
@@ -49,12 +47,15 @@ eval_strategy="steps"
 save_steps=3000
 report_to="wandb"
 
-debug=1
+debug=0
 extra_cmd=""
 debug_str=""
 
 if [ "${debug}" = 1 ];
 then
+    label_smoothing_factor=0
+    weight_decay=0
+    max_grad_norm=1
     max_train_samples=2000
     max_eval_samples=300
     bsz=24
@@ -69,7 +70,7 @@ then
 fi
 
 
-exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.ms${max_steps}.ls${label_smoothing_factor}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.ms${max_steps}.ls${label_smoothing_factor}.wd${weight_decay}.mgn${max_grad_norm}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}

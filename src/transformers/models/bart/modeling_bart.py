@@ -179,11 +179,10 @@ class BartAttention(nn.Module):
                 self.ef_plug_q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
         elif self.use_prefix == 'adapter':
-            if self.config.lisa_option == "attn_adapter_drop":
+            if self.config.lisa_option == "attn_adapter":
                 self.ef_attn_adapter = Adapter_Layer(self.config, dropout=self.dropout)
             else:
                 raise ValueError("adapter option not supported")
-
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
@@ -238,7 +237,6 @@ class BartAttention(nn.Module):
             # if encoder bi-directional self-attention `past_key_value` is always `None`
             past_key_value = (key_states, value_states)
 
-
         if 'lisa' in self.use_prefix and self.config.lisa_option == "cross_attn_gate":
             x = query_states.view(bsz, tgt_len, self.num_heads, self.head_dim)
             gates = torch.sigmoid((x * self.ef_transform_gate[None, None, :, :]).sum(-1) + self.ef_transform_gate_bias).unsqueeze(-1) # bsz, tgt_len, num_heads, 1
@@ -257,7 +255,7 @@ class BartAttention(nn.Module):
             prefix_value = prefix_state.get(self.cache_key)['prev_value']
             prefix_mask = prefix_state.get(self.cache_key)['prev_key_padding_mask']  # bsz, preseqlen: zeros
 
-            if self.config.lisa_option == "default" or self.config.lisa_option == 'with_adapter' or self.config.lisa_option == 'lisa_no_mlp':
+            if self.config.lisa_option == "default" or self.config.lisa_option == 'lisa_no_mlp':
                 # add with adapter
                 # original lisa prefix-tuning
                 key_states = torch.cat([prefix_key, key_states], dim=1)
@@ -283,7 +281,9 @@ class BartAttention(nn.Module):
 
             elif self.config.lisa_option == "cross_attn_before_norm":
                 normed_query_states = self.ef_transform_layer_norm(hidden_states)
-                normed_query_states = self.q_proj(normed_query_states)
+                normed_query_states = self.q_proj(normed_query_states) * self.scaling
+                normed_query_states = self._shape(normed_query_states, tgt_len, bsz).view(*proj_shape)
+
                 cross_attn_weights = torch.bmm(normed_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
                 # bsz * num_heads, tgt_len, prefix_len
                 cross_attn_weights = nn.functional.softmax(cross_attn_weights, dim=-1)
@@ -333,9 +333,10 @@ class BartAttention(nn.Module):
 
                 cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
-        if self.use_prefix == 'adapter':
-            if self.config.lisa_option == "attn_adapter_drop":
-                cross_attn_output = self.ef_attn_adapter.forward(hidden_states, if_residual=False)
+
+        if self.config.use_prefix == 'adapter':
+            if self.config.lisa_option == "attn_adapter":
+                cross_attn_output = self.ef_attn_adapter(hidden_states, residule=False)
 
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
@@ -423,6 +424,30 @@ class BartAttention(nn.Module):
             attn_output = attn_output + ef_cross_attn_output
 
 
+        if prefix_state is not None and self.use_prefix == 'learn_bias':
+            bias_embeds = prefix_state.get(self.cache_key)
+            if self.training:
+                start, end = 0, tgt_len
+                # print("train: ", start, end, "is cross: ", is_cross_attention, "is decoder:", self.is_decoder)
+                # input()
+            elif not is_cross_attention and past_key_value is not None:
+                # at generation time
+                start, end = src_len-1, src_len
+                # print("generate: ", start, end, "is cross: ", is_cross_attention, "is decoder:", self.is_decoder, "step: ", tgt_len)
+                # input()
+            elif past_key_value is not None:
+                assert step is not None
+                start, end = step-1, step
+                # print("generate: ", start, end, "is cross: ", is_cross_attention, "is decoder:", self.is_decoder, "step: ", tgt_len)
+                # input()
+            else:
+                start, end = 0, tgt_len
+                # print("generate: ", start, end, "is cross: ", is_cross_attention, "is decoder:", self.is_decoder, "step: ", tgt_len)
+                # input()
+
+            bias = bias_embeds[start:end, :]
+            attn_output = attn_output + bias
+
         # import pdb; pdb.set_trace()
         attn_output = self.out_proj(attn_output)
 
@@ -453,30 +478,6 @@ class BartAttention(nn.Module):
 
             # residule
             attn_output = attn_output + ef_cross_attn_output
-
-        if prefix_state is not None and self.use_prefix == 'learn_bias':
-            bias_embeds = prefix_state.get(self.cache_key)
-            if self.training:
-                start, end = 0, tgt_len
-                # print("train: ", start, end, "is cross: ", is_cross_attention, "is decoder:", self.is_decoder)
-                # input()
-            elif not is_cross_attention and past_key_value is not None:
-                # at generation time
-                start, end = src_len-1, src_len
-                # print("generate: ", start, end, "is cross: ", is_cross_attention, "is decoder:", self.is_decoder, "step: ", tgt_len)
-                # input()
-            elif past_key_value is not None:
-                assert step is not None
-                start, end = step-1, step
-                # print("generate: ", start, end, "is cross: ", is_cross_attention, "is decoder:", self.is_decoder, "step: ", tgt_len)
-                # input()
-            else:
-                start, end = 0, tgt_len
-                # print("generate: ", start, end, "is cross: ", is_cross_attention, "is decoder:", self.is_decoder, "step: ", tgt_len)
-                # input()
-
-            bias = bias_embeds[start:end, :]
-            attn_output = attn_output + bias
 
         return attn_output, attn_weights_reshaped, past_key_value
 
