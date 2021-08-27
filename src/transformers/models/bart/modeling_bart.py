@@ -297,11 +297,8 @@ class BartAttention(nn.Module):
                 cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
             elif self.config.lisa_option == "cross_attn_before_norm":
-                # normed_query_states = self.ef_transform_layer_norm(hidden_states)
-                # normed_query_states = self.q_proj(normed_query_states) * self.scaling
-
-                normed_query_states = self.ef_transform_layer_norm(hidden_states) * self.scaling
-
+                normed_query_states = self.ef_transform_layer_norm(hidden_states)
+                normed_query_states = self.q_proj(normed_query_states) * self.scaling
                 normed_query_states = self._shape(normed_query_states, tgt_len, bsz).view(*proj_shape)
 
                 cross_attn_weights = torch.bmm(normed_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
