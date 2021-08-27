@@ -20,8 +20,8 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-use_prefix="all_sh_adapters"
-lisa_option="ffn_ho_input"
+use_prefix="lisa"
+lisa_option="cross_attn"
 preseqlen=200
 # adapter_option="attn_adapter"
 mh_reuse_proj="True"
@@ -58,8 +58,8 @@ then
     weight_decay=0
     max_grad_norm=1
     max_train_samples=2000
-    bsz=16
-    gradient_steps=3
+    bsz=24
+    gradient_steps=2
     num_train_epochs=30
     max_steps=-1
     eval_strategy='steps'
