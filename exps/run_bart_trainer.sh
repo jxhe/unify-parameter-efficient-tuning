@@ -20,8 +20,8 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-use_prefix="lisa"
-lisa_option="cross_attn_relu"
+use_prefix="all_sh_adapters"
+lisa_option="ffn_ho_input"
 # adapter_option="attn_adapter"
 mh_reuse_proj="True"
 

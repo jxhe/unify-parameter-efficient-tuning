@@ -40,8 +40,8 @@ class TuneArguments:
         default="none",
         metadata={
             "help": "",
-            "choices": ["lisa", "lisa_nomlp", 
-            "learn_bias", "luna", "none", 
+            "choices": ["lisa", "lisa_nomlp",
+            "learn_bias", "luna", "none",
             "dlisa", "adapter", "lisa_adapter",
             "all_sh_adapters", "ffn_adapters"]
         },
@@ -106,7 +106,7 @@ class TuneArguments:
                 "cross_attn_cz", "cross_attn_plug_before_outproj",
                 "cross_attn_relu",
                 "cross_attn_before_norm",
-                "kv_proj", "attn_adapter", ,
+                "kv_proj", "attn_adapter",
                 "ffn_hi_input", "ffn_ho_input"]
         },
     )

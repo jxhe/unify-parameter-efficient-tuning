@@ -790,6 +790,7 @@ class BartPretrainedModel(PreTrainedModel):
     _keys_to_ignore_on_load_missing = [r"ef_"]
 
     def _init_weights(self, module):
+        # import pdb; pdb.set_trace()
         print("============================ init weights is called! ====================================")
         std = self.config.init_std
         if isinstance(module, nn.Linear):
@@ -1581,6 +1582,7 @@ class BartModel(BartPretrainedModel):
 class BartForConditionalGeneration(BartPretrainedModel):
     base_model_prefix = "model"
     _keys_to_ignore_on_load_missing = [r"final_logits_bias", r"lm_head\.weight", r"ef_"]
+    # _keys_to_ignore_on_load_missing = [r"final_logits_bias", r"lm_head\.weight"]
 
     def __init__(self, config: BartConfig):
         super().__init__(config)
