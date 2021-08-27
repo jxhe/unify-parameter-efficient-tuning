@@ -1,9 +1,10 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
+#SBATCH --array=0-0%1
 #SBATCH --job-name=xsum
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:v100:1
+#SBATCH --gres=gpu:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=2
 #SBATCH --time=0
@@ -17,11 +18,24 @@ cache_dir=${TRANSFORMERS_CACHE}
 export WANDB_PROJECT=xsum_tride
 export WANDB_WATCH="false"
 
+jobid=${SLURM_ARRAY_JOB_ID}
+taskid=${SLURM_ARRAY_TASK_ID}
+
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-use_prefix="all_sh_adapters"
-lisa_option="ffn_ho_input"
+declare -a model_list=("checkpoints/xsum/20210819/xsum_tride.prefix.lisa.cross_attn.ms100000.ls0.1.wd0.01"
+    )
+arglen=${#model_list[@]}
+i=$(( taskid%arglen ))
+
+model_path=${model_list[$i]}
+SAVE=${model_path}
+
+log="test_log.txt"
+
+use_prefix="lisa"
+lisa_option="cross_attn"
 # adapter_option="attn_adapter"
 mh_reuse_proj="True"
 
@@ -42,42 +56,16 @@ max_train_samples=2000
 logging_steps=100
 label_smoothing_factor=0.1
 
-eval_strategy="steps"
+eval_strategy="no"
 # eval_strategy="steps"
 save_steps=3000
-report_to="wandb"
 
-debug=1
 extra_cmd=""
 debug_str=""
 
-if [ "${debug}" = 1 ];
-then
-    label_smoothing_factor=0
-    weight_decay=0
-    max_grad_norm=1
-    max_train_samples=2000
-    bsz=16
-    gradient_steps=3
-    num_train_epochs=30
-    max_steps=-1
-    eval_strategy='steps'
-    save_steps=100
-    report_to="none"
-    logging_steps=10
-    extra_cmd="--max_train_samples ${max_train_samples}"
-    debug_str=".debug"
-fi
-
-
-exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.mh_reuse_proj_${mh_reuse_proj}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
-SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
-
-rm -rf ${SAVE}; mkdir -p ${SAVE}
-
 python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
-    --model_name_or_path 'facebook/bart-large' \
+    --model_name_or_path ${model_path} \
     --cache_dir ${cache_dir} \
     --use_prefix ${use_prefix} \
     --lisa_option ${lisa_option} \
@@ -96,8 +84,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --max_length 60 \
     --min_length 10 \
     --no_repeat_ngram_size 3 \
-    --do_train \
-    --do_eval \
+    --do_predict \
     --per_device_train_batch_size ${bsz} \
     --per_device_eval_batch_size ${bsz} \
     --gradient_accumulation_steps ${gradient_steps} \
@@ -117,15 +104,15 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --save_steps ${save_steps} \
     --eval_steps ${save_steps} \
     --load_best_model_at_end \
-    --report_to ${report_to} \
+    --report_to "none" \
     --run_name ${dataset}.${DATE}.${exp_name} \
-    --overwrite_output_dir "True" \
+    --overwrite_output_dir "False" \
     --disable_tqdm "True" \
     --metric_for_best_model ${metric} \
     --greater_is_better "True" \
     --predict_with_generate \
     --output_dir ${SAVE} ${extra_cmd} \
-        2>&1 | tee ${SAVE}/log.txt
+        2>&1 | tee ${SAVE}/${log}
     # --predict_with_generate
     # --metric_for_best_model ${metric} \
     # --greater_is_better "True" \
