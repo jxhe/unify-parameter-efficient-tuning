@@ -179,7 +179,7 @@ class BartAttention(nn.Module):
                 self.ef_plug_q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
         elif self.use_prefix == 'adapter':
-            if self.config.lisa_option == "attn_adapter":
+            if self.config.lisa_option == "attn_adapter" or self.config.lisa_option == "mh_attn_adapter":
                 self.ef_attn_adapter = Adapter_Layer(self.config, dropout=self.dropout)
             else:
                 raise ValueError("adapter option not supported")
@@ -526,7 +526,7 @@ class BartEncoderLayer(nn.Module):
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.use_prefix == 'all_sh_adapters' or config.use_prefix == 'ffn_adapters':
-            self.ef_ffn_adapter = Adapter_Layer(self.config)
+            self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout)
 
     def forward(
         self,
@@ -636,7 +636,7 @@ class BartDecoderLayer(nn.Module):
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.use_prefix == 'all_sh_adapters' or config.use_prefix == 'ffn_adapters':
-            self.ef_ffn_adapter = Adapter_Layer(self.config)
+            self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout)
 
     def forward(
         self,

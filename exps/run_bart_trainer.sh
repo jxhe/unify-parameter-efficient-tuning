@@ -22,6 +22,7 @@ dataset="xsum"
 
 use_prefix="all_sh_adapters"
 lisa_option="ffn_ho_input"
+preseqlen=200
 # adapter_option="attn_adapter"
 mh_reuse_proj="True"
 
@@ -70,7 +71,7 @@ then
 fi
 
 
-exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.mh_reuse_proj_${mh_reuse_proj}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.bn${preseqlen}.mh_reuse_proj_${mh_reuse_proj}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
@@ -83,7 +84,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --lisa_option ${lisa_option} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --mid_dim 800 \
-    --preseqlen 200 \
+    --preseqlen ${preseqlen} \
     --init_with_bert 1 \
     --unfreeze_params ${ft} \
     --num_bias_layers ${top_layers} \
