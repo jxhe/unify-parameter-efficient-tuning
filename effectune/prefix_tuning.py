@@ -28,7 +28,8 @@ class PrefixTuning(PretrainedBartModel):
             self.setup_luna(args)
         elif args.use_prefix == 'dlisa':
             self.setup_dependent_lisa(args, config)
-        elif args.use_prefix == 'bitfit':
+        elif args.use_prefix == 'bitfit' or args.use_prefix == 'adapter' or \
+                args.use_prefix == 'all_sh_adapters' or args.use_prefix == 'ffn_adapters':
             self.get_prompt = self.get_fake_prompt
         elif args.use_prefix == 'adapter':
             self.get_prompt = self.get_fake_prompt
@@ -67,33 +68,26 @@ class PrefixTuning(PretrainedBartModel):
         check = [partial_name in module_name for partial_name in safe_list]
         return all(check) if all_match else any(check)
 
+    def get_standard_prompt(self, bsz, nsamples=1):
+        return self.prompt_model(bsz, nsamples, self.device)
+
     def setup_lisa(self, args, config):
-        if args.use_prefix == "lisa_nomlp":
-            self.lisa_model = PrefixDirectInit(args, config)
-        elif args.use_prefix == "lisa":
-            if args.lisa_option == "with_adapter":
-                self.lisa_model = Prefix_Adapter(args, config)
-            else:
-                self.lisa_model = Prefix(args, config)
 
-        self.get_prompt = self.get_prompt_lisa
-
-    def get_prompt_lisa(self, bsz, nsamples=1):
-        return self.lisa_model(bsz, nsamples, self.device)
+        if args.use_prefix == "lisa_adapter":
+            self.prompt_model = Prefix_Adapter(args, config)
+        elif args.use_prefix == "lisa_nomlp":
+            self.prompt_model = PrefixDirectInit(args, config)
+        else:
+            self.prompt_model = Prefix(args, config)
+        self.get_prompt = self.get_standard_prompt
 
     def setup_bias(self, args, config):
-        self.bias = Bias(args, config)
-        self.get_prompt = self.get_prompt_bias
-
-    def get_prompt_bias(self, bsz, nsamples=1):
-        return self.bias(bsz, nsamples, self.device)
+        self.prompt_model = Bias(args, config)
+        self.get_prompt = self.get_standard_prompt
 
     def setup_bias_mlp(self, args, config):
-        self.bias_mlp = MLP_Bias(args, config)
-        self.get_prompt = self.get_prompt_bias_mlp
-
-    def get_prompt_bias_mlp(self, bsz, nsamples=1):
-        return self.bias_mlp(bsz, nsamples, self.device)
+        self.prompt_model = MLP_Bias(args, config)
+        self.get_prompt = self.get_standard_prompt
 
     def setup_luna(self, args):
         if args.luna_option == "full_before" or args.luna_option == "full_after":

@@ -357,6 +357,9 @@ def main():
         if not hasattr(config, k):
             setattr(config, k, v)
 
+    for k in ['max_source_length', 'max_target_length']:
+        setattr(config, k, vars(data_args)[k])
+
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,

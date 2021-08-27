@@ -3,7 +3,7 @@ import argparse
 
 def add_efficient_tuning_args(parser):
     group = parser.add_argument_group('prefix')
-    group.add_argument('--use_prefix', type=str, default="none", choices=["lisa", "learn_bias", "luna", "dlisa", "none", "bitfit", "lisa_adapter"],
+    group.add_argument('--use_prefix', type=str, default="none", choices=["lisa", "learn_bias", "luna", "dlisa", "none", "bitfit", "lisa_adapter", "all_sh_adapters"],
                        help="adapter is also used with lisa option")
     group.add_argument('--lisa_option', type=str, default="default", help="lisa_no_mlp, cross_attn, cross_attn_before_norm")
     group.add_argument('--mid_dim', type=int, default=800)
