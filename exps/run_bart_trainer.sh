@@ -20,9 +20,9 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-use_prefix="lisa"
-lisa_option="cross_attn"
-preseqlen=200
+use_prefix="ffn_adapters"
+lisa_option="ffn_hi_input"
+preseqlen=512
 # adapter_option="attn_adapter"
 mh_reuse_proj="True"
 
@@ -48,7 +48,7 @@ eval_strategy="steps"
 save_steps=3000
 report_to="wandb"
 
-debug=1
+debug=0
 extra_cmd=""
 debug_str=""
 
