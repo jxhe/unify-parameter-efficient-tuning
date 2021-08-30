@@ -19,25 +19,22 @@ class PrefixTuning(PretrainedBartModel):
         self.n_embd = config.d_model
         self.match_n_embd = self.n_embd // self.match_n_head
 
-        if "lisa" in args.use_prefix:
+        if "lisa" in args.attn_mode:
             self.setup_lisa(args, config)
-        elif args.use_prefix == "learn_bias":
+        elif args.attn_mode == "learn_bias":
             # self.setup_bias(args, config)
             self.setup_bias_mlp(args, config)
-        elif args.use_prefix == 'luna':
+        elif args.attn_mode == 'luna':
             self.setup_luna(args)
-        elif args.use_prefix == 'dlisa':
+        elif args.attn_mode == 'dlisa':
             self.setup_dependent_lisa(args, config)
-        elif args.use_prefix == 'bitfit' or args.use_prefix == 'adapter' or \
-                args.use_prefix == 'all_sh_adapters' or args.use_prefix == 'ffn_adapters':
-            self.get_prompt = self.get_fake_prompt
-        elif args.use_prefix == 'adapter':
+        elif args.attn_mode == 'bitfit' or args.attn_mode == 'adapter':
             self.get_prompt = self.get_fake_prompt
 
         logger.info("Declare PrefixTuning model!")
 
         not_freeze_set = []
-        if args.unfreeze_params != 'none' and args.use_prefix != 'luna':
+        if args.unfreeze_params != 'none' and args.attn_mode != 'luna':
             if args.unfreeze_params == 'LN':
                 # not_freeze_set = ['layernorm']  # input layernorm
                 not_freeze_set = ['attn_layer_norm']  # only optimize layer norm after attn
@@ -45,13 +42,13 @@ class PrefixTuning(PretrainedBartModel):
                 not_freeze_set = args.unfreeze_params.split(',')
 
             all_match = False
-        elif args.use_prefix == 'luna':
+        elif args.attn_mode == 'luna':
             # fixme: other options, now tune the self_attn_layer_norm in decoder
             # not_freeze_set = ["decoder.layers.1.self_attn_layer_norm"]
             # not_freeze_set = ['attn_layer_norm', 'decoder']
             not_freeze_set = ['layer_norm']
             all_match = True
-        elif args.use_prefix == 'bitfit':
+        elif args.attn_mode == 'bitfit':
             not_freeze_set = ['bias']
             all_match = True
 
@@ -72,10 +69,7 @@ class PrefixTuning(PretrainedBartModel):
         return self.prompt_model(bsz, nsamples, self.device)
 
     def setup_lisa(self, args, config):
-
-        if args.use_prefix == "lisa_adapter":
-            self.prompt_model = Prefix_Adapter(args, config)
-        elif args.use_prefix == "lisa_nomlp":
+        if args.attn_mode == "lisa_nomlp":
             self.prompt_model = PrefixDirectInit(args, config)
         else:
             self.prompt_model = Prefix(args, config)

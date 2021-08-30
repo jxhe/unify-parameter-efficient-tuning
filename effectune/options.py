@@ -36,38 +36,75 @@ class GenerationArguments:
 
 @dataclass
 class TuneArguments:
-    use_prefix: Optional[str] = field(
-        default="none",
+    attn_mode: Optional[str] = field(
+        default="lisa",
         metadata={
-            "help": "adapters only apply in attn",
             "choices": ["lisa", "lisa_nomlp",
             "learn_bias", "luna", "none",
-            "dlisa", "adapter", "lisa_adapter",
-            "all_sh_adapters", "ffn_adapters"]
+            "dlisa", "adapter"], \
+
+            "help": "config for attention, none to disable; \
+                lisa: lisa's mlp to output prefix P; \
+                lisa_nomlp: prefix P as learned params; \
+                learn_bias: add a learned bias param to attn output; \
+                adapter: adapter mode",
         },
     )
 
-    lisa_option: Optional[str] = field(
-        default="default",
+    ffn_mode: Optional[str] = field(
+        default="none",
         metadata={
-            "help": "", \
-            "choices": ["default", "cross_attn", "cross_attn_gate",
-                        "cross_attn_noln", "cross_attn_plug", "mh_adaptor",
-                        "with_adapter", "cross_attn_before_norm",
-                        "cross_attn_cz", "cross_attn_plug_before_outproj",
+            "choices": ["adapter", "none"],
+
+            "help": "config for ffn, none to disable; \
+            adapter: adapter mode",
+        },
+    )
+
+    attn_option: Optional[str] = field(
+        default="concat",
+        metadata={
+            "choices": ["concat", "cross_attn", "cross_attn_gate",
+                        "cross_attn_noln", "cross_attn_plug", 
+                        "cross_attn_plug_before_outproj",
                         "cross_attn_relu",
-                        "cross_attn_before_norm",
-                        "kv_proj", "attn_adapter",
-                        "ffn_hi_input", "ffn_ho_input",
-                        "default_ffn_hi"]
+                        "kv_proj", "attn_adapter", 
+                        "cross_attn_before_norm"], \
+
+            "help": "specific attn configs; \
+                concat: concat prefix to self, lisa's default version; \
+                cross_attn: cross attention version of lisa's, a layernorm is added by default; \
+                cross_attn_before_norm: same as cross_attn; \
+                cross_attn_gate: cross attention version of lisa's, but with a learned gate function; \
+                cross_attn_noln: similar to `cross_attn` without the added layernorm; \
+                cross_attn_plug: cross_attn, but with Ho as input and Ho as output; \
+                cross_attn_relu: change the softmax in cross_attn to relu; \
+                kv_proj: P_k and P_v are projections from P; \
+                attn_adapter: a single head adapter", 
+
+
+        },
+    )
+
+    ffn_option: Optional[str] = field(
+        default="ffn_hi_input",
+        metadata={
+            "choices": ["ffn_hi_input", "ffn_ho_input"], \
+
+            "help": "specific ffn configs; \
+                ffn_hi_input: ffn uses Hi as input; \
+                ffn_ho_input: ffn uses Ho as input"
         },
     )
 
     gate_option: Optional[str] = field(
         default="none",
         metadata={
-            "help": "", \
-            "choices": ["lisa_cross_attn"]
+            "choices": ["cross_attn", "none"], \
+
+            "help": "the extracted gating component from lisa, none to disable; \
+                cross_attn: add gating to cross_attn"
+
         },
     )
 

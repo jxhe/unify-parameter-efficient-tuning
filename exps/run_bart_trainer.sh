@@ -20,9 +20,17 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-use_prefix="lisa"
-lisa_option="cross_attn"
+attn_mode="lisa"
+attn_option="concat"
+
+ffn_mode="none"
+ffn_option="ffn_hi_input"
+
+gate_option="none"
+
 preseqlen=200
+ffn_bn_len=200
+
 # adapter_option="attn_adapter"
 mh_reuse_proj="True"
 
@@ -71,7 +79,7 @@ then
 fi
 
 
-exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.bn${preseqlen}.mh_reuse_proj_${mh_reuse_proj}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.mh_reuse_proj_${mh_reuse_proj}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
@@ -80,11 +88,15 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
-    --use_prefix ${use_prefix} \
-    --lisa_option ${lisa_option} \
+    --attn_mode ${attn_mode} \
+    --attn_option ${attn_option} \
+    --ffn_mode ${ffn_mode} \
+    --ffn_option ${ffn_option} \
+    --gate_option ${gate_option} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --mid_dim 800 \
     --preseqlen ${preseqlen} \
+    --ffn_bn_len ${ffn_bn_len} \
     --init_with_bert 1 \
     --unfreeze_params ${ft} \
     --num_bias_layers ${top_layers} \
