@@ -39,11 +39,35 @@ class TuneArguments:
     use_prefix: Optional[str] = field(
         default="none",
         metadata={
-            "help": "",
+            "help": "adapters only apply in attn",
             "choices": ["lisa", "lisa_nomlp",
             "learn_bias", "luna", "none",
             "dlisa", "adapter", "lisa_adapter",
             "all_sh_adapters", "ffn_adapters"]
+        },
+    )
+
+    lisa_option: Optional[str] = field(
+        default="default",
+        metadata={
+            "help": "", \
+            "choices": ["default", "cross_attn", "cross_attn_gate",
+                        "cross_attn_noln", "cross_attn_plug", "mh_adaptor",
+                        "with_adapter", "cross_attn_before_norm",
+                        "cross_attn_cz", "cross_attn_plug_before_outproj",
+                        "cross_attn_relu",
+                        "cross_attn_before_norm",
+                        "kv_proj", "attn_adapter",
+                        "ffn_hi_input", "ffn_ho_input",
+                        "default_ffn_hi"]
+        },
+    )
+
+    gate_option: Optional[str] = field(
+        default="none",
+        metadata={
+            "help": "", \
+            "choices": ["lisa_cross_attn"]
         },
     )
 
@@ -56,6 +80,13 @@ class TuneArguments:
 
     preseqlen: Optional[int] = field(
         default=200,
+        metadata={
+            "help": ""
+        },
+    )
+
+    ffn_bn_len: Optional[int] = field(
+        default=-1,
         metadata={
             "help": ""
         },
@@ -95,23 +126,6 @@ class TuneArguments:
             "help": ""
         },
     )
-
-    lisa_option: Optional[str] = field(
-        default="default",
-        metadata={
-            "help": "", \
-            "choices": ["default", "cross_attn", "cross_attn_gate",
-                "cross_attn_noln", "cross_attn_plug", "mh_adaptor",
-                "with_adapter", "cross_attn_before_norm",
-                "cross_attn_cz", "cross_attn_plug_before_outproj",
-                "cross_attn_relu",
-                "cross_attn_before_norm",
-                "kv_proj", "attn_adapter",
-                "ffn_hi_input", "ffn_ho_input"]
-        },
-    )
-
-
 
     mh_reuse_proj: Optional[bool] = field(
         default=False,

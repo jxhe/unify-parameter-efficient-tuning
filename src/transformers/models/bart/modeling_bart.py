@@ -47,8 +47,8 @@ from .configuration_bart import BartConfig
 
 import sys
 sys.path.insert(2, "./")
-from effectune.luna_attention import luna_attention, luna_attention_enc_dec
-from effectune.bias_factory import Adapter_Layer
+from effectune.luna_attention import luna_attention_enc_dec
+from effectune.bias_factory import Adapter_Layer, softmax_gating
 
 import pdb
 
@@ -170,9 +170,10 @@ class BartAttention(nn.Module):
                 self.ef_transform_gate_bias = nn.Parameter(torch.full((self.num_heads,), 2.0, requires_grad=True))
             elif self.config.lisa_option == 'cross_attn' or self.config.lisa_option == 'cross_attn_plug' \
                     or self.config.lisa_option == 'cross_attn_relu' or self.config.lisa_option == 'cross_attn_before_norm' \
-                    or self.config.lisa_option == 'cross_attn_cz' or self.config.lisa_option == 'cross_attn_plug_before_outproj':
+                    or self.config.lisa_option == 'cross_attn_plug_before_outproj':
                 self.ef_transform_layer_norm = nn.LayerNorm(embed_dim)
-
+            elif self.config.lisa_option == 'cross_attn_cz':
+                self.ef_transform_layer_norm = nn.LayerNorm(self.head_dim)
 
             if (self.config.lisa_option == 'cross_attn_plug' or self.config.lisa_option == 'cross_attn_plug_before_outproj') \
                     and not self.config.mh_reuse_proj:
@@ -185,7 +186,6 @@ class BartAttention(nn.Module):
                 raise ValueError("adapter option not supported")
         elif self.use_prefix == 'all_sh_adapters':
             self.ef_attn_adapter = Adapter_Layer(self.config, dropout=self.dropout)
-
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
@@ -258,7 +258,7 @@ class BartAttention(nn.Module):
             prefix_value = prefix_state.get(self.cache_key)['prev_value']
             prefix_mask = prefix_state.get(self.cache_key)['prev_key_padding_mask']  # bsz, preseqlen: zeros
 
-            if self.config.lisa_option == "default":
+            if "default" in self.config.lisa_option:
                 # add with adapter
                 # original lisa prefix-tuning
                 key_states = torch.cat([prefix_key, key_states], dim=1)
@@ -297,18 +297,24 @@ class BartAttention(nn.Module):
                 cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
             elif self.config.lisa_option == "cross_attn_before_norm":
-                normed_query_states = self.ef_transform_layer_norm(hidden_states)
+                # todo: delete and add me back
+                # normed_query_states = self.ef_transform_layer_norm(hidden_states)
+                normed_query_states = hidden_states
                 normed_query_states = self.q_proj(normed_query_states) * self.scaling
                 normed_query_states = self._shape(normed_query_states, tgt_len, bsz).view(*proj_shape)
 
-                cross_attn_weights = torch.bmm(normed_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
+                cross_attn_logits = torch.bmm(normed_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
                 # bsz * num_heads, tgt_len, prefix_len
-                cross_attn_weights = nn.functional.softmax(cross_attn_weights, dim=-1)
-                cross_attn_probs = nn.functional.dropout(cross_attn_weights, p=self.dropout, training=self.training)
+                cross_attn_weights = nn.functional.softmax(cross_attn_logits, dim=-1)
+                # todo: delete and add me back
+                # cross_attn_probs = nn.functional.dropout(cross_attn_weights, p=self.dropout, training=self.training)
+                cross_attn_probs = cross_attn_weights
                 cross_attn_output = torch.bmm(cross_attn_probs, prefix_value)
-                cross_attn_output = cross_attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
-                cross_attn_output = cross_attn_output.transpose(1, 2)
-                cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
+
+                if self.config.gate_option != 'lisa_cross_attn':
+                    cross_attn_output = cross_attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
+                    cross_attn_output = cross_attn_output.transpose(1, 2)
+                    cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
             elif self.config.lisa_option == "cross_attn_gate":
                 normed_query_states = self.ef_transform_layer_norm(query_states)
@@ -336,12 +342,12 @@ class BartAttention(nn.Module):
                     cross_query_states = self.q_proj(cross_hidden) * self.scaling
                     cross_query_states = self._shape(cross_query_states, tgt_len, bsz).view(*proj_shape)
 
-                cross_attn_weights = torch.bmm(cross_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
+                cross_attn_logits = torch.bmm(cross_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
                 # bsz * num_heads, tgt_len, prefix_len
                 if self.config.lisa_option == "cross_attn_relu":
-                    cross_attn_weights = nn.functional.relu(cross_attn_weights)
+                    cross_attn_weights = nn.functional.relu(cross_attn_logits)
                 else:
-                    cross_attn_weights = nn.functional.softmax(cross_attn_weights, dim=-1)
+                    cross_attn_weights = nn.functional.softmax(cross_attn_logits, dim=-1)
 
                 cross_attn_probs = nn.functional.dropout(cross_attn_weights, p=self.dropout, training=self.training)
                 cross_attn_output = torch.bmm(cross_attn_probs, prefix_value)
@@ -350,16 +356,20 @@ class BartAttention(nn.Module):
 
                 cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
-
         if self.config.use_prefix == 'adapter':
             if self.config.lisa_option == "attn_adapter":
                 cross_attn_output = self.ef_attn_adapter(hidden_states, add_residual=False)
         elif self.config.use_prefix == 'all_sh_adapters':
             cross_attn_output = self.ef_attn_adapter(hidden_states, add_residual=False)
 
-
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
+
+        if self.config.gate_option == "lisa_cross_attn":
+            if attention_mask is not None:
+                attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
+                attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
+            w_prefix, w_attn = softmax_gating(cross_attn_logits, attn_weights)  # bsz x num_heads, tgt_len, 1
 
         if attn_weights.size() != (bsz * self.num_heads, tgt_len, src_len):
             raise ValueError(
@@ -403,12 +413,21 @@ class BartAttention(nn.Module):
                 f"`attn_output` should be of size {(bsz, self.num_heads, tgt_len, self.head_dim)}, but is {attn_output.size()}"
             )
 
-        attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
-        attn_output = attn_output.transpose(1, 2)
-
         if 'lisa' in self.config.use_prefix and self.config.lisa_option == "cross_attn_gate":
             attn_output = attn_output * gates
 
+        if self.config.gate_option == "lisa_cross_attn":
+            # print("attn")
+            # print(w_attn)
+            # input()
+            # print("prefix")
+            # print(w_prefix)
+            # input()
+            attn_output = attn_output * w_attn + cross_attn_output * w_prefix
+            cross_attn_output = None
+
+        attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
+        attn_output = attn_output.transpose(1, 2)
         attn_output = attn_output.reshape(bsz, tgt_len, embed_dim)
 
         if cross_attn_output is not None:
@@ -523,7 +542,7 @@ class BartEncoderLayer(nn.Module):
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.use_prefix == 'all_sh_adapters' or config.use_prefix == 'ffn_adapters':
-            self.ef_ffn_adapter = Adapter_Layer(self.config)
+            self.ef_ffn_adapter = Adapter_Layer(self.config, self.dropout, config.ffn_bn_len)
 
     def forward(
         self,
@@ -567,6 +586,8 @@ class BartEncoderLayer(nn.Module):
 
         if (self.config.use_prefix == 'all_sh_adapters' or self.config.use_prefix == 'ffn_adapters') and self.config.lisa_option == 'ffn_hi_input':
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
+        if self.config.use_prefix == "lisa_adapter" and "ffn_hi" in self.config.lisa_option:
+            adapter_change = prefix_state["encoder_ffn_adapters"](hidden_states, add_residual=False)
 
         residual = hidden_states
         hidden_states = self.activation_fn(self.fc1(hidden_states))
@@ -575,12 +596,13 @@ class BartEncoderLayer(nn.Module):
 
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
-
         if self.config.use_prefix == 'lisa_adapter':
             hidden_states = prefix_state["encoder_ffn_adapters"](hidden_states)
         elif (self.config.use_prefix == 'all_sh_adapters' or self.config.use_prefix == 'ffn_adapters') and self.config.lisa_option == 'ffn_ho_input':
             hidden_states = self.ef_ffn_adapter(hidden_states)
         elif (self.config.use_prefix == 'all_sh_adapters' or self.config.use_prefix == 'ffn_adapters') and self.config.lisa_option == 'ffn_hi_input':
+            hidden_states = hidden_states + adapter_change
+        elif self.config.use_prefix == "lisa_adapter" and "ffn_hi" in self.config.lisa_option:
             hidden_states = hidden_states + adapter_change
 
         hidden_states = residual + hidden_states
@@ -633,7 +655,7 @@ class BartDecoderLayer(nn.Module):
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.use_prefix == 'all_sh_adapters' or config.use_prefix == 'ffn_adapters':
-            self.ef_ffn_adapter = Adapter_Layer(self.config)
+            self.ef_ffn_adapter = Adapter_Layer(self.config, self.dropout, config.ffn_bn_len)
 
     def forward(
         self,
@@ -726,6 +748,8 @@ class BartDecoderLayer(nn.Module):
 
         if (self.config.use_prefix == 'all_sh_adapters' or self.config.use_prefix == 'ffn_adapters') and self.config.lisa_option == 'ffn_hi_input':
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
+        if self.config.use_prefix == "lisa_adapter" and "ffn_hi" in self.config.lisa_option:
+            adapter_change = prefix_state["decoder_ffn_adapters"](hidden_states, add_residual=False)
 
         # Fully Connected
         residual = hidden_states
@@ -734,12 +758,13 @@ class BartDecoderLayer(nn.Module):
         hidden_states = self.fc2(hidden_states)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
-
         if self.config.use_prefix == 'lisa_adapter':
             hidden_states = prefix_state["decoder_ffn_adapters"](hidden_states)
         elif (self.config.use_prefix == 'all_sh_adapters' or self.config.use_prefix == 'ffn_adapters') and self.config.lisa_option == 'ffn_ho_input':
             hidden_states = self.ef_ffn_adapter(hidden_states)
         elif (self.config.use_prefix == 'all_sh_adapters' or self.config.use_prefix == 'ffn_adapters') and self.config.lisa_option == 'ffn_hi_input':
+            hidden_states = hidden_states + adapter_change
+        elif self.config.use_prefix == "lisa_adapter" and "ffn_hi" in self.config.lisa_option:
             hidden_states = hidden_states + adapter_change
 
         hidden_states = residual + hidden_states
