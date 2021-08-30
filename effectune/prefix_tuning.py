@@ -30,6 +30,10 @@ class PrefixTuning(PretrainedBartModel):
             self.setup_dependent_lisa(args, config)
         elif args.attn_mode == 'bitfit' or args.attn_mode == 'adapter':
             self.get_prompt = self.get_fake_prompt
+        elif args.attn_mode == 'none':
+            self.get_prompt = self.get_fake_prompt
+        else:
+            raise ValueError
 
         logger.info("Declare PrefixTuning model!")
 

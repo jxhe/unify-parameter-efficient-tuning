@@ -280,29 +280,29 @@ class BartAttention(nn.Module):
                     expanded_prefix_mask = prefix_mask[:, None, None, :].expand(bsz, 1, tgt_len, prefix_mask.size(1)).to(attention_mask.dtype)
                     attention_mask = torch.cat([expanded_prefix_mask, attention_mask], dim=-1)
 
-            elif self.config.attn_option == "cross_attn_before_norm":
-                # todo: delete and add me back
-                if not self.config.mydebug:
-                    normed_query_states = self.ef_transform_layer_norm(hidden_states)
-                else:
-                    normed_query_states = hidden_states
-                normed_query_states = self.q_proj(normed_query_states) * self.scaling
-                normed_query_states = self._shape(normed_query_states, tgt_len, bsz).view(*proj_shape)
+            # elif self.config.attn_option == "cross_attn_before_norm":
+            #     # todo: delete and add me back
+            #     if not self.config.mydebug:
+            #         normed_query_states = self.ef_transform_layer_norm(hidden_states)
+            #     else:
+            #         normed_query_states = hidden_states
+            #     normed_query_states = self.q_proj(normed_query_states) * self.scaling
+            #     normed_query_states = self._shape(normed_query_states, tgt_len, bsz).view(*proj_shape)
 
-                cross_attn_logits = torch.bmm(normed_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
-                # bsz * num_heads, tgt_len, prefix_len
-                cross_attn_weights = nn.functional.softmax(cross_attn_logits, dim=-1)
-                # todo: delete and add me back
-                if not self.config.mydebug:
-                    cross_attn_probs = nn.functional.dropout(cross_attn_weights, p=self.dropout, training=self.training)
-                else:
-                    cross_attn_probs = cross_attn_weights
-                cross_attn_output = torch.bmm(cross_attn_probs, prefix_value)
+            #     cross_attn_logits = torch.bmm(normed_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
+            #     # bsz * num_heads, tgt_len, prefix_len
+            #     cross_attn_weights = nn.functional.softmax(cross_attn_logits, dim=-1)
+            #     # todo: delete and add me back
+            #     if not self.config.mydebug:
+            #         cross_attn_probs = nn.functional.dropout(cross_attn_weights, p=self.dropout, training=self.training)
+            #     else:
+            #         cross_attn_probs = cross_attn_weights
+            #     cross_attn_output = torch.bmm(cross_attn_probs, prefix_value)
 
-                if self.config.gate_option != 'cross_attn':
-                    cross_attn_output = cross_attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
-                    cross_attn_output = cross_attn_output.transpose(1, 2)
-                    cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
+            #     if self.config.gate_option != 'cross_attn':
+            #         cross_attn_output = cross_attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
+            #         cross_attn_output = cross_attn_output.transpose(1, 2)
+            #         cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
             elif self.config.attn_option == "cross_attn_gate":
                 normed_query_states = self.ef_transform_layer_norm(query_states)
@@ -339,10 +339,11 @@ class BartAttention(nn.Module):
 
                 cross_attn_probs = nn.functional.dropout(cross_attn_weights, p=self.dropout, training=self.training)
                 cross_attn_output = torch.bmm(cross_attn_probs, prefix_value)
-                cross_attn_output = cross_attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
-                cross_attn_output = cross_attn_output.transpose(1, 2)
 
-                cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
+                if self.config.gate_option != 'cross_attn':
+                    cross_attn_output = cross_attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
+                    cross_attn_output = cross_attn_output.transpose(1, 2)
+                    cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
         if self.config.attn_mode == 'adapter':
             if self.config.attn_option == "attn_adapter":
@@ -390,12 +391,8 @@ class BartAttention(nn.Module):
         else:
             attn_weights_reshaped = None
 
-        # todo: delete and add me back
-        if not self.config.mydebug:
-            attn_probs = nn.functional.dropout(attn_weights, p=self.dropout, training=self.training)
-            attn_output = torch.bmm(attn_probs, value_states)
-        else:
-            attn_output = torch.bmm(attn_weights, value_states)
+        attn_probs = nn.functional.dropout(attn_weights, p=self.dropout, training=self.training)
+        attn_output = torch.bmm(attn_probs, value_states)
 
         if attn_output.size() != (bsz * self.num_heads, tgt_len, self.head_dim):
             raise ValueError(
@@ -530,8 +527,8 @@ class BartEncoderLayer(nn.Module):
         self.fc2 = nn.Linear(config.encoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
-        if config.ffn_mode == 'ffn_adapters':
-            self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout, 
+        if config.ffn_mode == 'adapter':
+            self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
                 bottleneck=config.ffn_bn_len)
 
     def forward(
@@ -574,7 +571,7 @@ class BartEncoderLayer(nn.Module):
         hidden_states = residual + hidden_states
         hidden_states = self.self_attn_layer_norm(hidden_states)
 
-        if self.config.ffn_mode == 'ffn_adapters' and self.config.ffn_option == 'ffn_hi_input':
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
 
@@ -585,7 +582,7 @@ class BartEncoderLayer(nn.Module):
 
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
-        if self.config.ffn_mode == 'ffn_adapters':
+        if self.config.ffn_mode == 'adapter':
             if self.config.ffn_option == 'ffn_ho_input':
                 hidden_states = self.ef_ffn_adapter(hidden_states)
             elif self.config.ffn_option == 'ffn_hi_input':
@@ -642,8 +639,8 @@ class BartDecoderLayer(nn.Module):
         self.fc2 = nn.Linear(config.decoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
-        if config.ffn_mode == 'ffn_adapters':
-            self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout, 
+        if config.ffn_mode == 'adapter':
+            self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
                 bottleneck=config.ffn_bn_len)
 
     def forward(
@@ -735,7 +732,7 @@ class BartDecoderLayer(nn.Module):
             # add cross-attn to positions 3,4 of present_key_value tuple
             present_key_value = present_key_value + cross_attn_present_key_value
 
-        if self.config.ffn_mode == 'ffn_adapters' and self.config.ffn_option == 'ffn_hi_input':
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
         # Fully Connected
@@ -745,7 +742,7 @@ class BartDecoderLayer(nn.Module):
         hidden_states = self.fc2(hidden_states)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
-        if self.config.ffn_mode == 'ffn_adapters':
+        if self.config.ffn_mode == 'adapter':
             if self.config.ffn_option == 'ffn_ho_input':
                 hidden_states = self.ef_ffn_adapter(hidden_states)
             elif self.config.ffn_option == 'ffn_hi_input':

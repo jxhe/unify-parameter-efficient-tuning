@@ -501,7 +501,7 @@ def main():
     )
 
     # added by Chunting: prepare the finetuning model
-    if tune_args.attn_mode != "none":
+    if tune_args.attn_mode != "none" or tune_args.ffn_mode != "none":
         model = PrefixTuning(config, tune_args, model)
 
     # import pdb; pdb.set_trace()
