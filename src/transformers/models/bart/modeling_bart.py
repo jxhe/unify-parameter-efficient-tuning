@@ -241,8 +241,6 @@ class BartAttention(nn.Module):
         if 'lisa' in self.attn_mode and self.config.attn_option == "cross_attn_gate":
             x = query_states.view(bsz, tgt_len, self.num_heads, self.head_dim)
             gates = torch.sigmoid((x * self.ef_transform_gate[None, None, :, :]).sum(-1) + self.ef_transform_gate_bias).unsqueeze(-1) # bsz, tgt_len, num_heads, 1
-            # print(gates)
-            # input()
 
         proj_shape = (bsz * self.num_heads, -1, self.head_dim)
         query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)

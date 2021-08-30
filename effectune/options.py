@@ -69,7 +69,7 @@ class TuneArguments:
                         "cross_attn_plug_before_outproj",
                         "cross_attn_relu",
                         "kv_proj", "attn_adapter",
-                        "attn_adapter_after_oproj"], \
+                        "attn_adapter_after_oproj", "none"], \
 
             "help": "specific attn configs; \
                 concat: concat prefix to self, lisa's default version; \
@@ -89,7 +89,7 @@ class TuneArguments:
     ffn_option: Optional[str] = field(
         default="ffn_hi_input",
         metadata={
-            "choices": ["ffn_hi_input", "ffn_ho_input"], \
+            "choices": ["ffn_hi_input", "ffn_ho_input", "none"], \
 
             "help": "specific ffn configs; \
                 ffn_hi_input: ffn uses Hi as input; \

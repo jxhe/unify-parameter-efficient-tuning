@@ -31,6 +31,7 @@ class PrefixTuning(PretrainedBartModel):
         elif args.attn_mode == 'bitfit' or args.attn_mode == 'adapter':
             self.get_prompt = self.get_fake_prompt
         elif args.attn_mode == 'none':
+            # includes only with ffn mode
             self.get_prompt = self.get_fake_prompt
         else:
             raise ValueError
