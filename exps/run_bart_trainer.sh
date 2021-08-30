@@ -20,8 +20,17 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-use_prefix="all_sh_adapters"
-lisa_option="ffn_ho_input"
+attn_mode="lisa"
+attn_option="concat"
+
+ffn_mode="none"
+ffn_option="ffn_hi_input"
+
+gate_option="none"
+
+preseqlen=200
+ffn_bn_len=200
+
 # adapter_option="attn_adapter"
 mh_reuse_proj="True"
 
@@ -47,7 +56,7 @@ eval_strategy="steps"
 save_steps=3000
 report_to="wandb"
 
-debug=1
+debug=0
 extra_cmd=""
 debug_str=""
 
@@ -57,8 +66,8 @@ then
     weight_decay=0
     max_grad_norm=1
     max_train_samples=2000
-    bsz=16
-    gradient_steps=3
+    bsz=24
+    gradient_steps=2
     num_train_epochs=30
     max_steps=-1
     eval_strategy='steps'
@@ -70,7 +79,7 @@ then
 fi
 
 
-exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.mh_reuse_proj_${mh_reuse_proj}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.mh_reuse_proj_${mh_reuse_proj}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
@@ -79,11 +88,15 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
-    --use_prefix ${use_prefix} \
-    --lisa_option ${lisa_option} \
+    --attn_mode ${attn_mode} \
+    --attn_option ${attn_option} \
+    --ffn_mode ${ffn_mode} \
+    --ffn_option ${ffn_option} \
+    --gate_option ${gate_option} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --mid_dim 800 \
-    --preseqlen 200 \
+    --preseqlen ${preseqlen} \
+    --ffn_bn_len ${ffn_bn_len} \
     --init_with_bert 1 \
     --unfreeze_params ${ft} \
     --num_bias_layers ${top_layers} \
