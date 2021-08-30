@@ -298,8 +298,10 @@ class BartAttention(nn.Module):
 
             elif self.config.lisa_option == "cross_attn_before_norm":
                 # todo: delete and add me back
-                # normed_query_states = self.ef_transform_layer_norm(hidden_states)
-                normed_query_states = hidden_states
+                if not self.config.debug:
+                    normed_query_states = self.ef_transform_layer_norm(hidden_states)
+                else:
+                    normed_query_states = hidden_states
                 normed_query_states = self.q_proj(normed_query_states) * self.scaling
                 normed_query_states = self._shape(normed_query_states, tgt_len, bsz).view(*proj_shape)
 
@@ -307,8 +309,10 @@ class BartAttention(nn.Module):
                 # bsz * num_heads, tgt_len, prefix_len
                 cross_attn_weights = nn.functional.softmax(cross_attn_logits, dim=-1)
                 # todo: delete and add me back
-                # cross_attn_probs = nn.functional.dropout(cross_attn_weights, p=self.dropout, training=self.training)
-                cross_attn_probs = cross_attn_weights
+                if not self.config.debug:
+                    cross_attn_probs = nn.functional.dropout(cross_attn_weights, p=self.dropout, training=self.training)
+                else:
+                    cross_attn_probs = cross_attn_weights
                 cross_attn_output = torch.bmm(cross_attn_probs, prefix_value)
 
                 if self.config.gate_option != 'lisa_cross_attn':
@@ -404,9 +408,12 @@ class BartAttention(nn.Module):
         else:
             attn_weights_reshaped = None
 
-        attn_probs = nn.functional.dropout(attn_weights, p=self.dropout, training=self.training)
-
-        attn_output = torch.bmm(attn_probs, value_states)
+        # todo: delete and add me back
+        if not self.config.debug:
+            attn_probs = nn.functional.dropout(attn_weights, p=self.dropout, training=self.training)
+            attn_output = torch.bmm(attn_probs, value_states)
+        else:
+            attn_output = torch.bmm(attn_weights, value_states)
 
         if attn_output.size() != (bsz * self.num_heads, tgt_len, self.head_dim):
             raise ValueError(
@@ -458,7 +465,7 @@ class BartAttention(nn.Module):
 
             ef_cross_attn_output = ef_cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
-            # residule
+            # residual
             attn_output = attn_output + ef_cross_attn_output
 
 

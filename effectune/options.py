@@ -141,12 +141,12 @@ class TuneArguments:
         },
     )
 
-    # down_size: Optional[int] = field(
-    #     default=0,
-    #     metadata={
-    #         "help": ""
-    #     },
-    # )
+    debug: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": ""
+        },
+    )
 
 # @dataclass
 # class TuneArguments:

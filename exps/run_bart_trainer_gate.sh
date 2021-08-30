@@ -10,6 +10,7 @@
 ##SBATCH --array=0
 
 source activate tride
+which python
 export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
 
@@ -29,14 +30,14 @@ lisa_option="ffn_hi_input"
 #use_prefix="lisa_adapter"
 #lisa_option="cross_attn_before_norm"
 #
-use_prefix="lisa_adapter"
-lisa_option="default"
+#use_prefix="lisa_adapter"
+#lisa_option="default"
 #
 #use_prefix="lisa"
 #lisa_option="kv_proj"
 #
-#use_prefix="lisa"
-#lisa_option="cross_attn_before_norm"
+use_prefix="lisa"
+lisa_option="cross_attn_before_norm"
 
 #use_prefix="lisa_adapter"
 #lisa_option="default_ffn_hi"
@@ -63,15 +64,14 @@ label_smoothing_factor=0.1
 attn_bn=200
 ffn_bn=200
 
-attn_bn=100
-ffn_bn=512
+gate_option="lisa_cross_attn"
 
 eval_strategy="steps"
 # eval_strategy="steps"
 save_steps=3000
 report_to="wandb"
 
-debug=0
+debug=1
 extra_cmd=""
 debug_str=""
 
@@ -94,7 +94,7 @@ then
 fi
 
 
-exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.abn${attn_bn}.fbn${ffn_bn}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.gate.${gate_option}.abn${attn_bn}.fbn${ffn_bn}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
@@ -103,8 +103,10 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
+    --debug ${debug} \
     --use_prefix ${use_prefix} \
     --lisa_option ${lisa_option} \
+    --gate_option ${gate_option} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --mid_dim 800 \
     --preseqlen ${attn_bn} \
