@@ -346,7 +346,6 @@ class Bias(nn.Module):
 
 
 class Adapter_Layer(nn.Module):
-
     def __init__(self, 
                  config=None,
                  d_model=None,
@@ -387,8 +386,8 @@ class Adapter(nn.Module):
     def __init__(self, args, config):
         super().__init__()
         self.num_layers = args.num_bias_layers
-        self.encoder_adapters = nn.ModuleList([Adapter_Layer(config) for _ in range(args.num_bias_layers)])
-        self.decoder_adapters = nn.ModuleList([Adapter_Layer(config) for _ in range(args.num_bias_layers)])
+        self.encoder_adapters = nn.ModuleList([Adapter_Layer(config, config.dropout) for _ in range(args.num_bias_layers)])
+        self.decoder_adapters = nn.ModuleList([Adapter_Layer(config, config.dropout) for _ in range(args.num_bias_layers)])
 
     def forward(self, bsz, nsamples=1, device="cuda"):
         results = []
@@ -412,6 +411,20 @@ class Prefix_Adapter(nn.Module):
             for key, value in dic.items():
                 prefix[ii][key] = value
         return prefix
+
+
+def softmax_gating(logits_1, logits_2):
+    # the last two dimensions of logits is (T, S)
+    max_logits = torch.max(torch.cat([logits_1, logits_2], dim=-1), dim=-1, keepdim=True)[0]
+    logits_1 = logits_1 - max_logits
+    logits_2 = logits_2 - max_logits
+    exp_logits_1 = logits_1.exp()
+    exp_logits_2 = logits_2.exp()
+    s = torch.sum(exp_logits_1, dim=-1) + torch.sum(exp_logits_2, dim=-1)
+    w1 = torch.sum(exp_logits_1, dim=-1) / s
+    w2 = torch.sum(exp_logits_2, dim=-1) / s  # bsz x num_heads, tgt_len
+
+    return w1.unsqueeze(-1), w2.unsqueeze(-1)
 
 # class InputBias(nn.Module):
     # def __init__(self, args):
