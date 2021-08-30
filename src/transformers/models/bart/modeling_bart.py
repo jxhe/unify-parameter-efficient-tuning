@@ -298,7 +298,7 @@ class BartAttention(nn.Module):
 
             elif self.config.lisa_option == "cross_attn_before_norm":
                 # todo: delete and add me back
-                if not self.config.debug:
+                if not self.config.mydebug:
                     normed_query_states = self.ef_transform_layer_norm(hidden_states)
                 else:
                     normed_query_states = hidden_states
@@ -309,7 +309,7 @@ class BartAttention(nn.Module):
                 # bsz * num_heads, tgt_len, prefix_len
                 cross_attn_weights = nn.functional.softmax(cross_attn_logits, dim=-1)
                 # todo: delete and add me back
-                if not self.config.debug:
+                if not self.config.mydebug:
                     cross_attn_probs = nn.functional.dropout(cross_attn_weights, p=self.dropout, training=self.training)
                 else:
                     cross_attn_probs = cross_attn_weights
@@ -409,7 +409,7 @@ class BartAttention(nn.Module):
             attn_weights_reshaped = None
 
         # todo: delete and add me back
-        if not self.config.debug:
+        if not self.config.mydebug:
             attn_probs = nn.functional.dropout(attn_weights, p=self.dropout, training=self.training)
             attn_output = torch.bmm(attn_probs, value_states)
         else:

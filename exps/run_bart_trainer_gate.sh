@@ -103,7 +103,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
-    --debug ${debug} \
+    --mydebug ${debug} \
     --use_prefix ${use_prefix} \
     --lisa_option ${lisa_option} \
     --gate_option ${gate_option} \

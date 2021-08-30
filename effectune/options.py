@@ -141,7 +141,7 @@ class TuneArguments:
         },
     )
 
-    debug: Optional[int] = field(
+    mydebug: Optional[int] = field(
         default=0,
         metadata={
             "help": ""
