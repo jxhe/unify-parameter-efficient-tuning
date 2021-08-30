@@ -4,12 +4,14 @@
 #SBATCH --job-name=xsum
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:v100:1
-#SBATCH --mem=30g
+#SBATCH --mem=25g
 #SBATCH --cpus-per-task=2
 #SBATCH --time=0
 ##SBATCH --array=0
 
 source activate tride
+which python
+
 export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
 
@@ -23,14 +25,26 @@ dataset="xsum"
 use_prefix="all_sh_adapters"
 lisa_option="ffn_hi_input"
 
-use_prefix="adapter"
-lisa_option="attn_adapter"
+#use_prefix="adapter"
+#lisa_option="attn_adapter"
+#
+#use_prefix="lisa_adapter"
+#lisa_option="cross_attn_before_norm"
+#
+#use_prefix="lisa_adapter"
+#lisa_option="default"
+#
+#use_prefix="lisa"
+#lisa_option="kv_proj"
+#
+#use_prefix="lisa"
+#lisa_option="cross_attn_before_norm"
+#
+#use_prefix="lisa"
+#lisa_option="default"
 
 use_prefix="lisa_adapter"
-lisa_option="cross_attn_before_norm"
-
-use_prefix="lisa_adapter"
-lisa_option="default"
+lisa_option="default_ffn_hi"
 
 mh_reuse_proj="True"
 
@@ -51,12 +65,15 @@ max_train_samples=2000
 logging_steps=100
 label_smoothing_factor=0.1
 
+attn_bn=100
+ffn_bn=512
+
 eval_strategy="steps"
 # eval_strategy="steps"
 save_steps=3000
 report_to="wandb"
 
-debug=0
+debug=1
 extra_cmd=""
 debug_str=""
 
@@ -79,7 +96,7 @@ then
 fi
 
 
-exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.abn${attn_bn}.fbn${ffn_bn}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
@@ -92,7 +109,8 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --lisa_option ${lisa_option} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --mid_dim 800 \
-    --preseqlen 200 \
+    --preseqlen ${attn_bn} \
+    --ffn_bn_len ${ffn_bn} \
     --init_with_bert 1 \
     --unfreeze_params ${ft} \
     --num_bias_layers ${top_layers} \
