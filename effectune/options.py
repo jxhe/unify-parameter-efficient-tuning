@@ -67,7 +67,15 @@ class TuneArguments:
         default="none",
         metadata={
             "help": "", \
-            "choices": ["lisa_cross_attn"]
+            "choices": ["lisa_cross_attn", "none"]
+        },
+    )
+
+    insert_option: Optional[str] = field(
+        default="none",
+        metadata={
+            "help": "", \
+            "choices": ["after_output_proj", "none"]
         },
     )
 

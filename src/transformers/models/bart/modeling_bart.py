@@ -437,7 +437,7 @@ class BartAttention(nn.Module):
         attn_output = attn_output.transpose(1, 2)
         attn_output = attn_output.reshape(bsz, tgt_len, embed_dim)
 
-        if cross_attn_output is not None:
+        if cross_attn_output is not None and self.config.insert_option != "after_output_proj":
             attn_output = attn_output + cross_attn_output
 
         if 'lisa' in self.use_prefix and (self.config.lisa_option == 'cross_attn_plug_before_outproj' or self.config.lisa_option == 'mh_adaptor_before_outproj'):
@@ -495,6 +495,9 @@ class BartAttention(nn.Module):
 
         # import pdb; pdb.set_trace()
         attn_output = self.out_proj(attn_output)
+
+        if cross_attn_output is not None and self.config.insert_option == "after_output_proj":
+            attn_output = attn_output + cross_attn_output
 
         if 'lisa' in self.use_prefix and (self.config.lisa_option == 'cross_attn_plug' or self.config.lisa_option == 'mh_adaptor'):
             if self.config.mh_reuse_proj:
