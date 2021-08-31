@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=xsum
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:v100:1
+#SBATCH --gres=gpu:A6000:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=2
 #SBATCH --time=0
@@ -23,7 +23,7 @@ dataset="xsum"
 attn_mode="lisa"
 attn_option="concat"
 
-ffn_mode="none"
+ffn_mode="adapter"
 ffn_option="ffn_hi_input"
 
 gate_option="none"
