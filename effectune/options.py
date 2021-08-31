@@ -107,6 +107,13 @@ class TuneArguments:
         },
     )
 
+    adapter_post_layernorm: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": ""
+        },
+    )
+
     mid_dim: Optional[int] = field(
         default=800,
         metadata={
