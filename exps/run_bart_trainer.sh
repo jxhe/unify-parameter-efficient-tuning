@@ -20,16 +20,19 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-attn_mode="lisa"
-attn_option="concat"
+attn_mode="none"
+attn_option="cross_attn"
 
 ffn_mode="adapter"
 ffn_option="ffn_hi_input"
 
 gate_option="none"
 
-preseqlen=200
-ffn_bn_len=200
+layer_norm_in=1
+layer_norm_out=0
+
+preseqlen=1
+ffn_bn_len=1
 
 # adapter_option="attn_adapter"
 mh_reuse_proj="True"
@@ -56,7 +59,7 @@ eval_strategy="steps"
 save_steps=3000
 report_to="wandb"
 
-debug=0
+debug=1
 extra_cmd=""
 debug_str=""
 
@@ -79,7 +82,7 @@ then
 fi
 
 
-exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.mh_reuse_proj_${mh_reuse_proj}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.lni${layer_norm_in}.lno${layer_norm_out}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
@@ -94,6 +97,8 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --ffn_option ${ffn_option} \
     --gate_option ${gate_option} \
     --mh_reuse_proj ${mh_reuse_proj} \
+    --layer_norm_before ${layer_norm_in} \
+    --layer_norm_after ${layer_norm_out} \
     --mid_dim 800 \
     --preseqlen ${preseqlen} \
     --ffn_bn_len ${ffn_bn_len} \

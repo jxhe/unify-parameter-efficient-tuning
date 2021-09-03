@@ -185,6 +185,9 @@ class BartAttention(nn.Module):
             else:
                 raise ValueError("adapter option not supported")
 
+        if self.config.layer_norm_after:
+            self.ef_transform_layer_norm_out = nn.LayerNorm(embed_dim)
+
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
 
@@ -256,6 +259,7 @@ class BartAttention(nn.Module):
             prefix_value = prefix_state.get(self.cache_key)['prev_value']
             prefix_mask = prefix_state.get(self.cache_key)['prev_key_padding_mask']  # bsz, preseqlen: zeros
 
+            # import pdb; pdb.set_trace()
             if self.config.attn_option == 'concat':
                 # add with adapter
                 # original lisa prefix-tuning
@@ -345,9 +349,14 @@ class BartAttention(nn.Module):
                     cross_attn_output = cross_attn_output.transpose(1, 2)
                     cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
+                    if self.config.layer_norm_after:
+                        cross_attn_output = self.ef_transform_layer_norm_out(cross_attn_output)
+
         if self.config.attn_mode == 'adapter':
             if self.config.attn_option == "attn_adapter":
                 cross_attn_output = self.ef_attn_adapter(hidden_states, add_residual=False)
+                if self.config.layer_norm_after:
+                    cross_attn_output = self.ef_transform_layer_norm_out(cross_attn_output)
 
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))

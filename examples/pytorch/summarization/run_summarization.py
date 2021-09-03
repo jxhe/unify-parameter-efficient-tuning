@@ -504,6 +504,8 @@ def main():
     if tune_args.attn_mode != "none" or tune_args.ffn_mode != "none":
         model = PrefixTuning(config, tune_args, model)
 
+    print(model)
+
     # import pdb; pdb.set_trace()
 
     for n, p in model.named_parameters():

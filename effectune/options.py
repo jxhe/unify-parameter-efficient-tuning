@@ -65,10 +65,10 @@ class TuneArguments:
         default="concat",
         metadata={
             "choices": ["concat", "cross_attn", "cross_attn_gate",
-                        "cross_attn_noln", "cross_attn_plug", 
+                        "cross_attn_noln", "cross_attn_plug",
                         "cross_attn_plug_before_outproj",
                         "cross_attn_relu",
-                        "kv_proj", "attn_adapter", 
+                        "kv_proj", "attn_adapter",
                         "cross_attn_before_norm"], \
 
             "help": "specific attn configs; \
@@ -80,7 +80,7 @@ class TuneArguments:
                 cross_attn_plug: cross_attn, but with Ho as input and Ho as output; \
                 cross_attn_relu: change the softmax in cross_attn to relu; \
                 kv_proj: P_k and P_v are projections from P; \
-                attn_adapter: a single head adapter", 
+                attn_adapter: a single head adapter",
 
 
         },
@@ -166,6 +166,20 @@ class TuneArguments:
 
     mh_reuse_proj: Optional[bool] = field(
         default=False,
+        metadata={
+            "help": ""
+        },
+    )
+
+    layer_norm_before: Optional[int] = field(
+        default=1,
+        metadata={
+            "help": ""
+        },
+    )
+
+    layer_norm_after: Optional[int] = field(
+        default=0,
         metadata={
             "help": ""
         },
