@@ -206,7 +206,7 @@ class TuneArguments:
     )
 
     analysis_opt: Optional[str] = field(
-        default=None,
+        default="",
         metadata={
             "help": ""
         },

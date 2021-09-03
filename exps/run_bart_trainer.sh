@@ -20,13 +20,13 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-attn_mode="none"
+attn_mode="lisa"
 attn_option="cross_attn"
 
-ffn_mode="adapter"
+ffn_mode="none"
 ffn_option="ffn_hi_input"
 
-gate_option="none"
+gate_option="cross_attn"
 
 layer_norm_in=1
 layer_norm_out=0
@@ -60,8 +60,10 @@ save_steps=3000
 report_to="wandb"
 
 debug=1
+vis_analysis=1
 extra_cmd=""
 debug_str=""
+analysis_opt=""
 
 if [ "${debug}" = 1 ];
 then
@@ -87,6 +89,14 @@ SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
+if [ "${vis_analysis}=1" ];
+then
+    max_train_samples=2000
+    num_train_epochs=10
+    analysis_opt=${SAVE}/analysis_opt
+    mkdir -p ${analysis_opt}
+fi
+
 python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
@@ -99,6 +109,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --mh_reuse_proj ${mh_reuse_proj} \
     --layer_norm_before ${layer_norm_in} \
     --layer_norm_after ${layer_norm_out} \
+    --analysis_opt ${analysis_opt} \
     --mid_dim 800 \
     --preseqlen ${preseqlen} \
     --ffn_bn_len ${ffn_bn_len} \

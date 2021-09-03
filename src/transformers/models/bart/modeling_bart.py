@@ -192,7 +192,7 @@ class BartAttention(nn.Module):
         if self.config.layer_norm_after:
             self.ef_transform_layer_norm_out = nn.LayerNorm(embed_dim)
 
-        self.opt = open(config.analysis_opt, "w") if config.analysis_opt is not None else None
+        self.opt = open(f"{config.analysis_opt}/{self.spec[cache_key]}_{layer_id}.txt", "w") if config.analysis_opt != ""  else None
         self.step = 0
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
@@ -347,6 +347,7 @@ class BartAttention(nn.Module):
                 attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
                 attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
             w_prefix, w_attn = softmax_gating(cross_attn_logits, attn_weights)  # bsz x num_heads, tgt_len, 1
+            # import pdb; pdb.set_trace()
 
         if attn_weights.size() != (bsz * self.num_heads, tgt_len, src_len):
             raise ValueError(
@@ -395,8 +396,9 @@ class BartAttention(nn.Module):
         if self.config.gate_option == "cross_attn":
             if self.training and self.opt is not None:
                 self.step += 1
-                avg_w_attn = w_attn.mean()
-                avg_w_pref = w_prefix.mean()
+                # import pdb; pdb.set_trace()
+                avg_w_attn = w_attn[:,:50,:].mean()
+                avg_w_pref = w_prefix[:,:50,:].mean()
                 layer_spec = self.spec[self.cache_key] + "_" + str(self.layer_id)
                 self.opt.write("step={}\t{}\tavg_w_attn={}\tavg_w_prefix={}\n".format(self.step, layer_spec, avg_w_attn.item(), avg_w_pref.item()))
 
@@ -614,7 +616,7 @@ class BartDecoderLayer(nn.Module):
             is_decoder=True,
             config=config,
             cache_key='self',
-            layer_id=None,
+            layer_id=layer_id,
         )
         self.dropout = config.dropout
         self.activation_fn = ACT2FN[config.activation_function]
@@ -628,6 +630,7 @@ class BartDecoderLayer(nn.Module):
             is_decoder=True,
             config=config,
             cache_key='encoder_decoder',
+            layer_id=layer_id,
         )
         self.encoder_attn_layer_norm = nn.LayerNorm(self.embed_dim)
         self.fc1 = nn.Linear(self.embed_dim, config.decoder_ffn_dim)
