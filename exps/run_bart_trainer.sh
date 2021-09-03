@@ -26,7 +26,7 @@ attn_option="cross_attn"
 ffn_mode="none"
 ffn_option="ffn_hi_input"
 
-gate_option="cross_attn"
+gate_option="constant"
 
 layer_norm_in=1
 layer_norm_out=0
@@ -60,7 +60,7 @@ save_steps=3000
 report_to="wandb"
 
 debug=1
-vis_analysis=1
+vis_analysis=0
 extra_cmd=""
 debug_str=""
 analysis_opt=""

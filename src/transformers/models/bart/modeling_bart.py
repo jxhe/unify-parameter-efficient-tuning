@@ -325,7 +325,7 @@ class BartAttention(nn.Module):
                 cross_attn_probs = nn.functional.dropout(cross_attn_weights, p=self.dropout, training=self.training)
                 cross_attn_output = torch.bmm(cross_attn_probs, prefix_value)
 
-                if self.config.gate_option != 'cross_attn':
+                if self.config.gate_option == 'none':
                     cross_attn_output = cross_attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
                     cross_attn_output = cross_attn_output.transpose(1, 2)
                     cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
