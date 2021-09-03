@@ -41,7 +41,7 @@ class TuneArguments:
         metadata={
             "choices": ["lisa", "lisa_nomlp",
             "learn_bias", "luna", "none",
-            "dlisa", "adapter"], \
+            "dlisa", "adapter", "default_cross_attn_only"], \
 
             "help": "config for attention, none to disable; \
                 lisa: lisa's mlp to output prefix P; \
@@ -69,7 +69,8 @@ class TuneArguments:
                         "cross_attn_plug_before_outproj",
                         "cross_attn_relu",
                         "kv_proj", "attn_adapter",
-                        "attn_adapter_after_oproj", "none"], \
+                        "attn_adapter_after_oproj", "none",
+                        ], \
 
             "help": "specific attn configs; \
                 concat: concat prefix to self, lisa's default version; \
@@ -186,6 +187,13 @@ class TuneArguments:
 
     mydebug: Optional[int] = field(
         default=0,
+        metadata={
+            "help": ""
+        },
+    )
+
+    analysis_opt: Optional[str] = field(
+        default=None,
         metadata={
             "help": ""
         },

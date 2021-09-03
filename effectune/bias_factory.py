@@ -128,6 +128,55 @@ class Prefix(nn.Module):
         return result
 
 
+class PrefixCrossAttn(nn.Module):
+    def __init__(self, args, config):
+        super().__init__()
+
+        # self.match_n_layer = config.decoder_layers if args.num_bias_layers < 0 else args.num_bias_layers
+        self.match_n_layer = args.num_bias_layers
+        self.match_n_head = config.decoder_attention_heads
+        self.n_embd = config.d_model
+        self.match_n_embd = self.n_embd // self.match_n_head
+
+        self.mid_dim = args.mid_dim
+        self.preseqlen = args.preseqlen
+        self.prefix_dropout = args.prefix_dropout
+
+        self.dropout = nn.Dropout(self.prefix_dropout)
+
+        self.input_tokens = torch.arange(self.preseqlen).long()
+        self.wte = nn.Embedding(self.preseqlen, self.n_embd)
+        self.control_trans = nn.Sequential(
+            nn.Linear(self.n_embd, self.mid_dim),
+            nn.Tanh(),
+            nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
+
+        # if args.lisa_option == "cross_attn":
+        #     self.apply(init_lisa_params)
+
+    def forward(self, bsz, nsamples=1, device="gpu"):
+        old_bsz = bsz
+        bsz = bsz * nsamples
+        input_tokens = self.input_tokens.unsqueeze(0).expand(bsz, -1).to(device)
+        temp_control = self.wte(input_tokens)
+        past_key_values = self.control_trans(temp_control) #bsz, seqlen, layer*emb
+        bsz, seqlen, _ = past_key_values.shape
+        past_key_values = past_key_values.view(bsz, seqlen, self.match_n_layer * 2, self.match_n_head,
+                                               self.match_n_embd)
+        past_key_values = self.dropout(past_key_values)
+        past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).split(2)
+
+        result = []
+        for i, key_val in enumerate(past_key_values):
+            temp_dict = {'encoder_decoder': {"prev_key": key_val[0].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
+                                  "prev_value": key_val[1].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
+                                  "prev_key_padding_mask": torch.zeros(bsz, seqlen).to(key_val.device) #bsz, preseqlen
+                                  },
+                         }
+            result.append(temp_dict)
+        return result
+
+
 class PrefixDirectInit(nn.Module):
     def __init__(self, args, config):
         super().__init__()

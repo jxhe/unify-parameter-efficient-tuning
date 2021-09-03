@@ -141,6 +141,7 @@ class BartAttention(nn.Module):
         bias: bool = True,
         config=None,
         cache_key: str = None,
+        layer_id=0,
     ):
         super().__init__()
         self.embed_dim = embed_dim
@@ -164,6 +165,9 @@ class BartAttention(nn.Module):
         self.config = config
         self.cache_key = cache_key
 
+        self.layer_id = layer_id
+        self.spec = {"self": "dself", "encoder_decoder": "dcross", "encoder": "eself"}
+
         if 'lisa' in self.attn_mode:
             if self.config.attn_option == 'cross_attn_gate':
                 self.ef_transform_gate = nn.Parameter(torch.zeros(num_heads, self.head_dim, requires_grad=True))
@@ -184,6 +188,9 @@ class BartAttention(nn.Module):
                 self.ef_attn_adapter = Adapter_Layer(self.config, dropout=self.dropout, bottleneck=self.config.preseqlen)
             else:
                 raise ValueError("adapter option not supported")
+
+        self.opt = open(config.analysis_opt, "w") if config.analysis_opt is not None else None
+        self.step = 0
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
@@ -248,7 +255,7 @@ class BartAttention(nn.Module):
         value_states = value_states.view(*proj_shape)
 
         cross_attn_output = None
-        if prefix_state is not None and 'lisa' in self.attn_mode:
+        if (prefix_state is not None and 'lisa' in self.attn_mode) or (self.attn_mode == "default_cross_attn_only" and self.cache_key == "encoder_decoder"):
             # legacy
             prefix_key = prefix_state.get(self.cache_key)['prev_key']  # bsz x nhead, preseqlen, head_dim
             prefix_value = prefix_state.get(self.cache_key)['prev_value']
@@ -377,6 +384,13 @@ class BartAttention(nn.Module):
             attn_output = attn_output * gates
 
         if self.config.gate_option == "cross_attn":
+            if self.training and self.opt is not None:
+                self.step += 1
+                avg_w_attn = w_attn.mean()
+                avg_w_pref = w_prefix.mean()
+                layer_spec = self.spec[self.cache_key] + "_" + str(self.layer_id)
+                self.opt.write("step={}\t{}\tavg_w_attn={}\tavg_w_prefix={}\n".format(self.step, layer_spec, avg_w_attn.item(), avg_w_pref.item()))
+
             attn_output = attn_output * w_attn + cross_attn_output * w_prefix
             cross_attn_output = None
 
@@ -477,7 +491,7 @@ class BartAttention(nn.Module):
 
 
 class BartEncoderLayer(nn.Module):
-    def __init__(self, config: BartConfig):
+    def __init__(self, config: BartConfig, layer_id=None):
         super().__init__()
         self.config = config
 
@@ -488,6 +502,7 @@ class BartEncoderLayer(nn.Module):
             dropout=config.attention_dropout,
             config=config,
             cache_key='encoder',
+            layer_id=layer_id,
         )
         self.self_attn_layer_norm = nn.LayerNorm(self.embed_dim)
         self.dropout = config.dropout
@@ -578,7 +593,7 @@ class BartEncoderLayer(nn.Module):
 
 
 class BartDecoderLayer(nn.Module):
-    def __init__(self, config: BartConfig):
+    def __init__(self, config: BartConfig, layer_id=None):
         super().__init__()
         self.config = config
         self.embed_dim = config.d_model
@@ -590,6 +605,7 @@ class BartDecoderLayer(nn.Module):
             is_decoder=True,
             config=config,
             cache_key='self',
+            layer_id=None,
         )
         self.dropout = config.dropout
         self.activation_fn = ACT2FN[config.activation_function]
@@ -976,7 +992,7 @@ class BartEncoder(BartPretrainedModel):
             config.max_position_embeddings,
             embed_dim,
         )
-        self.layers = nn.ModuleList([BartEncoderLayer(config) for _ in range(config.encoder_layers)])
+        self.layers = nn.ModuleList([BartEncoderLayer(config, layer_id=ii) for ii in range(config.encoder_layers)])
         self.layernorm_embedding = nn.LayerNorm(embed_dim)
 
         self.init_weights()
@@ -1162,7 +1178,7 @@ class BartDecoder(BartPretrainedModel):
             config.max_position_embeddings,
             config.d_model,
         )
-        self.layers = nn.ModuleList([BartDecoderLayer(config) for _ in range(config.decoder_layers)])
+        self.layers = nn.ModuleList([BartDecoderLayer(config, layer_id=ii) for ii in range(config.decoder_layers)])
         self.layernorm_embedding = nn.LayerNorm(config.d_model)
 
         self.init_weights()
