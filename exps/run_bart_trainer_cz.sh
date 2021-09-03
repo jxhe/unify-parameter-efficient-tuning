@@ -22,31 +22,56 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-use_prefix="all_sh_adapters"
-lisa_option="ffn_hi_input"
+attn_mode="lisa"
+attn_option="concat"
+ffn_mode="adapter"
+ffn_option="ffn_hi_input"
+gate_option="none"
+preseqlen=200
+ffn_bn_len=200
 
-#use_prefix="adapter"
-#lisa_option="attn_adapter"
-#
-#use_prefix="lisa_adapter"
-#lisa_option="cross_attn_before_norm"
-#
-#use_prefix="lisa_adapter"
-#lisa_option="default"
-#
-#use_prefix="lisa"
-#lisa_option="kv_proj"
-#
-#use_prefix="lisa"
-#lisa_option="cross_attn_before_norm"
-#
-#use_prefix="lisa"
-#lisa_option="default"
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#gate_option="none"
+#preseqlen=100
+#ffn_bn_len=512
 
-use_prefix="lisa_adapter"
-lisa_option="default_ffn_hi"
+attn_mode="adapter"
+attn_option="attn_adapter_after_oproj"
+ffn_mode="adapter"
+ffn_option="ffn_hi_input"
+gate_option="none"
+preseqlen=200
+ffn_bn_len=200
+
+attn_mode="adapter"
+attn_option="attn_adapter_after_oproj"
+ffn_mode="adapter"
+ffn_option="ffn_hi_input"
+gate_option="none"
+preseqlen=200
+ffn_bn_len=200
+
+#attn_mode="adapter"
+#attn_option="attn_adapter"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#gate_option="none"
+#preseqlen=200
+#ffn_bn_len=200
+
+attn_mode="adapter"
+attn_option="attn_adapter_after_oproj"
+ffn_mode="none"
+ffn_option="none"
+gate_option="none"
+preseqlen=200
+ffn_bn_len=200
 
 mh_reuse_proj="True"
+adapter_post_layernorm=1
 
 max_steps=100000
 num_train_epochs=30
@@ -65,15 +90,12 @@ max_train_samples=2000
 logging_steps=100
 label_smoothing_factor=0.1
 
-attn_bn=100
-ffn_bn=512
-
 eval_strategy="steps"
 # eval_strategy="steps"
 save_steps=3000
 report_to="wandb"
 
-debug=1
+debug=0
 extra_cmd=""
 debug_str=""
 
@@ -83,8 +105,8 @@ then
     weight_decay=0
     max_grad_norm=1
     max_train_samples=2000
-    bsz=16
-    gradient_steps=3
+    bsz=24
+    gradient_steps=2
     num_train_epochs=30
     max_steps=-1
     eval_strategy='steps'
@@ -96,7 +118,7 @@ then
 fi
 
 
-exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.abn${attn_bn}.fbn${ffn_bn}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.adapter_postln_${adapter_post_layernorm}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.mh_reuse_proj_${mh_reuse_proj}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
@@ -105,12 +127,15 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
-    --use_prefix ${use_prefix} \
-    --lisa_option ${lisa_option} \
+    --attn_mode ${attn_mode} \
+    --attn_option ${attn_option} \
+    --ffn_mode ${ffn_mode} \
+    --ffn_option ${ffn_option} \
+    --gate_option ${gate_option} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --mid_dim 800 \
-    --preseqlen ${attn_bn} \
-    --ffn_bn_len ${ffn_bn} \
+    --preseqlen ${preseqlen} \
+    --ffn_bn_len ${ffn_bn_len} \
     --init_with_bert 1 \
     --unfreeze_params ${ft} \
     --num_bias_layers ${top_layers} \

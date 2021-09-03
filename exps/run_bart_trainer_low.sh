@@ -3,16 +3,15 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=xsum
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:A6000:1
-#SBATCH --mem=30g
+#SBATCH --gres=gpu:v100:1
+#SBATCH --mem=25g
 #SBATCH --cpus-per-task=2
 #SBATCH --time=0
 ##SBATCH --array=0
 
-#export TRANSFORMERS_CACHE=checkpoints/hf_model
-#cache_dir=${TRANSFORMERS_CACHE}
+source activate tride
+which python
 
-source activate nmt
 export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
 
@@ -23,28 +22,38 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-use_prefix="lisa"
-lisa_option="lisa_no_mlp"
+attn_mode="lisa"
+attn_option="concat"
+ffn_mode="adapter"
+ffn_option="ffn_hi_input"
+gate_option="none"
+preseqlen=200
+ffn_bn_len=512
 
-max_steps=80000
+N=1K
+data_dir=/projects/tir5/users/chuntinz/data/tride/xsum/xsum_1k
+mh_reuse_proj="True"
+adapter_post_layernorm=0
+
+max_steps=-1
+num_train_epochs=30
 warmup_updates=0
 lr=5e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=0.1
 weight_decay=0.01
-bsz=24
-gradient_steps=3
+bsz=16
+gradient_steps=4
 metric=rouge2
 ft='ef_'
 top_layers=12
-max_eval_samples=1600
-logging_steps=100
+max_eval_samples=1000
+max_train_samples=2000
+logging_steps=50
 label_smoothing_factor=0.1
 
-num_train_epochs=30
 eval_strategy="steps"
-# eval_strategy="steps"
-save_steps=3000
+save_steps=50
 report_to="wandb"
 
 debug=0
@@ -57,9 +66,9 @@ then
     weight_decay=0
     max_grad_norm=1
     max_train_samples=2000
-    max_eval_samples=300
     bsz=24
     gradient_steps=2
+    num_train_epochs=30
     max_steps=-1
     eval_strategy='steps'
     save_steps=100
@@ -69,19 +78,29 @@ then
     debug_str=".debug"
 fi
 
-exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.ms${max_steps}.ls${label_smoothing_factor}.wd${weight_decay}.mgn${max_grad_norm}${debug_str}
+
+exp_name=xsum_tride.data_${N}.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
 python -u examples/pytorch/summarization/run_summarization.py \
-    --dataset_name 'xsum' \
+    --train_file ${data_dir}/train.json \
+    --validation_file ${data_dir}/valid.json \
+    --test_file ${data_dir}/test.json \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
-    --use_prefix ${use_prefix} \
-    --lisa_option ${lisa_option} \
+    --attn_mode ${attn_mode} \
+    --adapter_post_layernorm ${adapter_post_layernorm} \
+    --attn_option ${attn_option} \
+    --ffn_mode ${ffn_mode} \
+    --ffn_option ${ffn_option} \
+    --gate_option ${gate_option} \
+    --mh_reuse_proj ${mh_reuse_proj} \
     --mid_dim 800 \
-    --preseqlen 200 \
+    --preseqlen ${preseqlen} \
+    --ffn_bn_len ${ffn_bn_len} \
+    --init_with_bert 1 \
     --unfreeze_params ${ft} \
     --num_bias_layers ${top_layers} \
     --preprocessing_num_workers 2 \
@@ -121,9 +140,15 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --metric_for_best_model ${metric} \
     --greater_is_better "True" \
     --predict_with_generate \
-    --output_dir ${SAVE} ${extra_cmd} 2>&1 | tee ${SAVE}/log.txt
+    --output_dir ${SAVE} ${extra_cmd} \
+        2>&1 | tee ${SAVE}/log.txt
     # --predict_with_generate
     # --metric_for_best_model ${metric} \
     # --greater_is_better "True" \
 
-#rm -rf ${SAVE}/pytorch_model.bin
+rm -rf ${SAVE}/pytorch_model.bin
+rm -rf ${SAVE}/checkpoint*
+rm -rf ${SAVE}/tokenizer.json
+rm -rf ${SAVE}/optimizer.pt
+rm -rf ${SAVE}/trainer_state.json
+rm -rf ${SAVE}/vocab.json
