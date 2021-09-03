@@ -41,7 +41,7 @@ class TuneArguments:
         metadata={
             "choices": ["lisa", "lisa_nomlp",
             "learn_bias", "luna", "none",
-            "dlisa", "adapter"], \
+            "dlisa", "adapter", "default_cross_attn_only"], \
 
             "help": "config for attention, none to disable; \
                 lisa: lisa's mlp to output prefix P; \
@@ -68,19 +68,20 @@ class TuneArguments:
                         "cross_attn_noln", "cross_attn_plug", 
                         "cross_attn_plug_before_outproj",
                         "cross_attn_relu",
-                        "kv_proj", "attn_adapter", 
-                        "cross_attn_before_norm"], \
+                        "kv_proj", "attn_adapter",
+                        "attn_adapter_after_oproj", "none",
+                        ], \
 
             "help": "specific attn configs; \
                 concat: concat prefix to self, lisa's default version; \
                 cross_attn: cross attention version of lisa's, a layernorm is added by default; \
-                cross_attn_before_norm: same as cross_attn; \
                 cross_attn_gate: cross attention version of lisa's, but with a learned gate function; \
                 cross_attn_noln: similar to `cross_attn` without the added layernorm; \
                 cross_attn_plug: cross_attn, but with Ho as input and Ho as output; \
                 cross_attn_relu: change the softmax in cross_attn to relu; \
                 kv_proj: P_k and P_v are projections from P; \
-                attn_adapter: a single head adapter", 
+                attn_adapter: a single head adapter \
+                attn_adapter_after_oproj: Hi as input, add to Ho (after output proj)",
 
 
         },
@@ -89,7 +90,7 @@ class TuneArguments:
     ffn_option: Optional[str] = field(
         default="ffn_hi_input",
         metadata={
-            "choices": ["ffn_hi_input", "ffn_ho_input"], \
+            "choices": ["ffn_hi_input", "ffn_ho_input", "none"], \
 
             "help": "specific ffn configs; \
                 ffn_hi_input: ffn uses Hi as input; \
@@ -104,7 +105,13 @@ class TuneArguments:
 
             "help": "the extracted gating component from lisa, none to disable; \
                 cross_attn: add gating to cross_attn"
+        },
+    )
 
+    adapter_post_layernorm: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": ""
         },
     )
 
@@ -180,6 +187,13 @@ class TuneArguments:
 
     mydebug: Optional[int] = field(
         default=0,
+        metadata={
+            "help": ""
+        },
+    )
+
+    analysis_opt: Optional[str] = field(
+        default=None,
         metadata={
             "help": ""
         },
