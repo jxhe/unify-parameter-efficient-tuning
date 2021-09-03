@@ -405,6 +405,12 @@ class BartAttention(nn.Module):
             attn_output = attn_output * w_attn + cross_attn_output * w_prefix
             cross_attn_output = None
 
+        elif self.config.gate_option == "constant":
+            attn_output = 0.9 * attn_output + 0.1 * cross_attn_output
+            cross_attn_output = None
+
+
+
         attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
         attn_output = attn_output.transpose(1, 2)
         attn_output = attn_output.reshape(bsz, tgt_len, embed_dim)

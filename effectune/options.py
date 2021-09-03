@@ -100,7 +100,7 @@ class TuneArguments:
     gate_option: Optional[str] = field(
         default="none",
         metadata={
-            "choices": ["cross_attn", "none"], \
+            "choices": ["cross_attn", "none", "constant"], \
 
             "help": "the extracted gating component from lisa, none to disable; \
                 cross_attn: add gating to cross_attn"
