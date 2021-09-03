@@ -316,7 +316,7 @@ def main():
     random.shuffle(train)
 
     _write_a_json(train[:data_args.num_train_lines] if data_args.num_train_lines > 0 else train, "train")
-    _write_a_json(valid, "valid")
+    _write_a_json(valid[:data_args.num_train_lines] if data_args.num_train_lines > 0 else valid, "valid")
     _write_a_json(test, "test")
 
 if __name__ == "__main__":
