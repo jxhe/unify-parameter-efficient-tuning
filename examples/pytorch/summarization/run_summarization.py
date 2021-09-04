@@ -367,6 +367,7 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
+    # import pdb; pdb.set_trace()
     model = AutoModelForSeq2SeqLM.from_pretrained(
         model_args.model_name_or_path,
         from_tf=bool(".ckpt" in model_args.model_name_or_path),
@@ -500,9 +501,22 @@ def main():
         pad_to_multiple_of=8 if training_args.fp16 else None,
     )
 
+
     # added by Chunting: prepare the finetuning model
     if tune_args.attn_mode != "none" or tune_args.ffn_mode != "none":
-        model = PrefixTuning(config, tune_args, model)
+        if tune_args.load_path == "":
+            model = PrefixTuning(config, tune_args, model)
+        else:
+            model = PrefixTuning.from_pretrained(
+                    tune_args.load_path,
+                    from_tf=bool(".ckpt" in model_args.model_name_or_path),
+                    config=config,
+                    cache_dir=model_args.cache_dir,
+                    revision=model_args.model_revision,
+                    use_auth_token=True if model_args.use_auth_token else None,
+                    args=tune_args,
+                    pretrained_model=model,
+                    )
 
     print(model)
 
