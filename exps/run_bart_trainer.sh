@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=xsum
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:A6000:1
+#SBATCH --gres=gpu:v100:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=2
 #SBATCH --time=0
@@ -20,13 +20,13 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-attn_mode="lisa"
+attn_mode="none"
 attn_option="cross_attn"
 
 ffn_mode="none"
 ffn_option="ffn_hi_input"
 
-gate_option="constant"
+gate_option="none"
 
 layer_norm_in=1
 layer_norm_out=0
@@ -40,7 +40,7 @@ mh_reuse_proj="True"
 max_steps=100000
 num_train_epochs=30
 warmup_updates=0
-lr=5e-5
+lr=3e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=0.1
 weight_decay=0.01
@@ -59,7 +59,7 @@ eval_strategy="steps"
 save_steps=3000
 report_to="wandb"
 
-debug=1
+debug=0
 vis_analysis=0
 extra_cmd=""
 debug_str=""
@@ -127,6 +127,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --no_repeat_ngram_size 3 \
     --do_train \
     --do_eval \
+    --do_predict \
     --per_device_train_batch_size ${bsz} \
     --per_device_eval_batch_size ${bsz} \
     --gradient_accumulation_steps ${gradient_steps} \

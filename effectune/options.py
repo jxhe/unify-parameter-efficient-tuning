@@ -34,6 +34,13 @@ class GenerationArguments:
         },
     )
 
+    length_penalty: Optional[float] = field(
+        default=1.0,
+        metadata={
+            "help": "length penalty"
+        },
+    )
+
 @dataclass
 class TuneArguments:
     attn_mode: Optional[str] = field(
@@ -211,6 +218,15 @@ class TuneArguments:
             "help": ""
         },
     )
+
+    load_path: Optional[str] = field(
+        default="",
+        metadata={
+            "help": ""
+        },
+    )
+
+
 
 # @dataclass
 # class TuneArguments:

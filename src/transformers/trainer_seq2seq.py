@@ -164,6 +164,7 @@ class Seq2SeqTrainer(Trainer):
             "min_length": self.model.config.gen_min_length,
             "no_repeat_ngram_size": self.model.config.gen_no_repeat_ngram_size,
             "synced_gpus": True if is_deepspeed_zero3_enabled() else False,
+            "length_penalty": self.model.config.length_penalty,
         }
 
         generated_tokens = self.model.generate(

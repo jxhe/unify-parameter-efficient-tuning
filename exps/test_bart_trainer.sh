@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --array=0-0%1
+#SBATCH --array=0-4%2
 #SBATCH --job-name=xsum
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
@@ -24,19 +24,36 @@ taskid=${SLURM_ARRAY_TASK_ID}
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-declare -a model_list=("checkpoints/xsum/20210819/xsum_tride.prefix.lisa.cross_attn.ms100000.ls0.1.wd0.01"
+declare -a model_list=("checkpoints/xsum/20210819/xsum_tride.prefix.lisa.default.ms100000.ls0.1.wd0.01"
     )
+
+# to tune length penalty
+declare -a length_list=(1.0 1.5 2.0 2.5 3.0)
+length_penalty=${length_list[$taskid]}
+
 arglen=${#model_list[@]}
 i=$(( taskid%arglen ))
 
 model_path=${model_list[$i]}
 SAVE=${model_path}
+# model_path=""
 
-log="test_log.txt"
 
-use_prefix="lisa"
-lisa_option="cross_attn"
-# adapter_option="attn_adapter"
+log="test_log${taskid}.txt"
+
+attn_mode="lisa"
+attn_option="concat"
+
+ffn_mode="none"
+ffn_option="ffn_hi_input"
+
+gate_option="none"
+
+layer_norm_in=1
+layer_norm_out=0
+
+preseqlen=200
+ffn_bn_len=1
 mh_reuse_proj="True"
 
 max_steps=100000
@@ -46,7 +63,7 @@ lr=5e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=0.1
 weight_decay=0.01
-bsz=16
+bsz=8
 gradient_steps=4
 metric=rouge2
 ft='ef_'
@@ -65,13 +82,19 @@ debug_str=""
 
 python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
-    --model_name_or_path ${model_path} \
+    --model_name_or_path 'facebook/bart-large' \
+    --load_path ${model_path} \
     --cache_dir ${cache_dir} \
-    --use_prefix ${use_prefix} \
-    --lisa_option ${lisa_option} \
+    --attn_mode ${attn_mode} \
+    --attn_option ${attn_option} \
+    --ffn_mode ${ffn_mode} \
+    --ffn_option ${ffn_option} \
+    --gate_option ${gate_option} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --mid_dim 800 \
     --preseqlen 200 \
+    --preseqlen ${preseqlen} \
+    --ffn_bn_len ${ffn_bn_len} \
     --init_with_bert 1 \
     --unfreeze_params ${ft} \
     --num_bias_layers ${top_layers} \
@@ -84,6 +107,8 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --max_length 60 \
     --min_length 10 \
     --no_repeat_ngram_size 3 \
+    --length_penalty ${length_penalty} \
+    --do_eval \
     --do_predict \
     --per_device_train_batch_size ${bsz} \
     --per_device_eval_batch_size ${bsz} \
