@@ -207,7 +207,6 @@ class BartAttention(nn.Module):
         layer_head_mask: Optional[torch.Tensor] = None,
         output_attentions: bool = False,
         prefix_state: Optional[Dict[str, torch.Tensor]] = None,  # added by Chunting
-        step: Optional[int] = None,  # added by Chunting
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
 
@@ -325,7 +324,8 @@ class BartAttention(nn.Module):
                 cross_attn_probs = nn.functional.dropout(cross_attn_weights, p=self.dropout, training=self.training)
                 cross_attn_output = torch.bmm(cross_attn_probs, prefix_value)
 
-                if self.config.gate_option == 'none':
+                # when not mimicing the same gating behaviour of prefix tuning
+                if self.config.attn_gate != "auto":
                     cross_attn_output = cross_attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
                     cross_attn_output = cross_attn_output.transpose(1, 2)
                     cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
@@ -342,11 +342,18 @@ class BartAttention(nn.Module):
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
 
-        if self.config.gate_option == "cross_attn":
-            if attention_mask is not None:
-                attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
-                attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
-            w_prefix, w_attn = softmax_gating(cross_attn_logits, attn_weights)  # bsz x num_heads, tgt_len, 1
+        if self.config.attn_mode != "none":
+            if self.config.attn_gate == "none":
+                w_prefix = w_attn = 1.0
+            elif self.config.attn_gate == "auto":
+                if attention_mask is not None:
+                    attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
+                    attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
+                w_prefix, w_attn = softmax_gating(cross_attn_logits, attn_weights)  # bsz x num_heads, tgt_len, 1
+            elif self.config.attn_gate >= 0:
+                # distinguish training and
+                w_prefix = self.config.attn_gate
+                w_attn = 1.0 - w_prefix
             # import pdb; pdb.set_trace()
 
         if attn_weights.size() != (bsz * self.num_heads, tgt_len, src_len):
@@ -393,7 +400,7 @@ class BartAttention(nn.Module):
         if 'lisa' in self.config.attn_mode and self.config.attn_option == "cross_attn_gate":
             attn_output = attn_output * gates
 
-        if self.config.gate_option == "cross_attn":
+        if self.config.attn_mode != "none" and self.config.attn_gate == "auto":
             if self.training and self.opt is not None:
                 self.step += 1
                 # import pdb; pdb.set_trace()
@@ -403,20 +410,15 @@ class BartAttention(nn.Module):
                 self.opt.write("step={}\t{}\tavg_w_attn={}\tavg_w_prefix={}\n".format(self.step, layer_spec, avg_w_attn.item(), avg_w_pref.item()))
 
             attn_output = attn_output * w_attn + cross_attn_output * w_prefix
-            cross_attn_output = None
-
-        elif self.config.gate_option == "constant":
-            attn_output = 0.9 * attn_output + 0.1 * cross_attn_output
-            cross_attn_output = None
-
 
 
         attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
         attn_output = attn_output.transpose(1, 2)
         attn_output = attn_output.reshape(bsz, tgt_len, embed_dim)
 
+        # apply change
         if cross_attn_output is not None and self.config.attn_option != "attn_adapter_after_oproj":
-            attn_output = attn_output + cross_attn_output
+            attn_output = attn_output * w_attn + cross_attn_output * w_prefix
 
         if 'lisa' in self.attn_mode and (self.config.attn_option == 'cross_attn_plug_before_outproj' or self.config.attn_option == 'mh_adaptor_before_outproj'):
             if self.config.mh_reuse_proj:
@@ -576,6 +578,12 @@ class BartEncoderLayer(nn.Module):
         if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
+        if self.config.ffn_gate == 'none':
+            w_orig = w_change = 1.0
+        else:
+            w_orig = self.config.ffn_gate
+            w_change = 1. - w_orig
+
 
         residual = hidden_states
         hidden_states = self.activation_fn(self.fc1(hidden_states))
@@ -586,9 +594,9 @@ class BartEncoderLayer(nn.Module):
 
         if self.config.ffn_mode == 'adapter':
             if self.config.ffn_option == 'ffn_ho_input':
-                hidden_states = self.ef_ffn_adapter(hidden_states)
+                hidden_states = self.ef_ffn_adapter(hidden_states, w_orig=w_orig, w_change=w_change)
             elif self.config.ffn_option == 'ffn_hi_input':
-                hidden_states = hidden_states + adapter_change
+                hidden_states = w_orig * hidden_states + w_change * adapter_change
             else:
                 raise ValueError
 
@@ -739,6 +747,12 @@ class BartDecoderLayer(nn.Module):
         if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
+        if self.config.ffn_gate == 'none':
+            w_orig = w_change = 1.0
+        else:
+            w_orig = self.config.ffn_gate
+            w_change = 1. - w_orig
+
         # Fully Connected
         residual = hidden_states
         hidden_states = self.activation_fn(self.fc1(hidden_states))
@@ -748,9 +762,9 @@ class BartDecoderLayer(nn.Module):
 
         if self.config.ffn_mode == 'adapter':
             if self.config.ffn_option == 'ffn_ho_input':
-                hidden_states = self.ef_ffn_adapter(hidden_states)
+                hidden_states = self.ef_ffn_adapter(hidden_states, w_orig=w_orig, w_change=w_change)
             elif self.config.ffn_option == 'ffn_hi_input':
-                hidden_states = hidden_states + adapter_change
+                hidden_states = w_orig * hidden_states + w_change * adapter_change
             else:
                 raise ValueError
 

@@ -74,16 +74,16 @@ class PrefixTuning(PretrainedBartModel):
         return all(check) if all_match else any(check)
 
     def get_standard_prompt(self, bsz, nsamples=1):
-        return self.lisa_model(bsz, nsamples, self.device)
-        # return self.prompt_model(bsz, nsamples, self.device)
+        # return self.lisa_model(bsz, nsamples, self.device)
+        return self.prompt_model(bsz, nsamples, self.device)
 
     def setup_lisa(self, args, config):
         if args.attn_mode == "lisa_nomlp":
-            # self.prompt_model = PrefixDirectInit(args, config)
-            self.lisa_model = PrefixDirectInit(args, config)
+            self.prompt_model = PrefixDirectInit(args, config)
+            # self.lisa_model = PrefixDirectInit(args, config)
         else:
-            # self.prompt_model = Prefix(args, config)
-            self.lisa_model = Prefix(args, config)
+            self.prompt_model = Prefix(args, config)
+            # self.lisa_model = Prefix(args, config)
 
         self.get_prompt = self.get_standard_prompt
 

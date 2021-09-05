@@ -406,7 +406,7 @@ class Adapter_Layer(nn.Module):
         self.down_size = config.preseqlen if bottleneck is None else bottleneck
         # self.non_linearity = args.non_linearity  # use ReLU by default
 
-        self.adapter_layer_norm= nn.LayerNorm(self.n_embd)
+        self.adapter_layer_norm_before = nn.LayerNorm(self.n_embd)
         #legacy
         # self.adapter_layer_norm_before= nn.LayerNorm(self.n_embd)
         self.down_proj = nn.Linear(self.n_embd, self.down_size)
@@ -418,10 +418,10 @@ class Adapter_Layer(nn.Module):
         if init_with_bert:
             self.apply(init_bert_weights)
 
-    def forward(self, x, add_residual=True):
+    def forward(self, x, add_residual=True, w_orig=1.0, w_change=1.0):
         residual = x
         if not self.post_layernorm:
-            x = self.adapter_layer_norm(x)
+            x = self.adapter_layer_norm_before(x)
             # legacy
             # x = self.adapter_layer_norm_before(x)
 
@@ -431,10 +431,10 @@ class Adapter_Layer(nn.Module):
         up = self.up_proj(down)
 
         if self.post_layernorm:
-            up = self.adapter_layer_norm(up)
+            up = self.adapter_layer_norm_before(up)
 
         if add_residual:
-            output = up + residual
+            output = w_change * up + w_orig * residual
         else:
             output = up
 

@@ -104,13 +104,21 @@ class TuneArguments:
         },
     )
 
-    gate_option: Optional[str] = field(
+
+    attn_gate: Optional[str] = field(
         default="none",
         metadata={
-            "choices": ["cross_attn", "none", "constant"], \
+            "help": "the gating schedule in attention change, none to disable; \
+                use 'auto' to mimic the gating in prefix tuning; \
+                use a float as the coefficient of original h to perform linear interpolation"
+        },
+    )
 
-            "help": "the extracted gating component from lisa, none to disable; \
-                cross_attn: add gating to cross_attn"
+    ffn_gate: Optional[str] = field(
+        default="none",
+        metadata={
+            "help": "the gating schedule in ffn change, none to disable; \
+            use a float as the coefficient of original h to perform linear interpolation"
         },
     )
 
