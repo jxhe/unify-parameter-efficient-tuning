@@ -9,8 +9,8 @@ logger = logging.get_logger(__name__)
 
 
 class PrefixTuning(PretrainedBartModel):
-    def __init__(self, config, args, pretrained_model):
-        super().__init__(config)
+    def __init__(self, config, args, pretrained_model, **kwargs):
+        super().__init__(config, **kwargs)
         self.args = args
         self.seq2seq_model = pretrained_model
 
@@ -74,13 +74,17 @@ class PrefixTuning(PretrainedBartModel):
         return all(check) if all_match else any(check)
 
     def get_standard_prompt(self, bsz, nsamples=1):
-        return self.prompt_model(bsz, nsamples, self.device)
+        return self.lisa_model(bsz, nsamples, self.device)
+        # return self.prompt_model(bsz, nsamples, self.device)
 
     def setup_lisa(self, args, config):
         if args.attn_mode == "lisa_nomlp":
-            self.prompt_model = PrefixDirectInit(args, config)
+            # self.prompt_model = PrefixDirectInit(args, config)
+            self.lisa_model = PrefixDirectInit(args, config)
         else:
-            self.prompt_model = Prefix(args, config)
+            # self.prompt_model = Prefix(args, config)
+            self.lisa_model = Prefix(args, config)
+
         self.get_prompt = self.get_standard_prompt
 
     def setup_bias(self, args, config):

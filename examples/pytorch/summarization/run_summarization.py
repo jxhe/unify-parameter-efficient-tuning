@@ -620,6 +620,7 @@ def main():
         trainer.save_metrics("eval", metrics)
 
     if training_args.do_predict:
+        gen_prefix = "test"
         logger.info("*** Predict ***")
 
         predict_results = trainer.predict(

@@ -395,10 +395,10 @@ class Bias(nn.Module):
 
 
 class Adapter_Layer(nn.Module):
-    def __init__(self, 
+    def __init__(self,
                  config=None,
                  d_model=None,
-                 bottleneck=None, 
+                 bottleneck=None,
                  dropout=0.0,
                  init_with_bert=True):
         super().__init__()
@@ -407,6 +407,8 @@ class Adapter_Layer(nn.Module):
         # self.non_linearity = args.non_linearity  # use ReLU by default
 
         self.adapter_layer_norm= nn.LayerNorm(self.n_embd)
+        #legacy
+        # self.adapter_layer_norm_before= nn.LayerNorm(self.n_embd)
         self.down_proj = nn.Linear(self.n_embd, self.down_size)
         self.non_linear_func = nn.ReLU()
         self.up_proj = nn.Linear(self.down_size, self.n_embd)
@@ -420,6 +422,8 @@ class Adapter_Layer(nn.Module):
         residual = x
         if not self.post_layernorm:
             x = self.adapter_layer_norm(x)
+            # legacy
+            # x = self.adapter_layer_norm_before(x)
 
         down = self.down_proj(x)
         down = self.non_linear_func(down)

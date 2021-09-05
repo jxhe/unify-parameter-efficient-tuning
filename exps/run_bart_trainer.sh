@@ -37,10 +37,10 @@ ffn_bn_len=1
 # adapter_option="attn_adapter"
 mh_reuse_proj="True"
 
-max_steps=100000
+max_steps=50000
 num_train_epochs=30
-warmup_updates=0
-lr=3e-5
+warmup_updates=3000
+lr=2e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=0.1
 weight_decay=0.01

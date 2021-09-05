@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --array=0-4%2
+#SBATCH --array=0-4%5
 #SBATCH --job-name=xsum
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
@@ -24,6 +24,8 @@ taskid=${SLURM_ARRAY_TASK_ID}
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
+# taskid=0
+
 declare -a model_list=("checkpoints/xsum/20210819/xsum_tride.prefix.lisa.default.ms100000.ls0.1.wd0.01"
     )
 
@@ -31,10 +33,15 @@ declare -a model_list=("checkpoints/xsum/20210819/xsum_tride.prefix.lisa.default
 declare -a length_list=(1.0 1.5 2.0 2.5 3.0)
 length_penalty=${length_list[$taskid]}
 
+# length_penalty=3
+
 arglen=${#model_list[@]}
 i=$(( taskid%arglen ))
 
 model_path=${model_list[$i]}
+
+# model_path="checkpoints/xsum/20210827/xsum_tride.prefix.ffn_adapters.ffn_hi_input.bn1024.mh_reuse_proj_True.unfreeze_ef_.ms100000.ls0.1.warm0.wd0.01"
+
 SAVE=${model_path}
 # model_path=""
 
@@ -53,7 +60,7 @@ layer_norm_in=1
 layer_norm_out=0
 
 preseqlen=200
-ffn_bn_len=1
+ffn_bn_len=1024
 mh_reuse_proj="True"
 
 max_steps=100000
