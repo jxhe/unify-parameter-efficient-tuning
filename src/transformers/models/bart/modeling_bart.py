@@ -537,7 +537,7 @@ class BartEncoderLayer(nn.Module):
             self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
                 bottleneck=config.ffn_bn_len)
         elif config.ffn_mode == 'mh_adapter' or config.ffn_mode == 'mh_adapter_random':
-            self.ef_ffn_adapter = MHAdapter_Layer(self.embed_dim, 
+            self.ef_ffn_adapter = MHAdapter_Layer(self.embed_dim,
                                                   bottleneck=config.ffn_bn_len,
                                                   num_heads=config.ffn_num_heads,
                                                   dropout=self.dropout)
@@ -582,7 +582,7 @@ class BartEncoderLayer(nn.Module):
         hidden_states = residual + hidden_states
         hidden_states = self.self_attn_layer_norm(hidden_states)
 
-        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
+        if 'adapter' in self.config.ffn_mode and self.config.ffn_option == 'ffn_hi_input':
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
         if self.config.ffn_gate == 'none':
@@ -599,7 +599,7 @@ class BartEncoderLayer(nn.Module):
 
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
-        if self.config.ffn_mode == 'adapter':
+        if 'adapter' in self.config.ffn_mode:
             if self.config.ffn_option == 'ffn_ho_input':
                 hidden_states = self.ef_ffn_adapter(hidden_states, w_orig=w_orig, w_change=w_change)
             elif self.config.ffn_option == 'ffn_hi_input':
@@ -662,7 +662,7 @@ class BartDecoderLayer(nn.Module):
             self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
                 bottleneck=config.ffn_bn_len)
         elif config.ffn_mode == 'mh_adapter' or config.ffn_mode == 'mh_adapter_random':
-            self.ef_ffn_adapter = MHAdapter_Layer(self.embed_dim, 
+            self.ef_ffn_adapter = MHAdapter_Layer(self.embed_dim,
                                                   bottleneck=config.ffn_bn_len,
                                                   num_heads=config.ffn_num_heads,
                                                   dropout=self.dropout)
@@ -755,7 +755,7 @@ class BartDecoderLayer(nn.Module):
             # add cross-attn to positions 3,4 of present_key_value tuple
             present_key_value = present_key_value + cross_attn_present_key_value
 
-        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
+        if 'adapter' in self.config.ffn_mode and self.config.ffn_option == 'ffn_hi_input':
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
         if self.config.ffn_gate == 'none':
@@ -771,7 +771,7 @@ class BartDecoderLayer(nn.Module):
         hidden_states = self.fc2(hidden_states)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
-        if self.config.ffn_mode == 'adapter':
+        if 'adapter' in self.config.ffn_mode:
             if self.config.ffn_option == 'ffn_ho_input':
                 hidden_states = self.ef_ffn_adapter(hidden_states, w_orig=w_orig, w_change=w_change)
             elif self.config.ffn_option == 'ffn_hi_input':

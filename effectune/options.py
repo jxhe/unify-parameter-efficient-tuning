@@ -61,10 +61,12 @@ class TuneArguments:
     ffn_mode: Optional[str] = field(
         default="none",
         metadata={
-            "choices": ["adapter", "none"],
+            "choices": ["adapter", "none", "mh_adapter", "mh_adapter_random"],
 
             "help": "config for ffn, none to disable; \
-            adapter: adapter mode",
+            adapter: adapter mode; \
+            mh_adapter: multi-head adapter, this approach adds a dxd param matrix; \
+            mh_adapter_random: mh_adapter but with the dxd matrix fixed as a random mapping",
         },
     )
 
@@ -119,6 +121,13 @@ class TuneArguments:
         metadata={
             "help": "the gating schedule in ffn change, none to disable; \
             use a float as the coefficient of original h to perform linear interpolation"
+        },
+    )
+
+    ffn_num_heads: Optional[int] = field(
+        default=1,
+        metadata={
+            "help": "the number of heads in mh_adapter/mh_adapter_random mode"
         },
     )
 

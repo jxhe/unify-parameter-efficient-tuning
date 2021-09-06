@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=xsum
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:v100:1
+#SBATCH --gres=gpu:A6000:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=2
 #SBATCH --time=0
@@ -20,20 +20,21 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-attn_mode="lisa_nomlp"
-attn_option="cross_attn_relu"
+attn_mode="lisa"
+attn_option="concat"
 
 ffn_mode="none"
 ffn_option="ffn_hi_input"
+ffn_num_heads=16
 
-attn_gate=0.9
+attn_gate="none"
 ffn_gate="none"
 
 layer_norm_in=1
 layer_norm_out=0
 
-preseqlen=1
-ffn_bn_len=1
+preseqlen=512
+ffn_bn_len=200
 
 # adapter_option="attn_adapter"
 mh_reuse_proj="True"
@@ -60,7 +61,7 @@ eval_strategy="steps"
 save_steps=3000
 report_to="wandb"
 
-debug=1
+debug=0
 vis_analysis=0
 extra_cmd=""
 debug_str=""
@@ -84,7 +85,7 @@ then
 fi
 
 
-exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.lni${layer_norm_in}.lno${layer_norm_out}.unfrz_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.fnh${ffn_num_heads}.ag_${attn_gate}.fg_${ffn_gate}.lni${layer_norm_in}.lno${layer_norm_out}.unfrz_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
@@ -108,6 +109,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --ffn_mode ${ffn_mode} \
     --ffn_gate ${ffn_gate} \
     --ffn_option ${ffn_option} \
+    --ffn_num_heads ${ffn_num_heads} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --layer_norm_before ${layer_norm_in} \
     --layer_norm_after ${layer_norm_out} \
