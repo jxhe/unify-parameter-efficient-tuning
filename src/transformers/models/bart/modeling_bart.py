@@ -207,6 +207,7 @@ class BartAttention(nn.Module):
         layer_head_mask: Optional[torch.Tensor] = None,
         output_attentions: bool = False,
         prefix_state: Optional[Dict[str, torch.Tensor]] = None,  # added by Chunting
+        step=0,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
 
@@ -342,6 +343,7 @@ class BartAttention(nn.Module):
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
 
+        # import pdb; pdb.set_trace()
         if self.config.attn_mode != "none":
             if self.config.attn_gate == "none":
                 w_prefix = w_attn = 1.0
@@ -352,8 +354,8 @@ class BartAttention(nn.Module):
                 w_prefix, w_attn = softmax_gating(cross_attn_logits, attn_weights)  # bsz x num_heads, tgt_len, 1
             elif self.config.attn_gate >= 0:
                 # distinguish training and
-                w_prefix = self.config.attn_gate
-                w_attn = 1.0 - w_prefix
+                w_attn = self.config.attn_gate
+                w_prefix = 1.0 - w_attn
             # import pdb; pdb.set_trace()
 
         if attn_weights.size() != (bsz * self.num_heads, tgt_len, src_len):
@@ -730,7 +732,6 @@ class BartDecoderLayer(nn.Module):
                 past_key_value=cross_attn_past_key_value,
                 output_attentions=output_attentions,
                 prefix_state=prefix_state,
-                step=step,
             )
 
             if prefix_state is not None and isinstance(prefix_state, luna_attention_enc_dec) and self.config.luna_option == "full_before":

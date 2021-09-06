@@ -353,13 +353,13 @@ def main():
 
     try:
         attn_gate = float(tune_args.attn_gate)
-        tune_args.attn_gate = tune_args.attn_gate
+        tune_args.attn_gate = attn_gate
     except:
         pass
 
     try:
         ffn_gate = float(tune_args.ffn_gate)
-        tune_args.ffn_gate = tune_args.ffn_gate
+        tune_args.ffn_gate = ffn_gate
     except:
         pass
 

@@ -20,13 +20,13 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-attn_mode="none"
-attn_option="cross_attn"
+attn_mode="lisa_nomlp"
+attn_option="cross_attn_relu"
 
 ffn_mode="none"
 ffn_option="ffn_hi_input"
 
-attn_gate="none"
+attn_gate=0.9
 ffn_gate="none"
 
 layer_norm_in=1
@@ -38,10 +38,10 @@ ffn_bn_len=1
 # adapter_option="attn_adapter"
 mh_reuse_proj="True"
 
-max_steps=50000
+max_steps=100000
 num_train_epochs=30
-warmup_updates=3000
-lr=2e-5
+warmup_updates=0
+lr=5e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=0.1
 weight_decay=0.01
@@ -60,11 +60,10 @@ eval_strategy="steps"
 save_steps=3000
 report_to="wandb"
 
-debug=0
+debug=1
 vis_analysis=0
 extra_cmd=""
 debug_str=""
-analysis_opt=""
 
 if [ "${debug}" = 1 ];
 then
@@ -90,12 +89,13 @@ SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
-if [ "${vis_analysis}=1" ];
+if [ "${vis_analysis}" = 1 ];
 then
     max_train_samples=2000
     num_train_epochs=10
     analysis_opt=${SAVE}/analysis_opt
     mkdir -p ${analysis_opt}
+    extra_cmd="${extra_cmd} --analysis_opt ${analysis_opt}"
 fi
 
 python -u examples/pytorch/summarization/run_summarization.py \
@@ -108,11 +108,9 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --ffn_mode ${ffn_mode} \
     --ffn_gate ${ffn_gate} \
     --ffn_option ${ffn_option} \
-    --gate_option ${gate_option} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --layer_norm_before ${layer_norm_in} \
     --layer_norm_after ${layer_norm_out} \
-    --analysis_opt ${analysis_opt} \
     --mid_dim 800 \
     --preseqlen ${preseqlen} \
     --ffn_bn_len ${ffn_bn_len} \
