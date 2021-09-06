@@ -394,6 +394,102 @@ class Bias(nn.Module):
         return
 
 
+class MHAdapter_Layer(nn.Module):
+    def __init__(self,
+                 d_model,
+                 bottleneck,
+                 num_heads=1,
+                 dropout=0.0,
+                 init_with_bert=True):
+        super().__init__()
+        self.n_embd = d_model
+        self.num_heads = num_heads
+        self.head_dim = self.n_embd // num_heads
+
+        self.down_size = bottleneck
+        # self.non_linearity = args.non_linearity  # use ReLU by default
+
+        self.adapter_layer_norm_before = nn.LayerNorm(self.n_embd)
+        #legacy
+        # self.adapter_layer_norm_before= nn.LayerNorm(self.n_embd)
+        self.down_proj_weight = nn.Parameter(torch.zeros((
+            self.num_head, self.head_dim, self.down_size)), requires_grad=True)
+        self.down_proj_bias = nn.Parameter(torch.zeros((
+            self.num_head, self.down_size)), requires_grad=True)
+
+        self.non_linear_func = nn.ReLU()
+
+        self.up_proj_weight = nn.Parameter(torch.tensor((
+            self.num_head, self.down_size, self.head_dim)), requires_grad=True)
+        self.up_proj_bias = nn.Parameter(torch.tensor((
+            self.num_head, self.head_dim)), requires_grad=True)
+
+        self.freeze_q_proj = nn.Linear(self.n_embd, self.n_embd)
+
+        self.dropout = dropout
+
+
+        if init_with_bert:
+            self.down_proj_weight.data.normal_(mean=0.0, std=0.02)
+            self.up_proj_weight.data.normal_(mean=0.0, std=0.02)
+            self.down_proj_bias.data.zero_()
+            self.up_proj_bias.data.zero_()
+
+            self.apply(init_bert_weights)
+ 
+    def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
+        return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
+
+    def forward(self, x, add_residual=True):
+        residual = x
+
+        x = self.adapter_layer_norm_before(x)
+
+        # (bsz, seqlen, nembed)
+        x = self.freeze_q_proj(x)
+
+        bsz, seqlen, embed_dim = x.size()
+        proj_shape = (bsz * self.num_heads, -1, self.head_dim)
+
+        # (bsz * num_head, seqlen, head_dim)
+        x = self._shape(x, seqlen, bsz).view(*proj_shape)
+
+        # (bsz * num_head, head_dim, down_size)
+        down_proj_weight = self.down_proj_weight.unsqueeze(0).expand(
+            bsz, -1, -1, -1).view(bsz * self.num_heads, self.head_dim, self.down_size)
+
+        # (1, num_head, down_size) -> (bsz * num_head, 1, down_size)
+        down_proj_bias = self.down_proj_bias.unsqueeze(0).expand(
+            bsz, self.num_heads, self.down_size).view(bsz * self.num_heads, 1, self.down_size)
+
+        # (bsz * num_head, seq_len, down_size)
+        down = torch.bmm(x, down_proj_weight) + down_proj_bias
+        down = self.non_linear_func(down)
+        down = nn.functional.dropout(down, p=self.dropout, training=self.training)
+
+        # (bsz * num_head, down_size, head_dim)
+        up_proj_weight = self.up_proj_weight.unsqueeze(0).expand(
+            bsz, -1, -1, -1).view(bsz * self.num_heads, self.down_size, self.head_dim)
+
+        # (1, num_head, head_dim) -> (bsz * num_head, 1, down_size)
+        up_proj_bias = self.up_proj_bias.unsqueeze(0).expand(
+            bsz, self.num_heads, self.head_dim).view(bsz * self.num_heads, 1, self.head_dim)
+
+        # (bsz * num_head, seq_len, head_dim)
+        up = torch.bmm(down, up_proj_weight) + up_proj_bias
+
+        up = up.view(bsz, self.num_heads, seqlen, self.head_dim)
+        up = up.transpose(1, 2).reshape(bsz, seqlen, self.n_embd)
+
+        if add_residual:
+            output = up + residual
+        else:
+            output = up
+
+        return output
+
+
+
 class Adapter_Layer(nn.Module):
     def __init__(self,
                  config=None,

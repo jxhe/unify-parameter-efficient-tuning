@@ -48,7 +48,7 @@ from .configuration_bart import BartConfig
 import sys
 sys.path.insert(2, "./")
 from effectune.luna_attention import luna_attention_enc_dec
-from effectune.bias_factory import Adapter_Layer, softmax_gating
+from effectune.bias_factory import Adapter_Layer, MHAdapter_Layer, softmax_gating
 
 import pdb
 
@@ -536,6 +536,11 @@ class BartEncoderLayer(nn.Module):
         if config.ffn_mode == 'adapter':
             self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
                 bottleneck=config.ffn_bn_len)
+        elif config.ffn_mode == 'mh_adapter' or config.ffn_mode == 'mh_adapter_random':
+            self.ef_ffn_adapter = MHAdapter_Layer(self.embed_dim, 
+                                                  bottleneck=config.ffn_bn_len,
+                                                  num_heads=config.ffn_num_heads,
+                                                  dropout=self.dropout)
 
     def forward(
         self,
@@ -656,6 +661,11 @@ class BartDecoderLayer(nn.Module):
         if config.ffn_mode == 'adapter':
             self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
                 bottleneck=config.ffn_bn_len)
+        elif config.ffn_mode == 'mh_adapter' or config.ffn_mode == 'mh_adapter_random':
+            self.ef_ffn_adapter = MHAdapter_Layer(self.embed_dim, 
+                                                  bottleneck=config.ffn_bn_len,
+                                                  num_heads=config.ffn_num_heads,
+                                                  dropout=self.dropout)
 
     def forward(
         self,

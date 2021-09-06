@@ -61,15 +61,25 @@ class PrefixTuning(PretrainedBartModel):
             all_match = True
 
         logger.info(not_freeze_set)
+        
+        freeze_set = []
+        if args.ffn_mode = 'mh_adapter_random':
+            # freeze the random mapping matrix
+            freeze_set = ['freeze_q_proj']
+
         for n, p in self.seq2seq_model.named_parameters():
-            if len(not_freeze_set) > 0 and self.if_update_params(n, not_freeze_set, all_match=all_match):
+            if len(not_freeze_set) > 0 and self.check_params(n, not_freeze_set, all_match=all_match):
                 print("tune "+ n)
                 p.requires_grad = True
             else:
                 p.requires_grad = False
+
+            if len(freeze_set) > 0 and self.check_params(n, freeze_set, all_match=False):
+                p.requires_grad = False
+
         logger.info("already freezed parameters!")
 
-    def if_update_params(self, module_name, safe_list, all_match=True):
+    def check_params(self, module_name, safe_list, all_match=True):
         check = [partial_name in module_name for partial_name in safe_list]
         return all(check) if all_match else any(check)
 
