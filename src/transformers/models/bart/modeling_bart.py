@@ -408,7 +408,7 @@ class BartAttention(nn.Module):
                     opt_str += "head_id={};avg_w_attn={};avg_w_prefix={};var_w_prefix={}\t".format(hid,
                                                                                                    cat_attn.mean().item(),
                                                                                                    cat_pref.mean().item(),
-                                                                                                   torch.var(cat_pref))
+                                                                                                   torch.var(cat_pref).item())
                 mask = mask[:, None, :]
                 masked_w_attn = w_attn.view(bsz, self.num_heads, -1) * mask
                 masked_w_pref = w_prefix.view(bsz, self.num_heads, -1) * mask  # bsz, nh, T
