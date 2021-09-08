@@ -15,8 +15,8 @@ which python
 export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
 
-N=1000
-output_dir=/projects/tir5/users/chuntinz/data/tride/xsum/xsum_1k
+N=2000
+output_dir=/projects/tir5/users/chuntinz/data/tride/xsum/xsum_2k
 mkdir -p ${output_dir}
 DATE=`date +%Y%m%d`
 
@@ -29,4 +29,5 @@ python -u examples/pytorch/summarization/run_summarization_dataset.py \
     --cache_dir ${cache_dir} \
     --preprocessing_num_workers 2 \
     --num_train_lines ${N} \
+    --num_valid_lines 1000 \
     --output_dir ${output_dir}

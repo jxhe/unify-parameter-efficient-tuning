@@ -9,7 +9,7 @@ logger = logging.get_logger(__name__)
 
 
 class PrefixTuning(PretrainedBartModel):
-    def __init__(self, config, args, pretrained_model):
+    def __init__(self, config, args, pretrained_model, **kwargs):
         super().__init__(config)
         self.args = args
         self.seq2seq_model = pretrained_model
