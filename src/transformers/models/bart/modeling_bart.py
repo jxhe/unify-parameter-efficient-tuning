@@ -409,12 +409,19 @@ class BartAttention(nn.Module):
                                                                                                    cat_attn.mean().item(),
                                                                                                    cat_pref.mean().item(),
                                                                                                    torch.var(cat_pref).item())
+                    # print("hid = {}, {}, {}".format(hid, len(cat_attn), len(cat_pref)))
                 mask = mask[:, None, :]
                 masked_w_attn = w_attn.view(bsz, self.num_heads, -1) * mask
                 masked_w_pref = w_prefix.view(bsz, self.num_heads, -1) * mask  # bsz, nh, T
                 avg_w_attn = masked_w_attn.mean()
                 avg_w_pref = masked_w_pref.mean()
-                opt_str += "avg_w_attn={}\tavg_w_prefix={}\n".format(avg_w_attn.item(), avg_w_pref.item())
+                opt_str += "avg_w_attn={}\tavg_w_prefix={}\t".format(avg_w_attn.item(), avg_w_pref.item())
+
+                attn_opt = attn_output.view(bsz, self.num_heads, -1, self.head_dim) * masked_w_attn.unsqueeze(-1)
+                cross_attn_opt = cross_attn_output.view(bsz, self.num_heads, -1, self.head_dim) * masked_w_pref.unsqueeze(-1)
+                attn_norm = torch.norm(attn_opt, dim=-1).mean()
+                cross_attn_norm = torch.norm(cross_attn_opt, dim=-1).mean()
+                opt_str += "avg_attn_norm={}\tavg_prefix_norm={}\n".format(attn_norm.item(), cross_attn_norm.item())
                 self.opt.write(opt_str)
 
             attn_output = attn_output * w_attn + cross_attn_output * w_prefix
@@ -1681,7 +1688,7 @@ class BartForConditionalGeneration(BartPretrainedModel):
                     labels, self.config.pad_token_id, self.config.decoder_start_token_id
                 )
 
-        if self.config.attn_mode == 'lisa' and self.config.gate_option == "cross_attn" and self.config.analysis_opt != "":
+        if self.training and self.config.attn_mode == 'lisa' and self.config.gate_option == "cross_attn" and self.config.analysis_opt != "":
             source_mask = (input_ids != self.config.pad_token_id).float()
             target_mask = (decoder_input_ids != self.config.pad_token_id).float()
             for prefix_layers in prefix_state:

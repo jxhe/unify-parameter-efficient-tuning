@@ -1,5 +1,5 @@
 import torch
-from transformers import BartPretrainedModel
+from transformers import MBartPreTrainedModel
 import torch.nn as nn
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 from effectune.luna_attention import luna_attention, luna_attention_enc_dec, SimpleAttnBias
@@ -8,7 +8,7 @@ from transformers.utils import logging
 logger = logging.get_logger(__name__)
 
 
-class PrefixTuning(BartPretrainedModel):
+class PrefixTuning(MBartPreTrainedModel):
     def __init__(self, config, args, pretrained_model, **kwargs):
         super().__init__(config)
         self.args = args
