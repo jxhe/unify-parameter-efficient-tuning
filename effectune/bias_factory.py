@@ -151,6 +151,12 @@ class PrefixCrossAttn(nn.Module):
             nn.Tanh(),
             nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
 
+        self.wte2 = nn.Embedding(self.preseqlen, self.n_embd)
+        self.control_trans2 = nn.Sequential(
+            nn.Linear(self.n_embd, self.mid_dim),
+            nn.Tanh(),
+            nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
+
         # if args.lisa_option == "cross_attn":
         #     self.apply(init_lisa_params)
 
@@ -166,6 +172,13 @@ class PrefixCrossAttn(nn.Module):
         past_key_values = self.dropout(past_key_values)
         past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).split(2)
 
+        temp_control2 = self.wte2(input_tokens)
+        past_key_values2 = self.control_trans2(temp_control2)  # bsz, seqlen, layer*emb
+        past_key_values2 = past_key_values2.view(bsz, seqlen, self.match_n_layer * 2, self.match_n_head,
+                                                 self.match_n_embd)
+        past_key_values2 = self.dropout(past_key_values2)
+        past_key_values2 = past_key_values2.permute([2, 0, 3, 1, 4]).split(2)
+
         result = []
         for i, key_val in enumerate(past_key_values):
             temp_dict = {'encoder_decoder': {"prev_key": key_val[0].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
@@ -173,6 +186,11 @@ class PrefixCrossAttn(nn.Module):
                                   "prev_key_padding_mask": torch.zeros(bsz, seqlen).to(key_val.device) #bsz, preseqlen
                                   },
                          }
+            key_val2 = past_key_values2[i]
+            temp_dict['self'] = {"prev_key": key_val2[0].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
+                                        "prev_value": key_val2[1].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
+                                        "prev_key_padding_mask": torch.zeros(bsz, seqlen).to(key_val2.device)
+                                        }
             result.append(temp_dict)
         return result
 

@@ -228,12 +228,25 @@ class TuneArguments:
 
 
 
-# @dataclass
-# class TuneArguments:
-#     """
-#     Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
-#     """
+@dataclass
+class MBARTArguments:
+    """
+    Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
+    """
 
+    dropout: Optional[float] = field(
+        default=0.3,
+        metadata={
+            "help": ""
+        },
+    )
+
+    attention_dropout: Optional[float] = field(
+        default=0.1,
+        metadata={
+            "help": ""
+        },
+    )
 
 
 
