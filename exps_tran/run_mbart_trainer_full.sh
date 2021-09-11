@@ -3,9 +3,9 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=tran
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:A6000:1
+#SBATCH --gres=gpu:A6000:2
 #SBATCH --mem=30g
-#SBATCH --cpus-per-task=2
+#SBATCH --cpus-per-task=3
 #SBATCH --time=0
 ##SBATCH --array=0
 
@@ -42,8 +42,9 @@ lr_scheduler_type="polynomial"
 max_grad_norm=1000 # fixme: fairseq sets no grad_norm
 weight_decay=0.0
 bsz=16
-gradient_steps=28
-metric=bleu
+gradient_steps=14
+#metric=bleu
+metric=loss
 ft='ef_'
 top_layers=12
 max_eval_samples=1600
@@ -80,7 +81,7 @@ exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
-python -u examples/pytorch/translation/run_translation.py \
+python -m torch.distributed.launch --nproc_per_node 2 examples/pytorch/translation/run_translation.py \
     --dataset_name ${dataset}\
     --dataset_config_name ro-en \
     --model_name_or_path "facebook/mbart-large-cc25" \
@@ -110,9 +111,9 @@ python -u examples/pytorch/translation/run_translation.py \
     --unfreeze_params ${ft} \
     --num_bias_layers ${top_layers} \
     --preprocessing_num_workers 2 \
-    --max_source_length 1024 \
-    --max_target_length 1024 \
-    --val_max_target_length 1024 \
+    --max_source_length 250 \
+    --max_target_length 250 \
+    --val_max_target_length 250 \
     --max_eval_samples ${max_eval_samples} \
     --num_beams 5 \
     --max_length 200 \
@@ -140,6 +141,7 @@ python -u examples/pytorch/translation/run_translation.py \
     --disable_tqdm "True" \
     --metric_for_best_model ${metric} \
     --greater_is_better "True" \
+    --ddp_find_unused_parameter "False" \
     --predict_with_generate \
     --output_dir ${SAVE} ${extra_cmd} \
         2>&1 | tee ${SAVE}/log.txt
