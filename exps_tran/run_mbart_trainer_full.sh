@@ -96,6 +96,8 @@ python -m torch.distributed.launch --nproc_per_node 2 examples/pytorch/translati
     --adam_beta1 0.9 \
     --adam_beta2 0.98 \
     --adam_epsilon 1e-6 \
+    --dropout 0.3 \
+    --attention_dropout 0.1 \
     --attn_mode ${attn_mode} \
     --attn_option ${attn_option} \
     --ffn_mode ${ffn_mode} \
