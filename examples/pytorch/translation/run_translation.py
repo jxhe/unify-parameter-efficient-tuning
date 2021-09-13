@@ -55,7 +55,7 @@ from effectune.options import (
     TuneArguments,
     MBARTArguments,
 )
-from effectune.prefix_tuning import PrefixTuning
+from effectune.prefix_tuning_MBART import PrefixTuning
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.9.0.dev0")
@@ -376,7 +376,6 @@ def main():
         raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")
 
     prefix = data_args.source_prefix if data_args.source_prefix is not None else ""
-
     # Preprocessing the datasets.
     # We need to tokenize inputs and targets.
     if training_args.do_train:
@@ -439,6 +438,7 @@ def main():
             ]
 
         model_inputs["labels"] = labels["input_ids"]
+        # import pdb; pdb.set_trace()
         return model_inputs
 
     if training_args.do_train:
@@ -516,6 +516,8 @@ def main():
             )
 
     print(model)
+    for n, p in model.named_parameters():
+        print(n, p.requires_grad)
 
     # Metric
     metric = load_metric("sacrebleu")

@@ -50,8 +50,6 @@ sys.path.insert(2, "./")
 from effectune.luna_attention import luna_attention_enc_dec
 from effectune.bias_factory import Adapter_Layer, softmax_gating
 
-import pdb
-
 logger = logging.get_logger(__name__)
 
 _CHECKPOINT_FOR_DOC = "facebook/bart-large"
@@ -159,7 +157,6 @@ class BartAttention(nn.Module):
         self.q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
-        # added by Chunting
         assert cache_key in ['self', 'encoder_decoder', 'encoder']
         self.attn_mode = config.attn_mode
         self.config = config
@@ -258,7 +255,7 @@ class BartAttention(nn.Module):
         value_states = value_states.view(*proj_shape)
 
         cross_attn_output = None
-        if (prefix_state is not None and 'lisa' in self.attn_mode) or (self.attn_mode == "default_cross_attn_only" and self.cache_key == "encoder_decoder"):
+        if (prefix_state is not None and 'lisa' in self.attn_mode) or (self.attn_mode == "default_cross_attn_only" and self.cache_key != "encoder"):
             # legacy
             prefix_key = prefix_state.get(self.cache_key)['prev_key']  # bsz x nhead, preseqlen, head_dim
             prefix_value = prefix_state.get(self.cache_key)['prev_value']
@@ -602,7 +599,6 @@ class BartEncoderLayer(nn.Module):
         hidden_states = self.activation_fn(self.fc1(hidden_states))
         hidden_states = nn.functional.dropout(hidden_states, p=self.activation_dropout, training=self.training)
         hidden_states = self.fc2(hidden_states)
-
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
         if self.config.ffn_mode == 'adapter':
@@ -1108,7 +1104,6 @@ class BartEncoder(BartPretrainedModel):
 
         hidden_states = inputs_embeds + embed_pos
 
-        # added by Chunting
         if self.config.attn_mode == 'dlisa':
             p_prime_e, p_prime_ds, p_prime_dc = prefix_state.forward_pe_attn(hidden_states, attention_mask)
             biases = prefix_state(p_prime_e, p_prime_ds, p_prime_dc)

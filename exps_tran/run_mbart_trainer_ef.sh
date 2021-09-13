@@ -25,24 +25,61 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="wmt16"
 
+# Hi adapter
 attn_mode="none"
 attn_option="none"
-ffn_mode="none"
-ffn_option="none"
+ffn_mode="adapter"
+ffn_option="ffn_hi_input"
 gate_option="none"
-preseqlen=1
-ffn_bn_len=1
+preseqlen=0
+ffn_bn_len=512
+
+# PT + Hi adapter
+attn_mode="lisa"
+attn_option="concat"
+ffn_mode="adapter"
+ffn_option="ffn_hi_input"
+gate_option="none"
+preseqlen=30
+ffn_bn_len=512
+
+# lisa default
+#attn_mode="lisa"
+#attn_option="concat"
+#ffn_mode="none"
+#ffn_option="none"
+#gate_option="none"
+#preseqlen=200
+#ffn_bn_len=1
+
+# lisa cross attention version
+#attn_mode="lisa"
+#attn_option="cross_attn"
+#ffn_mode="none"
+#ffn_option="none"
+#gate_option="cross_attn"
+#preseqlen=200
+#ffn_bn_len=1
+
+# full
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="none"
+#ffn_option="none"
+#gate_option="none"
+#preseqlen=30
+#ffn_bn_len=512
 
 layer_norm_in=1
 layer_norm_out=0
 mh_reuse_proj="True"
 
 max_steps=40000
-warmup_updates=2500
-lr=3e-5
+warmup_updates=0
+lr=5e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=1000 # fixme: fairseq sets no grad_norm
-weight_decay=0.0
+weight_decay=0.01
 bsz=16
 gradient_steps=14
 #metric=bleu
@@ -84,7 +121,8 @@ exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
-python -m torch.distributed.launch --nproc_per_node 2 examples/pytorch/translation/run_translation.py \
+#python -m torch.distributed.launch --nproc_per_node 1 -u
+python -u examples/pytorch/translation/run_translation.py \
     --dataset_name ${dataset}\
     --dataset_config_name ro-en \
     --model_name_or_path "facebook/mbart-large-cc25" \
