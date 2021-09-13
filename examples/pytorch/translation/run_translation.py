@@ -542,8 +542,8 @@ def main():
         # Some simple post-processing
         decoded_preds, decoded_labels, str_decoded_preds, str_decoded_labels = postprocess_text(decoded_preds, decoded_labels)
         if trainer.is_world_process_zero():
-            fout_pred = open(os.path.join(training_args.output_dir, f"{gen_prefix}.pred.summary"), "w", encoding="utf-8")
-            fout_gold = open(os.path.join(training_args.output_dir, f"{gen_prefix}.gold.summary"), "w", encoding="utf-8")
+            fout_pred = open(os.path.join(training_args.output_dir, f"{gen_prefix}.pred.translation"), "w", encoding="utf-8")
+            fout_gold = open(os.path.join(training_args.output_dir, f"{gen_prefix}.gold.translation"), "w", encoding="utf-8")
             for pred, gold in zip(str_decoded_preds, str_decoded_labels):
                 # print(pred)
                 # print(gold)
@@ -638,10 +638,18 @@ def main():
                 predictions = tokenizer.batch_decode(
                     predict_results.predictions, skip_special_tokens=True, clean_up_tokenization_spaces=True
                 )
+                labels = predict_results.label_ids
+                labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+                labels = tokenizer.batch_decode(
+                    labels, skip_special_tokens=True, clean_up_tokenization_spaces=True
+                )
                 predictions = [pred.strip() for pred in predictions]
-                output_prediction_file = os.path.join(training_args.output_dir, "generated_predictions.txt")
-                with open(output_prediction_file, "w", encoding="utf-8") as writer:
+                labels = [label.strip() for label in labels]
+                output_prediction_file = os.path.join(training_args.output_dir, "test_generated_predictions.txt")
+                output_label_file = os.path.join(training_args.output_dir, "test_gold_labels.txt")
+                with open(output_prediction_file, "w", encoding="utf-8") as writer, open(output_label_file, "w", encoding="utf-8") as flabel:
                     writer.write("\n".join(predictions))
+                    flabel.write("\n".join(labels))
 
     if training_args.push_to_hub:
         kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "translation"}

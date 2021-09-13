@@ -15,6 +15,8 @@ export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 export HF_DATASETS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 export HF_METRICS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+echo ${SCRIPT_DIR}
 
 # wandb env variables
 export WANDB_PROJECT=enro_translation
@@ -55,7 +57,7 @@ eval_strategy="steps"
 save_steps=5000
 report_to="wandb"
 
-debug=0
+debug=1
 extra_cmd=""
 debug_str=""
 
@@ -65,7 +67,8 @@ then
     weight_decay=0
     max_grad_norm=1
     max_train_samples=4000
-    bsz=16
+    max_eval_samples=100
+    bsz=10
     gradient_steps=8
     num_train_epochs=100
     max_steps=-1
@@ -73,7 +76,7 @@ then
     save_steps=100
     report_to="none"
     logging_steps=10
-    extra_cmd="--max_train_samples ${max_train_samples}"
+    extra_cmd="--max_train_samples ${max_train_samples} --max_predict_samples 100"
     debug_str=".debug"
 fi
 
@@ -81,7 +84,7 @@ exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
-python -m torch.distributed.launch --nproc_per_node 2 examples/pytorch/translation/run_translation.py \
+python -m torch.distributed.launch --nproc_per_node 1 examples/pytorch/translation/run_translation.py \
     --dataset_name ${dataset}\
     --dataset_config_name ro-en \
     --model_name_or_path "facebook/mbart-large-cc25" \
@@ -148,4 +151,5 @@ python -m torch.distributed.launch --nproc_per_node 2 examples/pytorch/translati
     --output_dir ${SAVE} ${extra_cmd} \
         2>&1 | tee ${SAVE}/log.txt
 
-#rm -rf ${SAVE}/pytorch_model.bin
+cd ${SAVE}
+bash ${SCRIPT_DIR}/romanian_postprocess.sh test_generated_predictions.txt test_gold_labels.txt | tee log.txt
