@@ -84,7 +84,7 @@ exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
-python -m torch.distributed.launch --nproc_per_node 1 examples/pytorch/translation/run_translation.py \
+python -m torch.distributed.launch --nproc_per_node 2 examples/pytorch/translation/run_translation.py \
     --dataset_name ${dataset}\
     --dataset_config_name ro-en \
     --model_name_or_path "facebook/mbart-large-cc25" \
