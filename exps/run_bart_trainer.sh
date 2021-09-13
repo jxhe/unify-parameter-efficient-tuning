@@ -3,16 +3,19 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=xsum
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:A6000:1
+#SBATCH --gres=gpu:v100:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=2
 #SBATCH --time=0
 ##SBATCH --array=0
 
 export TRANSFORMERS_CACHE=checkpoints/hf_model
+export HF_DATASETS_CACHE=checkpoints/hf_model
+export HF_METRICS_CACHE=checkpoints/hf_model
+
 cache_dir=${TRANSFORMERS_CACHE}
 
-
+conda activate adapter
 # wandb env variables
 export WANDB_PROJECT=xsum_tride
 export WANDB_WATCH="false"
@@ -23,8 +26,8 @@ dataset="xsum"
 attn_mode="lisa"
 attn_option="concat"
 
-ffn_mode="none"
-ffn_option="ffn_hi_input"
+ffn_mode="adapter"
+ffn_option="ffn_ho_input"
 ffn_num_heads=16
 
 attn_gate="none"
@@ -33,8 +36,8 @@ ffn_gate="none"
 layer_norm_in=1
 layer_norm_out=0
 
-preseqlen=512
-ffn_bn_len=200
+preseqlen=200
+ffn_bn_len=512
 
 # adapter_option="attn_adapter"
 mh_reuse_proj="True"

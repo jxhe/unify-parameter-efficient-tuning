@@ -443,7 +443,7 @@ class MHAdapter_Layer(nn.Module):
     def forward(self, x, add_residual=True):
         residual = x
 
-        # import pdb; pdb.set_trace()
+        import pdb; pdb.set_trace()
         x = self.adapter_layer_norm_before(x)
 
         # (bsz, seqlen, nembed)

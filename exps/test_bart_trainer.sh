@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --array=0-4%5
+#SBATCH --array=0-1%2
 #SBATCH --job-name=xsum
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
@@ -24,16 +24,17 @@ taskid=${SLURM_ARRAY_TASK_ID}
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-# taskid=0
+taskid=0
 
-declare -a model_list=("checkpoints/xsum/20210819/xsum_tride.prefix.lisa.default.ms100000.ls0.1.wd0.01"
+declare -a model_list=("checkpoints/xsum/20210827/xsum_tride.prefix.ffn_adapters.ffn_hi_input.bn200.mh_reuse_proj_True.unfreeze_ef_.ms100000.ls0.1.warm0.wd0.01"
     )
+declare -a arg_list=(1 30)
 
 # to tune length penalty
-declare -a length_list=(1.0 1.5 2.0 2.5 3.0)
-length_penalty=${length_list[$taskid]}
+# declare -a length_list=(1.0 1.5 2.0 2.5 3.0)
+# length_penalty=${length_list[$taskid]}
 
-# length_penalty=3
+length_penalty=1
 
 arglen=${#model_list[@]}
 i=$(( taskid%arglen ))
@@ -48,19 +49,22 @@ SAVE=${model_path}
 
 log="test_log${taskid}.txt"
 
-attn_mode="lisa"
+attn_mode="none"
 attn_option="concat"
 
-ffn_mode="none"
+ffn_mode="adapter"
 ffn_option="ffn_hi_input"
 
-gate_option="none"
+attn_gate="none"
+ffn_gate="none"
 
 layer_norm_in=1
 layer_norm_out=0
 
-preseqlen=200
-ffn_bn_len=1024
+preseqlen=${arg_list[$i]}
+ffn_bn_len=200
+bsz=24
+
 mh_reuse_proj="True"
 
 max_steps=100000
@@ -70,7 +74,6 @@ lr=5e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=0.1
 weight_decay=0.01
-bsz=8
 gradient_steps=4
 metric=rouge2
 ft='ef_'
@@ -96,7 +99,8 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --attn_option ${attn_option} \
     --ffn_mode ${ffn_mode} \
     --ffn_option ${ffn_option} \
-    --gate_option ${gate_option} \
+    --attn_gate ${attn_gate} \
+    --ffn_gate ${ffn_gate} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --mid_dim 800 \
     --preseqlen 200 \
