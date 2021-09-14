@@ -44,7 +44,9 @@ from ...modeling_utils import PreTrainedModel
 from ...utils import logging
 from .configuration_mbart import MBartConfig
 
-
+import sys
+sys.path.insert(2, "./")
+from effectune.bias_factory import Adapter_Layer, softmax_gating
 logger = logging.get_logger(__name__)
 
 _CHECKPOINT_FOR_DOC = "facebook/mbart-large-cc25"
@@ -140,6 +142,8 @@ class MBartAttention(nn.Module):
         dropout: float = 0.0,
         is_decoder: bool = False,
         bias: bool = True,
+        config=None,
+        cache_key: str = None,
     ):
         super().__init__()
         self.embed_dim = embed_dim
@@ -157,6 +161,24 @@ class MBartAttention(nn.Module):
         self.q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
+        assert cache_key in ['self', 'encoder_decoder', 'encoder']
+        self.attn_mode = config.attn_mode
+        self.config = config
+        self.cache_key = cache_key
+
+        if 'lisa' in self.attn_mode:
+            if self.config.attn_option == 'cross_attn':
+                self.ef_transform_layer_norm = nn.LayerNorm(embed_dim)
+
+        elif self.attn_mode == 'adapter':
+            if "attn_adapter" in self.config.attn_option:
+                self.ef_attn_adapter = Adapter_Layer(self.config, dropout=self.dropout, bottleneck=self.config.preseqlen)
+            else:
+                raise ValueError("adapter option not supported")
+
+        if self.config.layer_norm_after:
+            self.ef_transform_layer_norm_out = nn.LayerNorm(embed_dim)
+
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
 
@@ -168,6 +190,8 @@ class MBartAttention(nn.Module):
         attention_mask: Optional[torch.Tensor] = None,
         layer_head_mask: Optional[torch.Tensor] = None,
         output_attentions: bool = False,
+        prefix_state= None,  # added by Chunting
+        step: Optional[int] = None,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
 
@@ -213,8 +237,64 @@ class MBartAttention(nn.Module):
         key_states = key_states.view(*proj_shape)
         value_states = value_states.view(*proj_shape)
 
+        cross_attn_output = None
+        if prefix_state is not None and 'lisa' in self.attn_mode:
+            # legacy
+            prefix_key = prefix_state.get(self.cache_key)['prev_key']  # bsz x nhead, preseqlen, head_dim
+            prefix_value = prefix_state.get(self.cache_key)['prev_value']
+            prefix_mask = prefix_state.get(self.cache_key)['prev_key_padding_mask']  # bsz, preseqlen: zeros
+
+            # import pdb; pdb.set_trace()
+            if self.config.attn_option == 'concat':
+                # add with adapter
+                # original lisa prefix-tuning
+                # if self.cache_key == "self":
+                #     key_states = torch.cat([key_states[:, 0, :].unsqueeze(1), prefix_key, key_states[:, 1:, :]], dim=1)
+                #     value_states = torch.cat([value_states[:, 0, :].unsqueeze(1), prefix_value, value_states[:, 1:, :]], dim=1)
+                # else:
+                key_states = torch.cat([prefix_key, key_states], dim=1)
+                value_states = torch.cat([prefix_value, value_states], dim=1)
+
+                if attention_mask is not None:
+                    expanded_prefix_mask = prefix_mask[:, None, None, :].expand(bsz, 1, tgt_len,
+                                                                                prefix_mask.size(1)).to(
+                        attention_mask.dtype)
+                    attention_mask = torch.cat([expanded_prefix_mask, attention_mask], dim=-1)
+
+            elif self.config.attn_option == "cross_attn":
+                cross_hidden = self.ef_transform_layer_norm(hidden_states)
+                cross_query_states = self.q_proj(cross_hidden) * self.scaling
+                cross_query_states = self._shape(cross_query_states, tgt_len, bsz).view(*proj_shape)
+
+                cross_attn_logits = torch.bmm(cross_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
+                # bsz * num_heads, tgt_len, prefix_len
+                cross_attn_weights = nn.functional.softmax(cross_attn_logits, dim=-1)
+
+                cross_attn_probs = nn.functional.dropout(cross_attn_weights, p=self.dropout, training=self.training)
+                cross_attn_output = torch.bmm(cross_attn_probs, prefix_value)
+
+                if self.config.gate_option == 'none':
+                    cross_attn_output = cross_attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
+                    cross_attn_output = cross_attn_output.transpose(1, 2)
+                    cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
+
+                    if self.config.layer_norm_after:
+                        cross_attn_output = self.ef_transform_layer_norm_out(cross_attn_output)
+
+        if self.config.attn_mode == 'adapter':
+            if "attn_adapter" in self.config.attn_option:
+                cross_attn_output = self.ef_attn_adapter(hidden_states, add_residual=False)
+                if self.config.layer_norm_after:
+                    cross_attn_output = self.ef_transform_layer_norm_out(cross_attn_output)
+
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
+
+        if self.config.gate_option == "cross_attn":
+            if attention_mask is not None:
+                attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
+                attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
+            w_prefix, w_attn = softmax_gating(cross_attn_logits, attn_weights)  # bsz x num_heads, tgt_len, 1
 
         if attn_weights.size() != (bsz * self.num_heads, tgt_len, src_len):
             raise ValueError(
@@ -250,7 +330,6 @@ class MBartAttention(nn.Module):
             attn_weights_reshaped = None
 
         attn_probs = nn.functional.dropout(attn_weights, p=self.dropout, training=self.training)
-
         attn_output = torch.bmm(attn_probs, value_states)
 
         if attn_output.size() != (bsz * self.num_heads, tgt_len, self.head_dim):
@@ -258,9 +337,16 @@ class MBartAttention(nn.Module):
                 f"`attn_output` should be of size {(bsz, self.num_heads, tgt_len, self.head_dim)}, but is {attn_output.size()}"
             )
 
+        if self.config.gate_option == "cross_attn":
+            attn_output = attn_output * w_attn + cross_attn_output * w_prefix
+            cross_attn_output = None
+
         attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
         attn_output = attn_output.transpose(1, 2)
         attn_output = attn_output.reshape(bsz, tgt_len, embed_dim)
+
+        if cross_attn_output is not None:
+            attn_output = attn_output + cross_attn_output
 
         attn_output = self.out_proj(attn_output)
 
@@ -270,11 +356,15 @@ class MBartAttention(nn.Module):
 class MBartEncoderLayer(nn.Module):
     def __init__(self, config: MBartConfig):
         super().__init__()
+        self.config = config
+
         self.embed_dim = config.d_model
         self.self_attn = MBartAttention(
             embed_dim=self.embed_dim,
             num_heads=config.encoder_attention_heads,
             dropout=config.attention_dropout,
+            config=config,
+            cache_key='encoder',
         )
         self.self_attn_layer_norm = nn.LayerNorm(self.embed_dim)
         self.dropout = config.dropout
@@ -284,12 +374,17 @@ class MBartEncoderLayer(nn.Module):
         self.fc2 = nn.Linear(config.encoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
+        if config.ffn_mode == 'adapter':
+            self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
+                                        bottleneck=config.ffn_bn_len)
+
     def forward(
         self,
         hidden_states: torch.Tensor,
         attention_mask: torch.Tensor,
         layer_head_mask: torch.Tensor,
         output_attentions: bool = False,
+        prefix_state=None,
     ):
         """
         Args:
@@ -309,9 +404,13 @@ class MBartEncoderLayer(nn.Module):
             attention_mask=attention_mask,
             layer_head_mask=layer_head_mask,
             output_attentions=output_attentions,
+            prefix_state=prefix_state,
         )
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
+
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
+            adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
         residual = hidden_states
         hidden_states = self.final_layer_norm(hidden_states)
@@ -319,6 +418,15 @@ class MBartEncoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.activation_dropout, training=self.training)
         hidden_states = self.fc2(hidden_states)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
+
+        if self.config.ffn_mode == 'adapter':
+            if self.config.ffn_option == 'ffn_ho_input':
+                hidden_states = self.ef_ffn_adapter(hidden_states)
+            elif self.config.ffn_option == 'ffn_hi_input':
+                hidden_states = hidden_states + adapter_change
+            else:
+                raise ValueError
+
         hidden_states = residual + hidden_states
 
         if hidden_states.dtype == torch.float16 and (
@@ -338,6 +446,7 @@ class MBartEncoderLayer(nn.Module):
 class MBartDecoderLayer(nn.Module):
     def __init__(self, config: MBartConfig):
         super().__init__()
+        self.config = config
         self.embed_dim = config.d_model
 
         self.self_attn = MBartAttention(
@@ -345,6 +454,8 @@ class MBartDecoderLayer(nn.Module):
             num_heads=config.decoder_attention_heads,
             dropout=config.attention_dropout,
             is_decoder=True,
+            config=config,
+            cache_key='self',
         )
         self.dropout = config.dropout
         self.activation_fn = ACT2FN[config.activation_function]
@@ -356,11 +467,17 @@ class MBartDecoderLayer(nn.Module):
             config.decoder_attention_heads,
             dropout=config.attention_dropout,
             is_decoder=True,
+            config=config,
+            cache_key='encoder_decoder',
         )
         self.encoder_attn_layer_norm = nn.LayerNorm(self.embed_dim)
         self.fc1 = nn.Linear(self.embed_dim, config.decoder_ffn_dim)
         self.fc2 = nn.Linear(config.decoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
+
+        if config.ffn_mode == 'adapter':
+            self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
+                                        bottleneck=config.ffn_bn_len)
 
     def forward(
         self,
@@ -373,6 +490,7 @@ class MBartDecoderLayer(nn.Module):
         past_key_value: Optional[Tuple[torch.Tensor]] = None,
         output_attentions: Optional[bool] = False,
         use_cache: Optional[bool] = True,
+        prefix_state=None,
     ):
         """
         Args:
@@ -404,6 +522,7 @@ class MBartDecoderLayer(nn.Module):
             attention_mask=attention_mask,
             layer_head_mask=layer_head_mask,
             output_attentions=output_attentions,
+            prefix_state=prefix_state,
         )
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
@@ -417,6 +536,10 @@ class MBartDecoderLayer(nn.Module):
 
             # cross_attn cached key/values tuple is at positions 3,4 of present_key_value tuple
             cross_attn_past_key_value = past_key_value[-2:] if past_key_value is not None else None
+
+            #added by Chunting: for learned bias
+            step = (past_key_value[0].size(2) + 1) if cross_attn_past_key_value is not None else 1
+
             hidden_states, cross_attn_weights, cross_attn_present_key_value = self.encoder_attn(
                 hidden_states=hidden_states,
                 key_value_states=encoder_hidden_states,
@@ -424,12 +547,18 @@ class MBartDecoderLayer(nn.Module):
                 layer_head_mask=cross_attn_layer_head_mask,
                 past_key_value=cross_attn_past_key_value,
                 output_attentions=output_attentions,
+                prefix_state=prefix_state,
+                step=step,
+
             )
             hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
             hidden_states = residual + hidden_states
 
             # add cross-attn to positions 3,4 of present_key_value tuple
             present_key_value = present_key_value + cross_attn_present_key_value
+
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
+            adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
         # Fully Connected
         residual = hidden_states
@@ -438,6 +567,15 @@ class MBartDecoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.activation_dropout, training=self.training)
         hidden_states = self.fc2(hidden_states)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
+
+        if self.config.ffn_mode == 'adapter':
+            if self.config.ffn_option == 'ffn_ho_input':
+                hidden_states = self.ef_ffn_adapter(hidden_states)
+            elif self.config.ffn_option == 'ffn_hi_input':
+                hidden_states = hidden_states + adapter_change
+            else:
+                raise ValueError
+
         hidden_states = residual + hidden_states
 
         outputs = (hidden_states,)
@@ -481,6 +619,7 @@ class MBartPreTrainedModel(PreTrainedModel):
     base_model_prefix = "model"
 
     def _init_weights(self, module):
+        print("============================ init weights is called! ====================================")
         std = self.config.init_std
         if isinstance(module, nn.Linear):
             module.weight.data.normal_(mean=0.0, std=std)
@@ -695,6 +834,7 @@ class MBartEncoder(MBartPreTrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
+        prefix_state=None,
     ):
         r"""
         Args:
@@ -795,11 +935,17 @@ class MBartEncoder(MBartPreTrainedModel):
                         (head_mask[idx] if head_mask is not None else None),
                     )
                 else:
+                    if prefix_state is not None and idx + self.config.num_bias_layers >= self.config.encoder_layers:
+                        idx = idx - (self.config.encoder_layers - self.config.num_bias_layers)
+                        pass_prefix_state = prefix_state[idx] if isinstance(prefix_state, list) else prefix_state
+                    else:
+                        pass_prefix_state = None
                     layer_outputs = encoder_layer(
                         hidden_states,
                         attention_mask,
                         layer_head_mask=(head_mask[idx] if head_mask is not None else None),
                         output_attentions=output_attentions,
+                        prefix_state=pass_prefix_state,
                     )
 
                 hidden_states = layer_outputs[0]
@@ -890,6 +1036,7 @@ class MBartDecoder(MBartPreTrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
+        prefix_state=None,
     ):
         r"""
         Args:
@@ -1050,6 +1197,12 @@ class MBartDecoder(MBartPreTrainedModel):
                 )
             else:
 
+                if prefix_state is not None and idx + self.config.num_bias_layers >= self.config.encoder_layers:
+                    idx = idx - (self.config.encoder_layers - self.config.num_bias_layers)
+                    pass_prefix_state = prefix_state[idx] if isinstance(prefix_state, list) else prefix_state
+                else:
+                    pass_prefix_state = None
+
                 layer_outputs = decoder_layer(
                     hidden_states,
                     attention_mask=attention_mask,
@@ -1062,6 +1215,7 @@ class MBartDecoder(MBartPreTrainedModel):
                     past_key_value=past_key_value,
                     output_attentions=output_attentions,
                     use_cache=use_cache,
+                    prefix_state=pass_prefix_state,
                 )
             hidden_states = layer_outputs[0]
 
@@ -1150,7 +1304,13 @@ class MBartModel(MBartPreTrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
+        prefix_state=None,
     ):
+        # print(input_ids.size())
+        # print(input_ids[:5])
+        # print(decoder_input_ids.size())
+        # print(decoder_input_ids[:5])
+        # input()
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -1172,6 +1332,7 @@ class MBartModel(MBartPreTrainedModel):
                 output_attentions=output_attentions,
                 output_hidden_states=output_hidden_states,
                 return_dict=return_dict,
+                prefix_state=prefix_state,
             )
         # If the user passed a tuple for encoder_outputs, we wrap it in a BaseModelOutput when return_dict=True
         elif return_dict and not isinstance(encoder_outputs, BaseModelOutput):
@@ -1195,6 +1356,7 @@ class MBartModel(MBartPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            prefix_state=prefix_state,
         )
 
         if not return_dict:
@@ -1222,6 +1384,7 @@ class MBartForConditionalGeneration(MBartPreTrainedModel):
         r"encoder\.version",
         r"decoder\.version",
         r"lm_head\.weight",
+        r"ef_",
     ]
 
     def __init__(self, config: MBartConfig):
@@ -1279,6 +1442,7 @@ class MBartForConditionalGeneration(MBartPreTrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
+        prefix_state=None,
     ):
         r"""
         labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size, sequence_length)`, `optional`):
@@ -1311,6 +1475,7 @@ class MBartForConditionalGeneration(MBartPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            prefix_state=prefix_state,
         )
         lm_logits = self.lm_head(outputs[0]) + self.final_logits_bias
 
@@ -1360,7 +1525,8 @@ class MBartForConditionalGeneration(MBartPreTrainedModel):
             "head_mask": head_mask,
             "decoder_head_mask": decoder_head_mask,
             "cross_attn_head_mask": cross_attn_head_mask,
-            "use_cache": use_cache,  # change this to avoid caching (presumably for debugging)
+            "use_cache": use_cache,  # change this to avoid caching (presumably for debugging),
+            "prefix_state": kwargs["prefix_state"] if "prefix_state" in kwargs else None,
         }
 
     def prepare_decoder_input_ids_from_labels(self, labels: torch.Tensor):

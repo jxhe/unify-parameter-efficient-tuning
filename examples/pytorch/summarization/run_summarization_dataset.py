@@ -215,6 +215,13 @@ class DataTrainingArguments:
         },
     )
 
+    num_valid_lines: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "-1 means all train set"
+        },
+    )
+
     output_dir: Optional[str] = field(
         default=None, metadata={"help": ""}
     )
@@ -314,9 +321,10 @@ def main():
 
     random.seed(15213)
     random.shuffle(train)
+    random.shuffle(valid)
 
     _write_a_json(train[:data_args.num_train_lines] if data_args.num_train_lines > 0 else train, "train")
-    _write_a_json(valid, "valid")
+    _write_a_json(valid[:data_args.num_valid_lines] if data_args.num_valid_lines > 0 else valid, "valid")
     _write_a_json(test, "test")
 
 if __name__ == "__main__":

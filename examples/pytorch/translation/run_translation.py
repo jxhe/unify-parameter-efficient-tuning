@@ -21,6 +21,7 @@ Fine-tuning the library models for sequence to sequence.
 import logging
 import os
 import sys
+sys.path.insert(2, "./")
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -49,6 +50,12 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
+from effectune.options import (
+    GenerationArguments,
+    TuneArguments,
+    MBARTArguments,
+)
+from effectune.prefix_tuning_MBART import PrefixTuning
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.9.0.dev0")
@@ -185,13 +192,6 @@ class DataTrainingArguments:
             "value if set."
         },
     )
-    num_beams: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": "Number of beams to use for evaluation. This argument will be passed to ``model.generate``, "
-            "which is used during ``evaluate`` and ``predict``."
-        },
-    )
     ignore_pad_token_for_loss: bool = field(
         default=True,
         metadata={
@@ -231,13 +231,14 @@ def main():
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, Seq2SeqTrainingArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, Seq2SeqTrainingArguments,
+                               GenerationArguments, TuneArguments, MBARTArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args, data_args, training_args, gen_args, tune_args, mbart_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
     else:
-        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, gen_args, tune_args, mbart_args = parser.parse_args_into_dataclasses()
 
     # Setup logging
     logging.basicConfig(
@@ -328,6 +329,24 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
+
+    # put generation args into config
+    for k, v in vars(gen_args).items():
+        setattr(config, f'gen_{k}', v)
+
+    # put useful args into config: these arguments will be used in models, thus adding them to config
+    # interested_args = ['use_prefix', 'mid_dim', 'preseqlen', 'prefix_dropout', 'unfreeze_params']
+    for k, v in vars(tune_args).items():
+        if not hasattr(config, k):
+            setattr(config, k, v)
+
+    for k, v in vars(mbart_args).items():
+        if not hasattr(config, k):
+            setattr(config, k, v)
+
+    for k in ['max_source_length', 'max_target_length']:
+        setattr(config, k, vars(data_args)[k])
+
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
@@ -357,7 +376,6 @@ def main():
         raise ValueError("Make sure that `config.decoder_start_token_id` is correctly defined")
 
     prefix = data_args.source_prefix if data_args.source_prefix is not None else ""
-
     # Preprocessing the datasets.
     # We need to tokenize inputs and targets.
     if training_args.do_train:
@@ -420,6 +438,7 @@ def main():
             ]
 
         model_inputs["labels"] = labels["input_ids"]
+        # import pdb; pdb.set_trace()
         return model_inputs
 
     if training_args.do_train:
@@ -481,14 +500,36 @@ def main():
             pad_to_multiple_of=8 if training_args.fp16 else None,
         )
 
+    if tune_args.attn_mode != "none" or tune_args.ffn_mode != "none":
+        if tune_args.load_path == "":
+            model = PrefixTuning(config, tune_args, model)
+        else:
+            model = PrefixTuning.from_pretrained(
+                tune_args.load_path,
+                from_tf=bool(".ckpt" in model_args.model_name_or_path),
+                config=config,
+                cache_dir=model_args.cache_dir,
+                revision=model_args.model_revision,
+                use_auth_token=True if model_args.use_auth_token else None,
+                args=tune_args,
+                pretrained_model=model,
+            )
+
+    print(model)
+    for n, p in model.named_parameters():
+        print(n, p.requires_grad)
+
     # Metric
     metric = load_metric("sacrebleu")
+    gen_prefix = "val"
 
     def postprocess_text(preds, labels):
+        str_preds = [pred.strip() for pred in preds]
+        str_labels = [label.strip() for label in labels]
+
         preds = [pred.strip() for pred in preds]
         labels = [[label.strip()] for label in labels]
-
-        return preds, labels
+        return preds, labels, str_preds, str_labels
 
     def compute_metrics(eval_preds):
         preds, labels = eval_preds
@@ -501,7 +542,17 @@ def main():
         decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
         # Some simple post-processing
-        decoded_preds, decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+        decoded_preds, decoded_labels, str_decoded_preds, str_decoded_labels = postprocess_text(decoded_preds, decoded_labels)
+        if trainer.is_world_process_zero():
+            fout_pred = open(os.path.join(training_args.output_dir, f"{gen_prefix}.pred.translation"), "w", encoding="utf-8")
+            fout_gold = open(os.path.join(training_args.output_dir, f"{gen_prefix}.gold.translation"), "w", encoding="utf-8")
+            for pred, gold in zip(str_decoded_preds, str_decoded_labels):
+                # print(pred)
+                # print(gold)
+                fout_pred.write(pred + "\n")
+                fout_gold.write(gold + "\n")
+            fout_pred.close()
+            fout_gold.close()
 
         result = metric.compute(predictions=decoded_preds, references=decoded_labels)
         result = {"bleu": result["score"]}
@@ -510,6 +561,16 @@ def main():
         result["gen_len"] = np.mean(prediction_lens)
         result = {k: round(v, 4) for k, v in result.items()}
         return result
+
+    max_tokens = 0
+    tot_tokens = 0
+    for example in train_dataset:
+        ntokens = max(len(example['input_ids']), len(example['labels']))
+        if ntokens > max_tokens:
+            max_tokens = ntokens
+        tot_tokens += ntokens
+    print("max_num_tokens={}, avg = {}".format(max_tokens, tot_tokens*1.0/len(train_dataset)))
+    print("train = {}, val = {}, test = {}".format(len(train_dataset), len(eval_dataset), len(predict_dataset)))
 
     # Initialize our Trainer
     trainer = Seq2SeqTrainer(
@@ -548,7 +609,7 @@ def main():
         logger.info("*** Evaluate ***")
 
         metrics = trainer.evaluate(
-            max_length=data_args.val_max_target_length, num_beams=data_args.num_beams, metric_key_prefix="eval"
+            max_length=data_args.val_max_target_length, num_beams=gen_args.num_beams, metric_key_prefix="eval"
         )
         max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(eval_dataset)
         metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
@@ -563,7 +624,7 @@ def main():
             predict_dataset,
             metric_key_prefix="predict",
             max_length=data_args.val_max_target_length,
-            num_beams=data_args.num_beams,
+            num_beams=gen_args.num_beams,
         )
         metrics = predict_results.metrics
         max_predict_samples = (
@@ -579,10 +640,18 @@ def main():
                 predictions = tokenizer.batch_decode(
                     predict_results.predictions, skip_special_tokens=True, clean_up_tokenization_spaces=True
                 )
+                labels = predict_results.label_ids
+                labels = np.where(labels != -100, labels, tokenizer.pad_token_id)
+                labels = tokenizer.batch_decode(
+                    labels, skip_special_tokens=True, clean_up_tokenization_spaces=True
+                )
                 predictions = [pred.strip() for pred in predictions]
-                output_prediction_file = os.path.join(training_args.output_dir, "generated_predictions.txt")
-                with open(output_prediction_file, "w", encoding="utf-8") as writer:
+                labels = [label.strip() for label in labels]
+                output_prediction_file = os.path.join(training_args.output_dir, "test_generated_predictions.txt")
+                output_label_file = os.path.join(training_args.output_dir, "test_gold_labels.txt")
+                with open(output_prediction_file, "w", encoding="utf-8") as writer, open(output_label_file, "w", encoding="utf-8") as flabel:
                     writer.write("\n".join(predictions))
+                    flabel.write("\n".join(labels))
 
     if training_args.push_to_hub:
         kwargs = {"finetuned_from": model_args.model_name_or_path, "tasks": "translation"}

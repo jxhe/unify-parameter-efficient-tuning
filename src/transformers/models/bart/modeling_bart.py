@@ -50,8 +50,6 @@ sys.path.insert(2, "./")
 from effectune.luna_attention import luna_attention_enc_dec
 from effectune.bias_factory import Adapter_Layer, MHAdapter_Layer, softmax_gating
 
-import pdb
-
 logger = logging.get_logger(__name__)
 
 _CHECKPOINT_FOR_DOC = "facebook/bart-large"
@@ -159,7 +157,6 @@ class BartAttention(nn.Module):
         self.q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
-        # added by Chunting
         assert cache_key in ['self', 'encoder_decoder', 'encoder']
         self.attn_mode = config.attn_mode
         self.config = config
@@ -258,7 +255,7 @@ class BartAttention(nn.Module):
         value_states = value_states.view(*proj_shape)
 
         cross_attn_output = None
-        if (prefix_state is not None and 'lisa' in self.attn_mode) or (self.attn_mode == "default_cross_attn_only" and self.cache_key == "encoder_decoder"):
+        if (prefix_state is not None and 'lisa' in self.attn_mode) or (self.attn_mode == "default_cross_attn_only" and self.cache_key != "encoder"):
             # legacy
             prefix_key = prefix_state.get(self.cache_key)['prev_key']  # bsz x nhead, preseqlen, head_dim
             prefix_value = prefix_state.get(self.cache_key)['prev_value']
@@ -405,14 +402,35 @@ class BartAttention(nn.Module):
         if self.config.attn_mode != "none" and self.config.attn_gate == "auto":
             if self.training and self.opt is not None:
                 self.step += 1
-                # import pdb; pdb.set_trace()
-                avg_w_attn = w_attn[:,:50,:].mean()
-                avg_w_pref = w_prefix[:,:50,:].mean()
                 layer_spec = self.spec[self.cache_key] + "_" + str(self.layer_id)
-                self.opt.write("step={}\t{}\tavg_w_attn={}\tavg_w_prefix={}\n".format(self.step, layer_spec, avg_w_attn.item(), avg_w_pref.item()))
+                opt_str = "step={}\t{}\t".format(self.step, layer_spec)
+                mask = prefix_state["source_mask"] if layer_spec.startswith("e") else prefix_state["target_mask"]
+                token_nums = mask.sum(dim=-1).long()
+                vw_attn = w_attn.view(bsz, self.num_heads, -1)
+                vw_prefix = w_prefix.view(bsz, self.num_heads, -1)
+                for hid in range(self.num_heads):
+                    cat_attn = torch.cat([vw_attn[bid, hid, :token_nums[bid]] for bid in range(bsz)])
+                    cat_pref = torch.cat([vw_prefix[bid, hid, :token_nums[bid]] for bid in range(bsz)])
+                    opt_str += "head_id={};avg_w_attn={};avg_w_prefix={};var_w_prefix={}\t".format(hid,
+                                                                                                   cat_attn.mean().item(),
+                                                                                                   cat_pref.mean().item(),
+                                                                                                   torch.var(cat_pref).item())
+                    # print("hid = {}, {}, {}".format(hid, len(cat_attn), len(cat_pref)))
+                mask = mask[:, None, :]
+                masked_w_attn = w_attn.view(bsz, self.num_heads, -1) * mask
+                masked_w_pref = w_prefix.view(bsz, self.num_heads, -1) * mask  # bsz, nh, T
+                avg_w_attn = masked_w_attn.mean()
+                avg_w_pref = masked_w_pref.mean()
+                opt_str += "avg_w_attn={}\tavg_w_prefix={}\t".format(avg_w_attn.item(), avg_w_pref.item())
+
+                attn_opt = attn_output.view(bsz, self.num_heads, -1, self.head_dim) * masked_w_attn.unsqueeze(-1)
+                cross_attn_opt = cross_attn_output.view(bsz, self.num_heads, -1, self.head_dim) * masked_w_pref.unsqueeze(-1)
+                attn_norm = torch.norm(attn_opt, dim=-1).mean()
+                cross_attn_norm = torch.norm(cross_attn_opt, dim=-1).mean()
+                opt_str += "avg_attn_norm={}\tavg_prefix_norm={}\n".format(attn_norm.item(), cross_attn_norm.item())
+                self.opt.write(opt_str)
 
             attn_output = attn_output * w_attn + cross_attn_output * w_prefix
-
 
         attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
         attn_output = attn_output.transpose(1, 2)
@@ -596,7 +614,6 @@ class BartEncoderLayer(nn.Module):
         hidden_states = self.activation_fn(self.fc1(hidden_states))
         hidden_states = nn.functional.dropout(hidden_states, p=self.activation_dropout, training=self.training)
         hidden_states = self.fc2(hidden_states)
-
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
         if 'adapter' in self.config.ffn_mode:
@@ -1112,7 +1129,6 @@ class BartEncoder(BartPretrainedModel):
 
         hidden_states = inputs_embeds + embed_pos
 
-        # added by Chunting
         if self.config.attn_mode == 'dlisa':
             p_prime_e, p_prime_ds, p_prime_dc = prefix_state.forward_pe_attn(hidden_states, attention_mask)
             biases = prefix_state(p_prime_e, p_prime_ds, p_prime_dc)
@@ -1691,6 +1707,13 @@ class BartForConditionalGeneration(BartPretrainedModel):
                 decoder_input_ids = shift_tokens_right(
                     labels, self.config.pad_token_id, self.config.decoder_start_token_id
                 )
+
+        if self.training and self.config.attn_mode == 'lisa' and self.config.gate_option == "cross_attn" and self.config.analysis_opt != "":
+            source_mask = (input_ids != self.config.pad_token_id).float()
+            target_mask = (decoder_input_ids != self.config.pad_token_id).float()
+            for prefix_layers in prefix_state:
+                prefix_layers["source_mask"] = source_mask
+                prefix_layers["target_mask"] = target_mask
 
         outputs = self.model(
             input_ids,
