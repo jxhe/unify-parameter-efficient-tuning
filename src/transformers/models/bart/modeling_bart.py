@@ -410,8 +410,8 @@ class BartAttention(nn.Module):
                 mask = mask[:, None, :]
                 masked_w_attn = w_attn.view(bsz, self.num_heads, -1) * mask
                 masked_w_pref = w_prefix.view(bsz, self.num_heads, -1) * mask  # bsz, nh, T
-                avg_w_attn = masked_w_attn.mean()
-                avg_w_pref = masked_w_pref.mean()
+                avg_w_attn = masked_w_attn.sum() / mask.sum()
+                avg_w_pref = masked_w_pref.sum() / mask.sum()
                 opt_str += "avg_w_attn={}\tavg_w_prefix={}\t".format(avg_w_attn.item(), avg_w_pref.item())
 
                 attn_opt = attn_output.view(bsz, self.num_heads, -1, self.head_dim) * masked_w_attn.unsqueeze(-1)

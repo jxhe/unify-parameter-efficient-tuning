@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=tran
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:RTX_8000:2
+#SBATCH --gres=gpu:A6000:2
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
@@ -25,6 +25,7 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="wmt16"
 
+port=90292
 # Hi adapter
 attn_mode="none"
 attn_option="none"
@@ -139,7 +140,7 @@ exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
-python -m torch.distributed.launch --nproc_per_node 2 --master_port=15206 examples/pytorch/translation/run_translation.py \
+python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port} examples/pytorch/translation/run_translation.py \
     --dataset_name ${dataset}\
     --dataset_config_name ro-en \
     --model_name_or_path "facebook/mbart-large-cc25" \
