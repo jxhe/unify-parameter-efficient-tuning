@@ -37,14 +37,15 @@ layer_norm_in=1
 layer_norm_out=0
 mh_reuse_proj="True"
 
-max_steps=40000
+max_steps=30000
+num_train_epochs=30
 warmup_updates=2500
 lr=3e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=1000 # fixme: fairseq sets no grad_norm
 weight_decay=0.0
-bsz=16
-gradient_steps=14
+bsz=24
+gradient_steps=10
 #metric=bleu
 metric=loss
 ft='ef_'
@@ -57,7 +58,7 @@ eval_strategy="steps"
 save_steps=5000
 report_to="wandb"
 
-debug=1
+debug=0
 extra_cmd=""
 debug_str=""
 
@@ -65,18 +66,18 @@ if [ "${debug}" = 1 ];
 then
     label_smoothing_factor=0
     weight_decay=0
-    max_grad_norm=1
+    max_grad_norm=100
     max_train_samples=4000
-    max_eval_samples=100
+    max_eval_samples=150
     bsz=10
     gradient_steps=8
-    num_train_epochs=100
+    num_train_epochs=13
     max_steps=-1
     eval_strategy='steps'
     save_steps=100
     report_to="none"
     logging_steps=10
-    extra_cmd="--max_train_samples ${max_train_samples} --max_predict_samples 100"
+    extra_cmd="--max_train_samples ${max_train_samples} --max_predict_samples 150"
     debug_str=".debug"
 fi
 
@@ -84,7 +85,7 @@ exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
-python -m torch.distributed.launch --nproc_per_node 2 examples/pytorch/translation/run_translation.py \
+python -m torch.distributed.launch --nproc_per_node 2 --master_port=15213 examples/pytorch/translation/run_translation.py \
     --dataset_name ${dataset}\
     --dataset_config_name ro-en \
     --model_name_or_path "facebook/mbart-large-cc25" \
@@ -116,9 +117,9 @@ python -m torch.distributed.launch --nproc_per_node 2 examples/pytorch/translati
     --unfreeze_params ${ft} \
     --num_bias_layers ${top_layers} \
     --preprocessing_num_workers 2 \
-    --max_source_length 250 \
-    --max_target_length 250 \
-    --val_max_target_length 250 \
+    --max_source_length 150 \
+    --max_target_length 150 \
+    --val_max_target_length 150 \
     --max_eval_samples ${max_eval_samples} \
     --num_beams 5 \
     --max_length 200 \
@@ -153,4 +154,4 @@ python -m torch.distributed.launch --nproc_per_node 2 examples/pytorch/translati
         2>&1 | tee ${SAVE}/log.txt
 
 cd ${SAVE}
-bash ${SCRIPT_DIR}/romanian_postprocess.sh test_generated_predictions.txt test_gold_labels.txt | tee log.txt
+bash ${SCRIPT_DIR}/romanian_postprocess.sh test_generated_predictions.txt test_gold_labels.txt | tee -a log.txt

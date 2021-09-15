@@ -461,6 +461,7 @@ def main():
         if "validation" not in raw_datasets:
             raise ValueError("--do_eval requires a validation dataset")
         eval_dataset = raw_datasets["validation"]
+        print("full eval examples = {}".format(len(eval_dataset)))
         if data_args.max_eval_samples is not None:
             eval_dataset = eval_dataset.select(range(data_args.max_eval_samples))
         eval_dataset = eval_dataset.map(
@@ -562,15 +563,26 @@ def main():
         result = {k: round(v, 4) for k, v in result.items()}
         return result
 
-    max_tokens = 0
-    tot_tokens = 0
-    for example in train_dataset:
-        ntokens = max(len(example['input_ids']), len(example['labels']))
-        if ntokens > max_tokens:
-            max_tokens = ntokens
-        tot_tokens += ntokens
-    print("max_num_tokens={}, avg = {}".format(max_tokens, tot_tokens*1.0/len(train_dataset)))
-    print("train = {}, val = {}, test = {}".format(len(train_dataset), len(eval_dataset), len(predict_dataset)))
+
+    # def _data_stats(ds, prefix):
+    #     max_tokens = 0
+    #     tot_tokens = 0
+    #     buckets = {100: 0, 150: 0, 250: 0}
+    #     for example in ds:
+    #         ntokens = max(len(example['input_ids']), len(example['labels']))
+    #         if ntokens > max_tokens:
+    #             max_tokens = ntokens
+    #         for k in buckets.keys():
+    #             if ntokens > k:
+    #                 buckets[k] += 1
+    #         tot_tokens += ntokens
+    #     avg_tokens = tot_tokens*1.0/len(ds)
+    #     print("{}={}: max_num_tokens={}, avg = {}".format(len(ds), prefix, max_tokens, avg_tokens))
+    #     print(buckets)
+    #
+    # _data_stats(train_dataset, "train")
+    # _data_stats(eval_dataset, "valid")
+    # _data_stats(predict_dataset, "test")
 
     # Initialize our Trainer
     trainer = Seq2SeqTrainer(

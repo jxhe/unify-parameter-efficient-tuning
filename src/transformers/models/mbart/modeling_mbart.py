@@ -246,7 +246,6 @@ class MBartAttention(nn.Module):
 
             # import pdb; pdb.set_trace()
             if self.config.attn_option == 'concat':
-                # add with adapter
                 # original lisa prefix-tuning
                 # if self.cache_key == "self":
                 #     key_states = torch.cat([key_states[:, 0, :].unsqueeze(1), prefix_key, key_states[:, 1:, :]], dim=1)
