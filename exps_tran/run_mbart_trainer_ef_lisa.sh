@@ -1,9 +1,9 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=tran
+#SBATCH --job-name=tran.ldef
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:A6000:2
+#SBATCH --gres=gpu:A6000:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
@@ -26,34 +26,35 @@ export OMP_NUM_THREADS=1
 DATE=`date +%Y%m%d`
 dataset="wmt16"
 
-attn_mode="none"
-attn_option="none"
+# lisa default
+attn_mode="lisa"
+attn_option="concat"
 ffn_mode="none"
 ffn_option="none"
 gate_option="none"
-preseqlen=1
+preseqlen=200
 ffn_bn_len=1
 
 layer_norm_in=1
 layer_norm_out=0
 mh_reuse_proj="True"
 
-max_steps=30000
+max_steps=50000
 num_train_epochs=30
-warmup_updates=2500
-lr=3e-5
+warmup_updates=0
+lr=5e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=1000 # fixme: fairseq sets no grad_norm
 weight_decay=0.0
 bsz=24
-gradient_steps=10
+gradient_steps=20
 #metric=bleu
 metric=loss
 ft='ef_'
 top_layers=12
 max_eval_samples=1600
 logging_steps=100
-label_smoothing_factor=0.2
+label_smoothing_factor=0.0
 
 eval_strategy="steps"
 save_steps=5000
@@ -72,7 +73,7 @@ then
     max_eval_samples=150
     bsz=10
     gradient_steps=8
-    num_train_epochs=13
+    num_train_epochs=16
     max_steps=-1
     eval_strategy='steps'
     save_steps=100
@@ -82,11 +83,13 @@ then
     debug_str=".debug"
 fi
 
+#report_to="none"
 exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.lni${layer_norm_in}.lno${layer_norm_out}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
-python -m torch.distributed.launch --nproc_per_node 2 --master_port=15213 examples/pytorch/translation/run_translation.py \
+#python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port}
+python -u examples/pytorch/translation/run_translation.py \
     --dataset_name ${dataset}\
     --dataset_config_name ro-en \
     --model_name_or_path "facebook/mbart-large-cc25" \
@@ -151,8 +154,7 @@ python -m torch.distributed.launch --nproc_per_node 2 --master_port=15213 exampl
     --greater_is_better "False" \
     --ddp_find_unused_parameter "False" \
     --predict_with_generate \
-    --output_dir ${SAVE} ${extra_cmd} \
-        2>&1 | tee ${SAVE}/log.txt
+    --output_dir ${SAVE} ${extra_cmd} 2>&1 | tee ${SAVE}/log.txt
 
 cd ${SAVE}
 bash ${SCRIPT_DIR}/romanian_postprocess.sh test_generated_predictions.txt test_gold_labels.txt | tee -a log.txt
