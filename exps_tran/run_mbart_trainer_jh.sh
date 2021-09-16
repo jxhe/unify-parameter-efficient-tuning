@@ -100,7 +100,7 @@ num_train_epochs=30
 warmup_updates=0
 lr=5e-5
 lr_scheduler_type="polynomial"
-max_grad_norm=1000 # fixme: fairseq sets no grad_norm
+max_grad_norm=1 
 weight_decay=0.01
 bsz=24
 gradient_steps=20
@@ -124,7 +124,7 @@ if [ "${debug}" = 1 ];
 then
     label_smoothing_factor=0
     weight_decay=0
-    max_grad_norm=100
+    max_grad_norm=1
     max_train_samples=4000
     max_eval_samples=150
     bsz=24
@@ -159,8 +159,8 @@ python -u examples/pytorch/translation/run_translation.py \
     --adam_beta1 0.9 \
     --adam_beta2 0.98 \
     --adam_epsilon 1e-6 \
-    --dropout 0.3 \
-    --attention_dropout 0.1 \
+    --dropout 0.1 \
+    --attention_dropout 0.0 \
     --attn_mode ${attn_mode} \
     --attn_option ${attn_option} \
     --attn_gate ${attn_gate} \
