@@ -21,6 +21,7 @@ echo ${SCRIPT_DIR}
 # wandb env variables
 export WANDB_PROJECT=enro_translation
 export WANDB_WATCH="false"
+export OMP_NUM_THREADS=1
 
 DATE=`date +%Y%m%d`
 dataset="wmt16"

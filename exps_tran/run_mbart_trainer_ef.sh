@@ -21,11 +21,12 @@ echo ${SCRIPT_DIR}
 # wandb env variables
 export WANDB_PROJECT=enro_translation
 export WANDB_WATCH="false"
+export OMP_NUM_THREADS=1
 
 DATE=`date +%Y%m%d`
 dataset="wmt16"
 
-port=90292
+port=20292
 # Hi adapter
 attn_mode="none"
 attn_option="none"
@@ -44,22 +45,22 @@ ffn_bn_len=512
 #ffn_bn_len=512
 
 # PT + Hi adapter
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#gate_option="none"
-#preseqlen=30
-#ffn_bn_len=512
+attn_mode="lisa"
+attn_option="concat"
+ffn_mode="adapter"
+ffn_option="ffn_hi_input"
+gate_option="none"
+preseqlen=30
+ffn_bn_len=512
 
 # lisa default
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="none"
-#ffn_option="none"
-#gate_option="none"
-#preseqlen=200
-#ffn_bn_len=1
+attn_mode="lisa"
+attn_option="concat"
+ffn_mode="none"
+ffn_option="none"
+gate_option="none"
+preseqlen=200
+ffn_bn_len=1
 
 # lisa cross attention version
 #attn_mode="lisa"
@@ -113,7 +114,7 @@ eval_strategy="steps"
 save_steps=5000
 report_to="wandb"
 
-debug=0
+debug=1
 extra_cmd=""
 debug_str=""
 
@@ -135,12 +136,13 @@ then
     extra_cmd="--max_train_samples ${max_train_samples} --max_predict_samples 150"
     debug_str=".debug"
 fi
-
+report_to="wandb"
 exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.lni${layer_norm_in}.lno${layer_norm_out}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
-python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port} examples/pytorch/translation/run_translation.py \
+#python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port}
+python -u examples/pytorch/translation/run_translation.py \
     --dataset_name ${dataset}\
     --dataset_config_name ro-en \
     --model_name_or_path "facebook/mbart-large-cc25" \
