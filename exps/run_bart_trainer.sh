@@ -15,7 +15,7 @@ export HF_METRICS_CACHE=checkpoints/hf_model
 
 cache_dir=${TRANSFORMERS_CACHE}
 
-conda activate adapter
+# conda activate adapter
 # wandb env variables
 export WANDB_PROJECT=xsum_tride
 export WANDB_WATCH="false"
@@ -24,13 +24,13 @@ DATE=`date +%Y%m%d`
 dataset="xsum"
 
 attn_mode="lisa"
-attn_option="concat"
+attn_option="cross_attn"
 
-ffn_mode="adapter"
+ffn_mode="none"
 ffn_option="ffn_ho_input"
 ffn_num_heads=16
 
-attn_gate="none"
+attn_gate="auto"
 ffn_gate="none"
 
 layer_norm_in=1
@@ -64,8 +64,8 @@ eval_strategy="steps"
 save_steps=3000
 report_to="wandb"
 
-debug=0
-vis_analysis=0
+debug=1
+vis_analysis=1
 extra_cmd=""
 debug_str=""
 

@@ -401,6 +401,7 @@ class BartAttention(nn.Module):
 
         if self.config.attn_mode != "none" and self.config.attn_gate == "auto":
             if self.training and self.opt is not None:
+                # import pdb; pdb.set_trace()
                 self.step += 1
                 layer_spec = self.spec[self.cache_key] + "_" + str(self.layer_id)
                 opt_str = "step={}\t{}\t".format(self.step, layer_spec)
@@ -425,12 +426,14 @@ class BartAttention(nn.Module):
 
                 attn_opt = attn_output.view(bsz, self.num_heads, -1, self.head_dim) * masked_w_attn.unsqueeze(-1)
                 cross_attn_opt = cross_attn_output.view(bsz, self.num_heads, -1, self.head_dim) * masked_w_pref.unsqueeze(-1)
-                attn_norm = torch.norm(attn_opt, dim=-1).mean()
-                cross_attn_norm = torch.norm(cross_attn_opt, dim=-1).mean()
+                attn_norm = torch.norm(attn_opt, dim=-1).sum() / mask.sum()
+                cross_attn_norm = torch.norm(cross_attn_opt, dim=-1).sum() / mask.sum()
                 opt_str += "avg_attn_norm={}\tavg_prefix_norm={}\n".format(attn_norm.item(), cross_attn_norm.item())
                 self.opt.write(opt_str)
 
             attn_output = attn_output * w_attn + cross_attn_output * w_prefix
+            cross_attn_output = None
+
 
         attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
         attn_output = attn_output.transpose(1, 2)
@@ -1708,7 +1711,7 @@ class BartForConditionalGeneration(BartPretrainedModel):
                     labels, self.config.pad_token_id, self.config.decoder_start_token_id
                 )
 
-        if self.training and self.config.attn_mode == 'lisa' and self.config.gate_option == "cross_attn" and self.config.analysis_opt != "":
+        if self.training and self.config.attn_mode == 'lisa' and self.config.attn_gate == "auto" and self.config.analysis_opt != "":
             source_mask = (input_ids != self.config.pad_token_id).float()
             target_mask = (decoder_input_ids != self.config.pad_token_id).float()
             for prefix_layers in prefix_state:
