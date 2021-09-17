@@ -1,9 +1,9 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=tran.hi.apl.200
+#SBATCH --job-name=tran.ho
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:RTX_8000:1
+#SBATCH --gres=gpu:A6000:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
@@ -27,8 +27,6 @@ DATE=`date +%Y%m%d`
 dataset="wmt16"
 
 port=20292
-adapter_post_layernorm=0
-
 # Hi adapter
 attn_mode="none"
 attn_option="none"
@@ -36,8 +34,7 @@ ffn_mode="adapter"
 ffn_option="ffn_hi_input"
 gate_option="none"
 preseqlen=0
-ffn_bn_len=200
-adapter_post_layernorm=1
+ffn_bn_len=512
 
 # Ho adapter
 #attn_mode="none"
@@ -46,8 +43,7 @@ adapter_post_layernorm=1
 #ffn_option="ffn_ho_input"
 #gate_option="none"
 #preseqlen=0
-#ffn_bn_len=512
-#adapter_post_layernorm=1
+#ffn_bn_len=200
 
 # PT + Hi adapter
 #attn_mode="lisa"
@@ -57,7 +53,6 @@ adapter_post_layernorm=1
 #gate_option="none"
 #preseqlen=30
 #ffn_bn_len=512
-#adapter_post_layernorm=1
 
 # lisa default
 #attn_mode="lisa"
@@ -104,10 +99,10 @@ num_train_epochs=30
 warmup_updates=0
 lr=5e-5
 lr_scheduler_type="polynomial"
-max_grad_norm=1 # fixme: fairseq sets no grad_norm
+max_grad_norm=1.0 # fixme: fairseq sets no grad_norm
 weight_decay=0.01
-bsz=24
-gradient_steps=20
+bsz=20
+gradient_steps=10
 #metric=bleu
 metric=loss
 ft='ef_'
@@ -122,13 +117,13 @@ report_to="wandb"
 
 debug=0
 extra_cmd=""
-debug_str=""
+debug_str="debug"
 
 if [ "${debug}" = 1 ];
 then
     label_smoothing_factor=0
     weight_decay=0
-    max_grad_norm=1
+    max_grad_norm=100
     max_train_samples=4000
     max_eval_samples=150
     bsz=10
@@ -143,8 +138,8 @@ then
     debug_str=".debug"
 fi
 
-#report_to="none"
-exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.apl${adapter_post_layernorm}.lni${layer_norm_in}.lno${layer_norm_out}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+report_to="none"
+exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.lni${layer_norm_in}.lno${layer_norm_out}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
@@ -161,7 +156,7 @@ python -u examples/pytorch/translation/run_translation.py \
     --do_predict \
     --per_device_train_batch_size ${bsz} \
     --per_device_eval_batch_size ${bsz} \
-    --adapter_post_layernorm ${adapter_post_layernorm} \
+    --adapter_post_layernorm 1 \
     --adam_beta1 0.9 \
     --adam_beta2 0.98 \
     --adam_epsilon 1e-6 \

@@ -341,8 +341,7 @@ def main():
             setattr(config, k, v)
 
     for k, v in vars(mbart_args).items():
-        if not hasattr(config, k):
-            setattr(config, k, v)
+        setattr(config, k, v)
 
     for k in ['max_source_length', 'max_target_length']:
         setattr(config, k, vars(data_args)[k])

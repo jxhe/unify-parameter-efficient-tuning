@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=tran.ldef
+#SBATCH --job-name=tran.ldef.0.1
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:A6000:1
 #SBATCH --mem=30g
@@ -44,7 +44,7 @@ num_train_epochs=30
 warmup_updates=0
 lr=5e-5
 lr_scheduler_type="polynomial"
-max_grad_norm=1000 # fixme: fairseq sets no grad_norm
+max_grad_norm=1 # fixme: fairseq sets no grad_norm
 weight_decay=0.0
 bsz=24
 gradient_steps=20
@@ -54,7 +54,7 @@ ft='ef_'
 top_layers=12
 max_eval_samples=1600
 logging_steps=100
-label_smoothing_factor=0.0
+label_smoothing_factor=0.1
 
 eval_strategy="steps"
 save_steps=5000
@@ -104,8 +104,8 @@ python -u examples/pytorch/translation/run_translation.py \
     --adam_beta1 0.9 \
     --adam_beta2 0.98 \
     --adam_epsilon 1e-6 \
-    --dropout 0.3 \
-    --attention_dropout 0.1 \
+    --dropout 0.1 \
+    --attention_dropout 0.0 \
     --attn_mode ${attn_mode} \
     --attn_option ${attn_option} \
     --ffn_mode ${ffn_mode} \
