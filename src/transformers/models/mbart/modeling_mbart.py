@@ -199,6 +199,7 @@ class MBartAttention(nn.Module):
         # for the decoder
         is_cross_attention = key_value_states is not None
         bsz, tgt_len, embed_dim = hidden_states.size()
+        # import pdb; pdb.set_trace()
 
         # get query proj
         query_states = self.q_proj(hidden_states) * self.scaling
@@ -1338,6 +1339,7 @@ class MBartModel(MBartPreTrainedModel):
         # print(decoder_input_ids.size())
         # print(decoder_input_ids[:5])
         # input()
+        # import pdb; pdb.set_trace()
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states

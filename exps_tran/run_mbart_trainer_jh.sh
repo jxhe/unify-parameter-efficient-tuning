@@ -27,8 +27,8 @@ dataset="wmt16"
 
 port=62222
 # Hi adapter
-attn_mode="adapter"
-attn_option="attn_adapter"
+attn_mode="none"
+attn_option="concat"
 ffn_mode="none"
 ffn_option="ffn_hi_input"
 preseqlen=200
@@ -92,19 +92,21 @@ ffn_gate="none"
 #preseqlen=200
 #ffn_bn_len=1
 
+max_tokens_per_batch=1024
+bsz=24
+gradient_steps=16
+
 layer_norm_in=1
 layer_norm_out=0
 mh_reuse_proj="True"
 
-max_steps=50000
+max_steps=30000
 num_train_epochs=30
-warmup_updates=0
-lr=5e-5
+warmup_updates=2500
+lr=3e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=1
 weight_decay=0.01
-bsz=24
-gradient_steps=20
 #metric=bleu
 metric=loss
 ft='ef_'
@@ -117,7 +119,7 @@ eval_strategy="steps"
 save_steps=5000
 report_to="wandb"
 
-debug=1
+debug=0
 extra_cmd=""
 debug_str=""
 
@@ -140,7 +142,7 @@ then
     debug_str=".debug"
 fi
 
-exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.adalno${adapter_post_layernorm}.lni${layer_norm_in}.lno${layer_norm_out}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.adalno${adapter_post_layernorm}.lni${layer_norm_in}.lno${layer_norm_out}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
@@ -157,6 +159,7 @@ python -u examples/pytorch/translation/run_translation.py \
     --do_predict \
     --per_device_train_batch_size ${bsz} \
     --per_device_eval_batch_size ${bsz} \
+    --max_tokens_per_batch ${max_tokens_per_batch} \
     --adam_beta1 0.9 \
     --adam_beta2 0.98 \
     --adam_epsilon 1e-6 \

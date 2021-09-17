@@ -24,7 +24,7 @@ DATE=`date +%Y%m%d`
 dataset="xsum"
 
 attn_mode="lisa"
-attn_option="cross_attn"
+attn_option="concat"
 
 ffn_mode="none"
 ffn_option="ffn_ho_input"
