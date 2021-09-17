@@ -27,12 +27,13 @@ dataset="wmt16"
 
 port=62222
 # Hi adapter
-attn_mode="lisa"
-attn_option="cross_attn"
+attn_mode="adapter"
+attn_option="attn_adapter"
 ffn_mode="none"
 ffn_option="ffn_hi_input"
 preseqlen=200
-ffn_bn_len=512
+ffn_bn_len=200
+adapter_post_layernorm=0
 
 
 attn_gate="none"
@@ -100,7 +101,7 @@ num_train_epochs=30
 warmup_updates=0
 lr=5e-5
 lr_scheduler_type="polynomial"
-max_grad_norm=1 
+max_grad_norm=1
 weight_decay=0.01
 bsz=24
 gradient_steps=20
@@ -116,7 +117,7 @@ eval_strategy="steps"
 save_steps=5000
 report_to="wandb"
 
-debug=1
+debug=0
 extra_cmd=""
 debug_str=""
 
@@ -129,7 +130,7 @@ then
     max_eval_samples=150
     bsz=24
     gradient_steps=8
-    num_train_epochs=16
+    num_train_epochs=30
     max_steps=-1
     eval_strategy='steps'
     save_steps=100
@@ -139,7 +140,7 @@ then
     debug_str=".debug"
 fi
 
-exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.lni${layer_norm_in}.lno${layer_norm_out}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.adalno${adapter_post_layernorm}.lni${layer_norm_in}.lno${layer_norm_out}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
@@ -170,6 +171,7 @@ python -u examples/pytorch/translation/run_translation.py \
     --mh_reuse_proj ${mh_reuse_proj} \
     --layer_norm_before ${layer_norm_in} \
     --layer_norm_after ${layer_norm_out} \
+    --adapter_post_layernorm ${adapter_post_layernorm} \
     --mid_dim 800 \
     --preseqlen ${preseqlen} \
     --ffn_bn_len ${ffn_bn_len} \
