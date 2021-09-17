@@ -628,17 +628,27 @@ class Trainer:
                 pin_memory=self.args.dataloader_pin_memory,
             )
 
-        train_sampler = self._get_train_sampler()
+        if self.args.max_tokens_per_batch == 0:
+            train_sampler = self._get_train_sampler()
 
-        return DataLoader(
-            train_dataset,
-            batch_size=self.args.train_batch_size,
-            sampler=train_sampler,
-            collate_fn=self.data_collator,
-            drop_last=self.args.dataloader_drop_last,
-            num_workers=self.args.dataloader_num_workers,
-            pin_memory=self.args.dataloader_pin_memory,
-        )
+            return DataLoader(
+                train_dataset,
+                batch_size=self.args.train_batch_size,
+                sampler=train_sampler,
+                collate_fn=self.data_collator,
+                drop_last=self.args.dataloader_drop_last,
+                num_workers=self.args.dataloader_num_workers,
+                pin_memory=self.args.dataloader_pin_memory,
+            )
+        else:
+            return DataLoader(
+                train_dataset,
+                collate_fn=self.data_collator,
+                batch_sampler=train_dataset.make_dynamic_sampler(
+                    self.args.max_tokens_per_batch, distributed=(self.args.world_size > 1)),
+                num_workers=self.args.dataloader_num_workers,
+                pin_memory=self.args.dataloader_pin_memory,
+            )
 
     def _get_eval_sampler(self, eval_dataset: Dataset) -> Optional[torch.utils.data.sampler.Sampler]:
         # Deprecated code
@@ -704,17 +714,27 @@ class Trainer:
                 pin_memory=self.args.dataloader_pin_memory,
             )
 
-        eval_sampler = self._get_eval_sampler(eval_dataset)
+        if self.args.max_tokens_per_batch == 0:
+            eval_sampler = self._get_eval_sampler(eval_dataset)
 
-        return DataLoader(
-            eval_dataset,
-            sampler=eval_sampler,
-            batch_size=self.args.eval_batch_size,
-            collate_fn=self.data_collator,
-            drop_last=self.args.dataloader_drop_last,
-            num_workers=self.args.dataloader_num_workers,
-            pin_memory=self.args.dataloader_pin_memory,
-        )
+            return DataLoader(
+                eval_dataset,
+                sampler=eval_sampler,
+                batch_size=self.args.eval_batch_size,
+                collate_fn=self.data_collator,
+                drop_last=self.args.dataloader_drop_last,
+                num_workers=self.args.dataloader_num_workers,
+                pin_memory=self.args.dataloader_pin_memory,
+            )
+        else:
+            return DataLoader(
+                eval_dataset,
+                collate_fn=self.data_collator,
+                batch_sampler=eval_dataset.make_dynamic_sampler(
+                    self.args.max_tokens_per_batch, distributed=(self.args.world_size > 1)),
+                num_workers=self.args.dataloader_num_workers,
+                pin_memory=self.args.dataloader_pin_memory,
+            )
 
     def get_test_dataloader(self, test_dataset: Dataset) -> DataLoader:
         """
@@ -747,17 +767,28 @@ class Trainer:
                 pin_memory=self.args.dataloader_pin_memory,
             )
 
-        test_sampler = self._get_eval_sampler(test_dataset)
+        if self.tokens.max_tokens_per_batch == 0:
+            test_sampler = self._get_eval_sampler(test_dataset)
 
-        # We use the same batch_size as for eval.
-        return DataLoader(
-            test_dataset,
-            sampler=test_sampler,
-            batch_size=self.args.eval_batch_size,
-            collate_fn=self.data_collator,
-            drop_last=self.args.dataloader_drop_last,
-            pin_memory=self.args.dataloader_pin_memory,
-        )
+            # We use the same batch_size as for eval.
+            return DataLoader(
+                test_dataset,
+                sampler=test_sampler,
+                batch_size=self.args.eval_batch_size,
+                collate_fn=self.data_collator,
+                drop_last=self.args.dataloader_drop_last,
+                pin_memory=self.args.dataloader_pin_memory,
+            )
+        else:
+            return DataLoader(
+                test_dataset,
+                collate_fn=self.data_collator,
+                batch_sampler=test_dataset.make_dynamic_sampler(
+                    self.args.max_tokens_per_batch, distributed=(self.args.world_size > 1)),
+                num_workers=self.args.dataloader_num_workers,
+                pin_memory=self.args.dataloader_pin_memory,
+            )
+
 
     def create_optimizer_and_scheduler(self, num_training_steps: int):
         """

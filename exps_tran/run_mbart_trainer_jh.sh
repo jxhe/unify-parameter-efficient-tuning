@@ -92,6 +92,8 @@ ffn_gate="none"
 #preseqlen=200
 #ffn_bn_len=1
 
+max_tokens_per_batch=0
+
 layer_norm_in=1
 layer_norm_out=0
 mh_reuse_proj="True"
@@ -140,7 +142,7 @@ then
     debug_str=".debug"
 fi
 
-exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.adalno${adapter_post_layernorm}.lni${layer_norm_in}.lno${layer_norm_out}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.adalno${adapter_post_layernorm}.lni${layer_norm_in}.lno${layer_norm_out}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
@@ -157,6 +159,7 @@ python -u examples/pytorch/translation/run_translation.py \
     --do_predict \
     --per_device_train_batch_size ${bsz} \
     --per_device_eval_batch_size ${bsz} \
+    --max_tokens_per_batch ${max_tokens_per_batch} \
     --adam_beta1 0.9 \
     --adam_beta2 0.98 \
     --adam_epsilon 1e-6 \

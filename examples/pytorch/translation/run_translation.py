@@ -56,6 +56,7 @@ from effectune.options import (
     MBARTArguments,
 )
 from effectune.prefix_tuning_MBART import PrefixTuning
+from effectune.dynamic_batching import DynamicBatchingDataset
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.9.0.dev0")
@@ -210,6 +211,13 @@ class DataTrainingArguments:
         },
     )
 
+    max_tokens_per_batch: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": "dynamic batching. Override batch size when larger than 0"
+        },
+    )
+
     def __post_init__(self):
         if self.dataset_name is None and self.train_file is None and self.validation_file is None:
             raise ValueError("Need either a dataset name or a training/validation file.")
@@ -348,6 +356,8 @@ def main():
     for k in ['max_source_length', 'max_target_length']:
         setattr(config, k, vars(data_args)[k])
 
+    setattr(training_args, 'max_tokens_per_batch', data_args.max_tokens_per_batch)
+
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
@@ -457,6 +467,10 @@ def main():
             desc="Running tokenizer on train dataset",
         )
 
+        # dynamic batching
+        if data_args.max_tokens_per_batch > 0:
+            train_dataset = DynamicBatchingDataset(train_dataset)
+
     if training_args.do_eval:
         max_target_length = data_args.val_max_target_length
         if "validation" not in raw_datasets:
@@ -474,6 +488,10 @@ def main():
             desc="Running tokenizer on validation dataset",
         )
 
+        # dynamic batching
+        if data_args.max_tokens_per_batch > 0:
+            eval_dataset = DynamicBatchingDataset(eval_dataset)
+
     if training_args.do_predict:
         max_target_length = data_args.val_max_target_length
         if "test" not in raw_datasets:
@@ -489,6 +507,10 @@ def main():
             load_from_cache_file=not data_args.overwrite_cache,
             desc="Running tokenizer on prediction dataset",
         )
+
+        # dynamic batching
+        if data_args.max_tokens_per_batch > 0:
+            predict_dataset = DynamicBatchingDataset(predict_dataset)
 
     # Data collator
     label_pad_token_id = -100 if data_args.ignore_pad_token_for_loss else tokenizer.pad_token_id
