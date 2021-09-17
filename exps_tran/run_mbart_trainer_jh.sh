@@ -117,7 +117,7 @@ eval_strategy="steps"
 save_steps=5000
 report_to="wandb"
 
-debug=0
+debug=1
 extra_cmd=""
 debug_str=""
 
