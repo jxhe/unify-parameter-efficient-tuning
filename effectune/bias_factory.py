@@ -543,7 +543,7 @@ class Adapter_Layer(nn.Module):
         down = nn.functional.dropout(down, p=self.dropout, training=self.training)
         up = self.up_proj(down)
 
-        if if self.adapter_layernorm_option == 'out':
+        if self.adapter_layernorm_option == 'out':
             up = self.adapter_layer_norm_before(up)
 
         if add_residual:

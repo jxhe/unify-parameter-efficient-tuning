@@ -32,17 +32,20 @@ attn_option="concat"
 ffn_mode="adapter"
 ffn_option="ffn_hi_input"
 preseqlen=200
-ffn_bn_len=512
+ffn_bn_len=1024
 hi_lnbefore=1
 adapter_layernorm_option="in"
+label_smoothing_factor=0.2
 
+max_tokens_per_batch=2048
+gradient_steps=4
+bsz=10
+
+debug=1
 
 attn_gate="none"
 ffn_gate="none"
 
-max_tokens_per_batch=4096
-bsz=10
-gradient_steps=4
 
 layer_norm_in=1
 layer_norm_out=0
@@ -61,13 +64,11 @@ ft='ef_'
 top_layers=12
 max_eval_samples=1600
 logging_steps=100
-label_smoothing_factor=0.1
 
 eval_strategy="steps"
 save_steps=5000
 report_to="wandb"
 
-debug=0
 extra_cmd=""
 debug_str=""
 
@@ -79,9 +80,9 @@ then
     max_train_samples=4000
     max_eval_samples=150
     bsz=10
-    gradient_steps=8
+    gradient_steps=4
     num_train_epochs=30
-    max_steps=-1
+    max_steps=120
     eval_strategy='steps'
     save_steps=100
     report_to="none"
@@ -90,12 +91,12 @@ then
     debug_str=".debug"
 fi
 
-exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.adalo${adapter_layernorm_option}.hilnb_${hi_lnbefore}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
+exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.adalo_${adapter_layernorm_option}.hilnb_${hi_lnbefore}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
-# python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port} examples/pytorch/translation/run_translation.py \
-python -u examples/pytorch/translation/run_translation.py \
+# python -u examples/pytorch/translation/run_translation.py \
+python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port} examples/pytorch/translation/run_translation.py \
     --dataset_name ${dataset}\
     --dataset_config_name ro-en \
     --model_name_or_path "facebook/mbart-large-cc25" \
