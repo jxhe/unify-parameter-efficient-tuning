@@ -13,6 +13,8 @@ source activate tride
 which python
 
 export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
+export HF_DATASETS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
+export HF_METRICS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
 
 # wandb env variables
@@ -22,13 +24,6 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-attn_mode="lisa"
-attn_option="concat"
-ffn_mode="adapter"
-ffn_option="ffn_hi_input"
-gate_option="none"
-preseqlen=200
-ffn_bn_len=200
 
 #attn_mode="none"
 #attn_option="none"
@@ -37,22 +32,14 @@ ffn_bn_len=200
 #gate_option="none"
 #preseqlen=100
 #ffn_bn_len=512
-
-attn_mode="adapter"
-attn_option="attn_adapter_after_oproj"
+#
+attn_mode="lisa"
+attn_option="cross_attn"
 ffn_mode="adapter"
 ffn_option="ffn_hi_input"
-gate_option="none"
-preseqlen=200
-ffn_bn_len=200
-
-attn_mode="adapter"
-attn_option="attn_adapter_after_oproj"
-ffn_mode="adapter"
-ffn_option="ffn_hi_input"
-gate_option="none"
-preseqlen=200
-ffn_bn_len=200
+gate_option="cross_attn"
+preseqlen=30
+ffn_bn_len=512
 
 #attn_mode="adapter"
 #attn_option="attn_adapter"
@@ -61,17 +48,33 @@ ffn_bn_len=200
 #gate_option="none"
 #preseqlen=200
 #ffn_bn_len=200
+#
+#attn_mode="adapter"
+#attn_option="attn_adapter"
+#ffn_mode="none"
+#ffn_option="none"
+#gate_option="none"
+#preseqlen=200
+#ffn_bn_len=200
+#
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#gate_option="none"
+#preseqlen=200
+#ffn_bn_len=200
 
-attn_mode="adapter"
-attn_option="attn_adapter_after_oproj"
-ffn_mode="none"
-ffn_option="none"
+attn_mode="lisa"
+attn_option="concat"
+ffn_mode="adapter"
+ffn_option="ffn_hi_input"
 gate_option="none"
-preseqlen=200
-ffn_bn_len=200
+preseqlen=30
+ffn_bn_len=512
 
 mh_reuse_proj="True"
-adapter_post_layernorm=1
+adapter_post_layernorm=0
 
 max_steps=100000
 num_train_epochs=30
@@ -91,7 +94,6 @@ logging_steps=100
 label_smoothing_factor=0.1
 
 eval_strategy="steps"
-# eval_strategy="steps"
 save_steps=3000
 report_to="wandb"
 
@@ -118,9 +120,8 @@ then
 fi
 
 
-exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.adapter_postln_${adapter_post_layernorm}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.mh_reuse_proj_${mh_reuse_proj}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.mh_reuse_proj_${mh_reuse_proj}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
-
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
 python -u examples/pytorch/summarization/run_summarization.py \
@@ -128,6 +129,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
     --attn_mode ${attn_mode} \
+    --adapter_post_layernorm ${adapter_post_layernorm} \
     --attn_option ${attn_option} \
     --ffn_mode ${ffn_mode} \
     --ffn_option ${ffn_option} \
@@ -150,6 +152,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --no_repeat_ngram_size 3 \
     --do_train \
     --do_eval \
+    --do_predict \
     --per_device_train_batch_size ${bsz} \
     --per_device_eval_batch_size ${bsz} \
     --gradient_accumulation_steps ${gradient_steps} \
@@ -182,4 +185,5 @@ python -u examples/pytorch/summarization/run_summarization.py \
     # --metric_for_best_model ${metric} \
     # --greater_is_better "True" \
 
+    #--analysis_opt ${aopt} \
 #rm -rf ${SAVE}/pytorch_model.bin

@@ -16,7 +16,7 @@ export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
 
 # wandb env variables
-export WANDB_PROJECT=xsum_tride
+export WANDB_PROJECT=xsum_low
 export WANDB_WATCH="false"
 
 DATE=`date +%Y%m%d`
@@ -24,11 +24,44 @@ dataset="xsum"
 
 attn_mode="lisa"
 attn_option="concat"
+ffn_mode="none"
+ffn_option="none"
+gate_option="none"
+preseqlen=30
+ffn_bn_len=-1
+
+attn_mode="none"
+attn_option="none"
 ffn_mode="adapter"
 ffn_option="ffn_hi_input"
 gate_option="none"
-preseqlen=200
-ffn_bn_len=512
+preseqlen=-1
+ffn_bn_len=30
+
+attn_mode="none"
+attn_option="none"
+ffn_mode="adapter"
+ffn_option="ffn_ho_input"
+gate_option="none"
+preseqlen=-1
+ffn_bn_len=30
+
+# train params
+#attn_mode="lisa"
+#attn_option="concat"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#gate_option="none"
+#preseqlen=200
+#ffn_bn_len=512
+#
+#attn_mode="lisa"
+#attn_option="concat"
+#ffn_mode="adapter"
+#ffn_option="ffn_ho_input"
+#gate_option="none"
+#preseqlen=200
+#ffn_bn_len=512
 
 N=1K
 data_dir=/projects/tir5/users/chuntinz/data/tride/xsum/xsum_1k
@@ -42,6 +75,7 @@ lr=5e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=0.1
 weight_decay=0.01
+label_smoothing_factor=0.1
 bsz=16
 gradient_steps=4
 metric=rouge2
@@ -50,11 +84,16 @@ top_layers=12
 max_eval_samples=1000
 max_train_samples=2000
 logging_steps=50
-label_smoothing_factor=0.1
+
+max_grad_norm=1
+weight_decay=0.0
+label_smoothing_factor=0.0
 
 eval_strategy="steps"
 save_steps=50
 report_to="wandb"
+
+report_to="none"
 
 debug=0
 extra_cmd=""
@@ -114,6 +153,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --no_repeat_ngram_size 3 \
     --do_train \
     --do_eval \
+    --do_predict \
     --per_device_train_batch_size ${bsz} \
     --per_device_eval_batch_size ${bsz} \
     --gradient_accumulation_steps ${gradient_steps} \
@@ -152,3 +192,4 @@ rm -rf ${SAVE}/tokenizer.json
 rm -rf ${SAVE}/optimizer.pt
 rm -rf ${SAVE}/trainer_state.json
 rm -rf ${SAVE}/vocab.json
+rm -rf ${SAVE}/merges.txt

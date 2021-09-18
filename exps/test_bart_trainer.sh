@@ -10,21 +10,28 @@
 #SBATCH --time=0
 ##SBATCH --array=0
 
-export TRANSFORMERS_CACHE=checkpoints/hf_model
-cache_dir=${TRANSFORMERS_CACHE}
+source activate tride
+which python
+
+export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
+export HF_DATASETS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
+export HF_METRICS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
+cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
 
 
 # wandb env variables
 export WANDB_PROJECT=xsum_tride
 export WANDB_WATCH="false"
 
+SLURM_ARRAY_JOB_ID=0
+SLURM_ARRAY_TASK_ID=0
 jobid=${SLURM_ARRAY_JOB_ID}
 taskid=${SLURM_ARRAY_TASK_ID}
 
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-declare -a model_list=("checkpoints/xsum/20210819/xsum_tride.prefix.lisa.default.ms100000.ls0.1.wd0.01"
+declare -a model_list=("checkpoints/xsum/20210904/xsum_tride.am_lisa.ao_cross_attn.fm_adapter.fo_ffn_hi_input.go_cross_attn.abn30.fbn512.mh_reuse_proj_True.unfreeze_ef_.ms100000.ls0.1.warm0.wd0.01"
     )
 
 # to tune length penalty
@@ -44,16 +51,19 @@ log="test_log${taskid}.txt"
 attn_mode="lisa"
 attn_option="concat"
 
-ffn_mode="none"
+attn_mode="lisa"
+attn_option="cross_attn"
+
+ffn_mode="adapter"
 ffn_option="ffn_hi_input"
 
 gate_option="none"
-
+gate_option="cross_attn"
 layer_norm_in=1
 layer_norm_out=0
 
-preseqlen=200
-ffn_bn_len=1
+preseqlen=30
+ffn_bn_len=512
 mh_reuse_proj="True"
 
 max_steps=100000
@@ -63,7 +73,7 @@ lr=5e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=0.1
 weight_decay=0.01
-bsz=8
+bsz=16
 gradient_steps=4
 metric=rouge2
 ft='ef_'
