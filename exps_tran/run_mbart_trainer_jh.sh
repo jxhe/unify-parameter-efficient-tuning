@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=tran
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:A6000:1
+#SBATCH --gres=gpu:3090:2
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
@@ -25,86 +25,36 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="wmt16"
 
-port=62222
+port=62220
 # Hi adapter
 attn_mode="none"
 attn_option="concat"
-ffn_mode="none"
+ffn_mode="adapter"
 ffn_option="ffn_hi_input"
 preseqlen=200
-ffn_bn_len=200
-adapter_post_layernorm=0
+ffn_bn_len=1024
 hi_lnbefore=1
+adapter_layernorm_option="in"
+label_smoothing_factor=0.2
 
+max_tokens_per_batch=2048
+gradient_steps=4
+bsz=10
+
+debug=1
 
 attn_gate="none"
 ffn_gate="none"
 
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_ho_input"
-#gate_option="none"
-#preseqlen=0
-#ffn_bn_len=512
-
-# PT + Hi adapter
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#gate_option="none"
-#preseqlen=30
-#ffn_bn_len=512
-
-# lisa default
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="none"
-#ffn_option="none"
-#gate_option="none"
-#preseqlen=200
-#ffn_bn_len=1
-
-# lisa cross attention version
-#attn_mode="lisa"
-#attn_option="cross_attn"
-#ffn_mode="none"
-#ffn_option="none"
-#gate_option="cross_attn"
-#preseqlen=200
-#ffn_bn_len=1
-
-# adapter at attention
-#attn_mode="adapter"
-#attn_option="attn_adapter"
-#ffn_mode="none"
-#ffn_option="none"
-#gate_option="none"
-#preseqlen=200
-#ffn_bn_len=1
-
-# cross attention
-#attn_mode="lisa"
-#attn_option="cross_attn"
-#ffn_mode="none"
-#ffn_option="none"
-#gate_option="none"
-#preseqlen=200
-#ffn_bn_len=1
-
-max_tokens_per_batch=2048
-bsz=24
-gradient_steps=8
 
 layer_norm_in=1
 layer_norm_out=0
 mh_reuse_proj="True"
 
-max_steps=30000
+max_steps=50000
 num_train_epochs=30
-warmup_updates=2500
-lr=3e-5
+warmup_updates=0
+lr=5e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=1
 weight_decay=0.01
@@ -114,13 +64,11 @@ ft='ef_'
 top_layers=12
 max_eval_samples=1600
 logging_steps=100
-label_smoothing_factor=0.2
 
 eval_strategy="steps"
 save_steps=5000
 report_to="wandb"
 
-debug=0
 extra_cmd=""
 debug_str=""
 
@@ -131,10 +79,10 @@ then
     max_grad_norm=1
     max_train_samples=4000
     max_eval_samples=150
-    bsz=24
-    gradient_steps=8
+    bsz=10
+    gradient_steps=4
     num_train_epochs=30
-    max_steps=-1
+    max_steps=120
     eval_strategy='steps'
     save_steps=100
     report_to="none"
@@ -143,12 +91,12 @@ then
     debug_str=".debug"
 fi
 
-exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.adalno${adapter_post_layernorm}.hilnb_${hi_lnbefore}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
+exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.adalo_${adapter_layernorm_option}.hilnb_${hi_lnbefore}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
-# python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port} examples/pytorch/translation/run_translation.py \
-python -u examples/pytorch/translation/run_translation.py \
+# python -u examples/pytorch/translation/run_translation.py \
+python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port} examples/pytorch/translation/run_translation.py \
     --dataset_name ${dataset}\
     --dataset_config_name ro-en \
     --model_name_or_path "facebook/mbart-large-cc25" \
@@ -172,10 +120,10 @@ python -u examples/pytorch/translation/run_translation.py \
     --ffn_mode ${ffn_mode} \
     --ffn_option ${ffn_option} \
     --ffn_gate ${ffn_gate} \
+    --adapter_layernorm_option ${adapter_layernorm_option} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --layer_norm_before ${layer_norm_in} \
     --layer_norm_after ${layer_norm_out} \
-    --adapter_post_layernorm ${adapter_post_layernorm} \
     --hi_lnbefore ${hi_lnbefore} \
     --mid_dim 800 \
     --preseqlen ${preseqlen} \
