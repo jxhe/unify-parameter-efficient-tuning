@@ -41,7 +41,7 @@ attn_gate="none"
 ffn_gate="none"
 
 max_tokens_per_batch=4096
-bsz=24
+bsz=10
 gradient_steps=4
 
 layer_norm_in=1
@@ -78,7 +78,7 @@ then
     max_grad_norm=1
     max_train_samples=4000
     max_eval_samples=150
-    bsz=24
+    bsz=10
     gradient_steps=8
     num_train_epochs=30
     max_steps=-1
