@@ -76,6 +76,7 @@ class DistributedSortishSampler(Sampler):
         self.dataset = dataset
         self.num_replicas = num_replicas
         self.rank = rank
+        print(f'rank {rank}')
         self.epoch = 0
         if add_extra_examples:
             self.num_samples = int(math.ceil(len(self.dataset) * 1.0 / self.num_replicas))
@@ -131,6 +132,7 @@ class DynamicBatchingDataset(Dataset):
 
     def make_sortish_sampler(self, batch_size, distributed=False, shuffle=True, **kwargs):
         if distributed:
+            print('call DistributedSortishSampler')
             return DistributedSortishSampler(self, batch_size, shuffle=shuffle, **kwargs)
         else:
             return SortishSampler(self.src_lens, batch_size, shuffle=shuffle)

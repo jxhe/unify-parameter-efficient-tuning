@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=tran
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:A6000:1
+#SBATCH --gres=gpu:3090:2
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
@@ -25,86 +25,33 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="wmt16"
 
-port=62222
+port=62220
 # Hi adapter
 attn_mode="none"
 attn_option="concat"
-ffn_mode="none"
+ffn_mode="adapter"
 ffn_option="ffn_hi_input"
 preseqlen=200
-ffn_bn_len=200
-adapter_post_layernorm=0
+ffn_bn_len=512
+adapter_post_layernorm=1
 hi_lnbefore=1
 
 
 attn_gate="none"
 ffn_gate="none"
 
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_ho_input"
-#gate_option="none"
-#preseqlen=0
-#ffn_bn_len=512
-
-# PT + Hi adapter
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#gate_option="none"
-#preseqlen=30
-#ffn_bn_len=512
-
-# lisa default
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="none"
-#ffn_option="none"
-#gate_option="none"
-#preseqlen=200
-#ffn_bn_len=1
-
-# lisa cross attention version
-#attn_mode="lisa"
-#attn_option="cross_attn"
-#ffn_mode="none"
-#ffn_option="none"
-#gate_option="cross_attn"
-#preseqlen=200
-#ffn_bn_len=1
-
-# adapter at attention
-#attn_mode="adapter"
-#attn_option="attn_adapter"
-#ffn_mode="none"
-#ffn_option="none"
-#gate_option="none"
-#preseqlen=200
-#ffn_bn_len=1
-
-# cross attention
-#attn_mode="lisa"
-#attn_option="cross_attn"
-#ffn_mode="none"
-#ffn_option="none"
-#gate_option="none"
-#preseqlen=200
-#ffn_bn_len=1
-
-max_tokens_per_batch=2048
+max_tokens_per_batch=4096
 bsz=24
-gradient_steps=8
+gradient_steps=4
 
 layer_norm_in=1
 layer_norm_out=0
 mh_reuse_proj="True"
 
-max_steps=30000
+max_steps=50000
 num_train_epochs=30
-warmup_updates=2500
-lr=3e-5
+warmup_updates=0
+lr=5e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=1
 weight_decay=0.01
@@ -114,7 +61,7 @@ ft='ef_'
 top_layers=12
 max_eval_samples=1600
 logging_steps=100
-label_smoothing_factor=0.2
+label_smoothing_factor=0.1
 
 eval_strategy="steps"
 save_steps=5000
