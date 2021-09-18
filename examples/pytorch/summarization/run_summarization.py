@@ -351,6 +351,18 @@ def main():
     for k, v in vars(gen_args).items():
         setattr(config, f'gen_{k}', v)
 
+    try:
+        attn_gate = float(tune_args.attn_gate)
+        tune_args.attn_gate = attn_gate
+    except:
+        pass
+
+    try:
+        ffn_gate = float(tune_args.ffn_gate)
+        tune_args.ffn_gate = ffn_gate
+    except:
+        pass
+
     # put useful args into config: these arguments will be used in models, thus adding them to config
     # interested_args = ['use_prefix', 'mid_dim', 'preseqlen', 'prefix_dropout', 'unfreeze_params']
     for k, v in vars(tune_args).items():
@@ -620,6 +632,7 @@ def main():
         trainer.save_metrics("eval", metrics)
 
     if training_args.do_predict:
+        gen_prefix = "test"
         logger.info("*** Predict ***")
 
         predict_results = trainer.predict(

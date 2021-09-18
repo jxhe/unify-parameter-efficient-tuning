@@ -10,9 +10,12 @@
 ##SBATCH --array=0
 
 export TRANSFORMERS_CACHE=checkpoints/hf_model
+export HF_DATASETS_CACHE=checkpoints/hf_model
+export HF_METRICS_CACHE=checkpoints/hf_model
+
 cache_dir=${TRANSFORMERS_CACHE}
 
-
+# conda activate adapter
 # wandb env variables
 export WANDB_PROJECT=xsum_tride
 export WANDB_WATCH="false"
@@ -20,19 +23,21 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-attn_mode="none"
-attn_option="cross_attn"
+attn_mode="lisa"
+attn_option="concat"
 
 ffn_mode="none"
-ffn_option="ffn_hi_input"
+ffn_option="ffn_ho_input"
+ffn_num_heads=16
 
-gate_option="none"
+attn_gate="auto"
+ffn_gate="none"
 
 layer_norm_in=1
 layer_norm_out=0
 
-preseqlen=1
-ffn_bn_len=1
+preseqlen=200
+ffn_bn_len=512
 
 # adapter_option="attn_adapter"
 mh_reuse_proj="True"
@@ -40,7 +45,7 @@ mh_reuse_proj="True"
 max_steps=100000
 num_train_epochs=30
 warmup_updates=0
-lr=3e-5
+lr=5e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=0.1
 weight_decay=0.01
@@ -59,11 +64,10 @@ eval_strategy="steps"
 save_steps=3000
 report_to="wandb"
 
-debug=0
-vis_analysis=0
+debug=1
+vis_analysis=1
 extra_cmd=""
 debug_str=""
-analysis_opt=""
 
 if [ "${debug}" = 1 ];
 then
@@ -84,17 +88,18 @@ then
 fi
 
 
-exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.lni${layer_norm_in}.lno${layer_norm_out}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.fnh${ffn_num_heads}.ag_${attn_gate}.fg_${ffn_gate}.lni${layer_norm_in}.lno${layer_norm_out}.unfrz_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
-if [ "${vis_analysis}=1" ];
+if [ "${vis_analysis}" = 1 ];
 then
     max_train_samples=2000
     num_train_epochs=10
     analysis_opt=${SAVE}/analysis_opt
     mkdir -p ${analysis_opt}
+    extra_cmd="${extra_cmd} --analysis_opt ${analysis_opt}"
 fi
 
 python -u examples/pytorch/summarization/run_summarization.py \
@@ -103,13 +108,14 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --cache_dir ${cache_dir} \
     --attn_mode ${attn_mode} \
     --attn_option ${attn_option} \
+    --attn_gate ${attn_gate} \
     --ffn_mode ${ffn_mode} \
+    --ffn_gate ${ffn_gate} \
     --ffn_option ${ffn_option} \
-    --gate_option ${gate_option} \
+    --ffn_num_heads ${ffn_num_heads} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --layer_norm_before ${layer_norm_in} \
     --layer_norm_after ${layer_norm_out} \
-    --analysis_opt ${analysis_opt} \
     --mid_dim 800 \
     --preseqlen ${preseqlen} \
     --ffn_bn_len ${ffn_bn_len} \

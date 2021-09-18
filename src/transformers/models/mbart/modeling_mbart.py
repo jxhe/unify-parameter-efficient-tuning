@@ -199,6 +199,7 @@ class MBartAttention(nn.Module):
         # for the decoder
         is_cross_attention = key_value_states is not None
         bsz, tgt_len, embed_dim = hidden_states.size()
+        # import pdb; pdb.set_trace()
 
         # get query proj
         query_states = self.q_proj(hidden_states) * self.scaling
@@ -260,19 +261,32 @@ class MBartAttention(nn.Module):
                         attention_mask.dtype)
                     attention_mask = torch.cat([expanded_prefix_mask, attention_mask], dim=-1)
 
-            elif self.config.attn_option == "cross_attn":
-                cross_hidden = self.ef_transform_layer_norm(hidden_states)
-                cross_query_states = self.q_proj(cross_hidden) * self.scaling
-                cross_query_states = self._shape(cross_query_states, tgt_len, bsz).view(*proj_shape)
+            elif self.config.attn_option == "cross_attn" or self.config.attn_option == "cross_attn_noln" \
+                or self.config.attn_option == "cross_attn_relu":
+                # optimize an added layernorm
+                if self.config.attn_option == "cross_attn_noln":
+                    cross_query_states = query_states
+                elif self.config.attn_option == "cross_attn_relu":
+                    cross_hidden = self.ef_transform_layer_norm(hidden_states)
+                    cross_query_states = self.q_proj(cross_hidden)
+                    cross_query_states = self._shape(cross_query_states, tgt_len, bsz).view(*proj_shape)
+                else:
+                    cross_hidden = self.ef_transform_layer_norm(hidden_states)
+                    cross_query_states = self.q_proj(cross_hidden) * self.scaling
+                    cross_query_states = self._shape(cross_query_states, tgt_len, bsz).view(*proj_shape)
 
                 cross_attn_logits = torch.bmm(cross_query_states, prefix_key.transpose(1, 2))  # no need to add masks, because output is query
                 # bsz * num_heads, tgt_len, prefix_len
-                cross_attn_weights = nn.functional.softmax(cross_attn_logits, dim=-1)
+                if self.config.attn_option == "cross_attn_relu":
+                    cross_attn_weights = nn.functional.relu(cross_attn_logits)
+                else:
+                    cross_attn_weights = nn.functional.softmax(cross_attn_logits, dim=-1)
 
                 cross_attn_probs = nn.functional.dropout(cross_attn_weights, p=self.dropout, training=self.training)
                 cross_attn_output = torch.bmm(cross_attn_probs, prefix_value)
 
-                if self.config.gate_option == 'none':
+                # when not mimicing the same gating behaviour of prefix tuning
+                if self.config.attn_gate != "auto":
                     cross_attn_output = cross_attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
                     cross_attn_output = cross_attn_output.transpose(1, 2)
                     cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
@@ -289,11 +303,18 @@ class MBartAttention(nn.Module):
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
 
-        if self.config.gate_option == "cross_attn":
-            if attention_mask is not None:
-                attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
-                attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
-            w_prefix, w_attn = softmax_gating(cross_attn_logits, attn_weights)  # bsz x num_heads, tgt_len, 1
+        if self.config.attn_mode != "none":
+            if self.config.attn_gate == "none":
+                w_prefix = w_attn = 1.0
+            elif self.config.attn_gate == "auto":
+                if attention_mask is not None:
+                    attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
+                    attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
+                w_prefix, w_attn = softmax_gating(cross_attn_logits, attn_weights)  # bsz x num_heads, tgt_len, 1
+            elif self.config.attn_gate >= 0:
+                # distinguish training and
+                w_attn = self.config.attn_gate
+                w_prefix = 1.0 - w_attn
 
         if attn_weights.size() != (bsz * self.num_heads, tgt_len, src_len):
             raise ValueError(
@@ -336,7 +357,7 @@ class MBartAttention(nn.Module):
                 f"`attn_output` should be of size {(bsz, self.num_heads, tgt_len, self.head_dim)}, but is {attn_output.size()}"
             )
 
-        if self.config.gate_option == "cross_attn":
+        if self.config.attn_mode != "none" and self.config.attn_gate == "auto":
             attn_output = attn_output * w_attn + cross_attn_output * w_prefix
             cross_attn_output = None
 
@@ -408,13 +429,15 @@ class MBartEncoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
 
-        # if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
-        #     adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input' \
+            and self.config.hi_lnbefore == 1:
+            adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
         residual = hidden_states
         hidden_states = self.final_layer_norm(hidden_states)
 
-        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input' \
+            and self.config.hi_lnbefore == 0:
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
         hidden_states = self.activation_fn(self.fc1(hidden_states))
@@ -560,14 +583,16 @@ class MBartDecoderLayer(nn.Module):
             # add cross-attn to positions 3,4 of present_key_value tuple
             present_key_value = present_key_value + cross_attn_present_key_value
 
-        # if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
-        #     adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input' \
+            and self.config.hi_lnbefore == 1:
+            adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
         # Fully Connected
         residual = hidden_states
         hidden_states = self.final_layer_norm(hidden_states)
 
-        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input' \
+            and self.config.hi_lnbefore == 0:
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
         hidden_states = self.activation_fn(self.fc1(hidden_states))
@@ -1318,6 +1343,7 @@ class MBartModel(MBartPreTrainedModel):
         # print(decoder_input_ids.size())
         # print(decoder_input_ids[:5])
         # input()
+        # import pdb; pdb.set_trace()
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states

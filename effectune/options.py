@@ -61,10 +61,12 @@ class TuneArguments:
     ffn_mode: Optional[str] = field(
         default="none",
         metadata={
-            "choices": ["adapter", "none"],
+            "choices": ["adapter", "none", "mh_adapter", "mh_adapter_random"],
 
             "help": "config for ffn, none to disable; \
-            adapter: adapter mode",
+            adapter: adapter mode; \
+            mh_adapter: multi-head adapter, this approach adds a dxd param matrix; \
+            mh_adapter_random: mh_adapter but with the dxd matrix fixed as a random mapping",
         },
     )
 
@@ -104,13 +106,37 @@ class TuneArguments:
         },
     )
 
-    gate_option: Optional[str] = field(
+    hi_lnbefore: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": "specific ffn Hi, this only influences pre-norm arch like mbart; \
+                0: Hi is after the pre-norm; \
+                1: Hi is before the pre-norm"
+        },
+    )
+
+
+    attn_gate: Optional[str] = field(
         default="none",
         metadata={
-            "choices": ["cross_attn", "none", "constant"], \
+            "help": "the gating schedule in attention change, none to disable; \
+                use 'auto' to mimic the gating in prefix tuning; \
+                use a float as the coefficient of original h to perform linear interpolation"
+        },
+    )
 
-            "help": "the extracted gating component from lisa, none to disable; \
-                cross_attn: add gating to cross_attn"
+    ffn_gate: Optional[str] = field(
+        default="none",
+        metadata={
+            "help": "the gating schedule in ffn change, none to disable; \
+            use a float as the coefficient of original h to perform linear interpolation"
+        },
+    )
+
+    ffn_num_heads: Optional[int] = field(
+        default=1,
+        metadata={
+            "help": "the number of heads in mh_adapter/mh_adapter_random mode"
         },
     )
 
