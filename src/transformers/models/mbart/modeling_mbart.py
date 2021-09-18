@@ -429,13 +429,15 @@ class MBartEncoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
 
-        # if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
-        #     adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input' \
+            and self.config.hi_lnbefore == 1:
+            adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
         residual = hidden_states
         hidden_states = self.final_layer_norm(hidden_states)
 
-        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input' \
+            and self.config.hi_lnbefore == 0:
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
         hidden_states = self.activation_fn(self.fc1(hidden_states))
@@ -581,14 +583,16 @@ class MBartDecoderLayer(nn.Module):
             # add cross-attn to positions 3,4 of present_key_value tuple
             present_key_value = present_key_value + cross_attn_present_key_value
 
-        # if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
-        #     adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input' \
+            and self.config.hi_lnbefore == 1:
+            adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
         # Fully Connected
         residual = hidden_states
         hidden_states = self.final_layer_norm(hidden_states)
 
-        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input' \
+            and self.config.hi_lnbefore == 0:
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
         hidden_states = self.activation_fn(self.fc1(hidden_states))
