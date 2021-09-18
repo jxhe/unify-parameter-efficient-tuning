@@ -123,7 +123,7 @@ class DynamicBatchingDataset(Dataset):
         self.dataset = dataset
 
         self.src_lens = np.array([len(x['input_ids']) for x in dataset])
-        self.tgt_lens =  np.array([len(x['labels']) for x in dataset]) \
+        self.tgt_lens = np.array([len(x['labels']) for x in dataset]) \
             if 'labels' in dataset[0] else None
 
     def __len__(self):
