@@ -1270,8 +1270,10 @@ class Trainer:
             steps_in_epoch = (
                 len(epoch_iterator) if train_dataset_is_sized else args.max_steps * args.gradient_accumulation_steps
             )
+
             self.control = self.callback_handler.on_epoch_begin(args, self.state, self.control)
 
+            # import pdb; pdb.set_trace()
             for step, inputs in enumerate(epoch_iterator):
 
                 # Skip past any already trained steps if resuming training

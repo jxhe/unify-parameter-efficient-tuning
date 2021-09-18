@@ -92,9 +92,9 @@ ffn_gate="none"
 #preseqlen=200
 #ffn_bn_len=1
 
-max_tokens_per_batch=1024
+max_tokens_per_batch=2048
 bsz=24
-gradient_steps=16
+gradient_steps=8
 
 layer_norm_in=1
 layer_norm_out=0
