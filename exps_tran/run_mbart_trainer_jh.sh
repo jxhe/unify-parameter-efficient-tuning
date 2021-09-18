@@ -33,8 +33,8 @@ ffn_mode="adapter"
 ffn_option="ffn_hi_input"
 preseqlen=200
 ffn_bn_len=512
-adapter_post_layernorm=1
 hi_lnbefore=1
+adapter_layernorm_option="in"
 
 
 attn_gate="none"
@@ -90,7 +90,7 @@ then
     debug_str=".debug"
 fi
 
-exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.adalno${adapter_post_layernorm}.hilnb_${hi_lnbefore}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
+exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.adalo${adapter_layernorm_option}.hilnb_${hi_lnbefore}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
@@ -119,10 +119,10 @@ python -u examples/pytorch/translation/run_translation.py \
     --ffn_mode ${ffn_mode} \
     --ffn_option ${ffn_option} \
     --ffn_gate ${ffn_gate} \
+    --adapter_layernorm_option ${adapter_layernorm_option} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --layer_norm_before ${layer_norm_in} \
     --layer_norm_after ${layer_norm_out} \
-    --adapter_post_layernorm ${adapter_post_layernorm} \
     --hi_lnbefore ${hi_lnbefore} \
     --mid_dim 800 \
     --preseqlen ${preseqlen} \

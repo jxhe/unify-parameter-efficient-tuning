@@ -522,19 +522,20 @@ class Adapter_Layer(nn.Module):
         # self.non_linearity = args.non_linearity  # use ReLU by default
 
         #_before
-        self.adapter_layer_norm_before = nn.LayerNorm(self.n_embd)
+        self.adapter_layernorm_option = config.adapter_layernorm_option
+        self.adapter_layer_norm_before = nn.LayerNorm(self.n_embd) \
+            if self.adapter_layernorm_option != 'none' else None
         self.down_proj = nn.Linear(self.n_embd, self.down_size)
         self.non_linear_func = nn.ReLU()
         self.up_proj = nn.Linear(self.down_size, self.n_embd)
 
         self.dropout = dropout
-        self.post_layernorm = config.adapter_post_layernorm
         if init_with_bert:
             self.apply(init_bert_weights)
 
     def forward(self, x, add_residual=True, w_orig=1.0, w_change=1.0):
         residual = x
-        if not self.post_layernorm:
+        if self.adapter_layernorm_option == 'in':
             x = self.adapter_layer_norm_before(x)
 
         down = self.down_proj(x)
@@ -542,7 +543,7 @@ class Adapter_Layer(nn.Module):
         down = nn.functional.dropout(down, p=self.dropout, training=self.training)
         up = self.up_proj(down)
 
-        if self.post_layernorm:
+        if if self.adapter_layernorm_option == 'out':
             up = self.adapter_layer_norm_before(up)
 
         if add_residual:

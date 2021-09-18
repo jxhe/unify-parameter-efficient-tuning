@@ -115,6 +115,18 @@ class TuneArguments:
         },
     )
 
+    adapter_layernorm_option: Optional[str] = field(
+        default="in",
+        metadata={
+            "choices": ["in", "out", "none"], \
+
+            "help": "adapter layernorm options; \
+                none: no layernorm; \
+                in: layernorm applied to input; \
+                out: layernorm applied to output"
+        },
+    )
+
 
     attn_gate: Optional[str] = field(
         default="none",
@@ -137,13 +149,6 @@ class TuneArguments:
         default=1,
         metadata={
             "help": "the number of heads in mh_adapter/mh_adapter_random mode"
-        },
-    )
-
-    adapter_post_layernorm: Optional[int] = field(
-        default=0,
-        metadata={
-            "help": ""
         },
     )
 
