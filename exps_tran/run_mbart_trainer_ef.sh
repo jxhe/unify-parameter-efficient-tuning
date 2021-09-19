@@ -1,9 +1,9 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=tran.hi.apl.200
+#SBATCH --job-name=tran.comb.none
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:RTX_8000:1
+#SBATCH --gres=gpu:a100:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
@@ -21,23 +21,29 @@ echo ${SCRIPT_DIR}
 # wandb env variables
 export WANDB_PROJECT=enro_translation
 export WANDB_WATCH="false"
-export OMP_NUM_THREADS=1
 
 DATE=`date +%Y%m%d`
 dataset="wmt16"
 
 port=20292
-adapter_post_layernorm=0
+
+attn_gate="none"
+ffn_gate="none"
 
 # Hi adapter
 attn_mode="none"
 attn_option="none"
 ffn_mode="adapter"
-ffn_option="ffn_hi_input"
-gate_option="none"
-preseqlen=0
-ffn_bn_len=200
-adapter_post_layernorm=1
+ffn_option="ffn_ho_input"
+preseqlen=1
+ffn_bn_len=512
+hi_lnbefore=0  # 1=old hi, 0=new hi
+adapter_layernorm_option="out"  # in=pre, out=post
+label_smoothing_factor=0.2
+
+max_tokens_per_batch=4096
+gradient_steps=4
+bsz=10
 
 # Ho adapter
 #attn_mode="none"
@@ -50,21 +56,36 @@ adapter_post_layernorm=1
 #adapter_post_layernorm=1
 
 # PT + Hi adapter
+attn_mode="lisa"
+attn_option="concat"
+ffn_mode="adapter"
+ffn_option="ffn_hi_input"
+preseqlen=30
+ffn_bn_len=512
+hi_lnbefore=1
+adapter_layernorm_option="none"
+label_smoothing_factor=0.2
+
+# all adapter
 #attn_mode="lisa"
 #attn_option="concat"
 #ffn_mode="adapter"
 #ffn_option="ffn_hi_input"
-#gate_option="none"
 #preseqlen=30
 #ffn_bn_len=512
-#adapter_post_layernorm=1
+#hi_lnbefore=1
+#adapter_layernorm_option="none"
+#label_smoothing_factor=0.2
+
+#max_tokens_per_batch=3096
+#gradient_steps=5
+#bsz=10
 
 # lisa default
 #attn_mode="lisa"
 #attn_option="concat"
 #ffn_mode="none"
 #ffn_option="none"
-#gate_option="none"
 #preseqlen=200
 #ffn_bn_len=1
 
@@ -73,7 +94,6 @@ adapter_post_layernorm=1
 #attn_option="cross_attn"
 #ffn_mode="none"
 #ffn_option="none"
-#gate_option="cross_attn"
 #preseqlen=200
 #ffn_bn_len=1
 
@@ -82,7 +102,6 @@ adapter_post_layernorm=1
 #attn_option="attn_adapter"
 #ffn_mode="none"
 #ffn_option="none"
-#gate_option="none"
 #preseqlen=200
 #ffn_bn_len=1
 
@@ -91,7 +110,6 @@ adapter_post_layernorm=1
 #attn_option="cross_attn"
 #ffn_mode="none"
 #ffn_option="none"
-#gate_option="none"
 #preseqlen=200
 #ffn_bn_len=1
 
@@ -104,17 +122,14 @@ num_train_epochs=30
 warmup_updates=0
 lr=5e-5
 lr_scheduler_type="polynomial"
-max_grad_norm=1 # fixme: fairseq sets no grad_norm
+max_grad_norm=1
 weight_decay=0.01
-bsz=24
-gradient_steps=20
 #metric=bleu
 metric=loss
 ft='ef_'
 top_layers=12
 max_eval_samples=1600
 logging_steps=100
-label_smoothing_factor=0.2
 
 eval_strategy="steps"
 save_steps=5000
@@ -144,7 +159,7 @@ then
 fi
 
 #report_to="none"
-exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.apl${adapter_post_layernorm}.lni${layer_norm_in}.lno${layer_norm_out}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.alo_${adapter_layernorm_option}.hilnb_${hi_lnbefore}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
@@ -161,7 +176,7 @@ python -u examples/pytorch/translation/run_translation.py \
     --do_predict \
     --per_device_train_batch_size ${bsz} \
     --per_device_eval_batch_size ${bsz} \
-    --adapter_post_layernorm ${adapter_post_layernorm} \
+    --max_tokens_per_batch ${max_tokens_per_batch} \
     --adam_beta1 0.9 \
     --adam_beta2 0.98 \
     --adam_epsilon 1e-6 \
@@ -169,12 +184,15 @@ python -u examples/pytorch/translation/run_translation.py \
     --attention_dropout 0.0 \
     --attn_mode ${attn_mode} \
     --attn_option ${attn_option} \
+    --attn_gate ${attn_gate} \
     --ffn_mode ${ffn_mode} \
     --ffn_option ${ffn_option} \
-    --gate_option ${gate_option} \
+    --ffn_gate ${ffn_gate} \
+    --adapter_layernorm_option ${adapter_layernorm_option} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --layer_norm_before ${layer_norm_in} \
     --layer_norm_after ${layer_norm_out} \
+    --hi_lnbefore ${hi_lnbefore} \
     --mid_dim 800 \
     --preseqlen ${preseqlen} \
     --ffn_bn_len ${ffn_bn_len} \
@@ -218,4 +236,4 @@ python -u examples/pytorch/translation/run_translation.py \
     --output_dir ${SAVE} ${extra_cmd} 2>&1 | tee ${SAVE}/log.txt
 
 cd ${SAVE}
-bash ${SCRIPT_DIR}/romanian_postprocess.sh test_generated_predictions.txt test_gold_labels.txt | tee -a log.txt
+bash ${SCRIPT_DIR}/romanian_postprocess.sh test_generated_predictions.txt test_gold_labels.txt | tee rom.bleu

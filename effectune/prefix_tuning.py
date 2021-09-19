@@ -36,6 +36,8 @@ class PrefixTuning(BartPretrainedModel):
         elif args.attn_mode == "default_cross_attn_only":
             self.prompt_model = PrefixCrossAttn(args, config)
             self.get_prompt = self.get_standard_prompt
+        elif args.attn_mode == "prompt_tuning":
+            self.get_prompt = self.get_fake_prompt
         else:
             raise ValueError
 

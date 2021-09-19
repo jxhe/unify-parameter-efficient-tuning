@@ -508,21 +508,21 @@ class MHAdapter_Layer(nn.Module):
         return output
 
 
-
 class Adapter_Layer(nn.Module):
     def __init__(self,
                  config=None,
                  d_model=None,
                  bottleneck=None,
                  dropout=0.0,
-                 init_with_bert=True):
+                 init_with_bert=True,
+                 adapter_layernorm_option="in"):
         super().__init__()
         self.n_embd = config.d_model if d_model is None else d_model
         self.down_size = config.preseqlen if bottleneck is None else bottleneck
         # self.non_linearity = args.non_linearity  # use ReLU by default
 
         #_before
-        self.adapter_layernorm_option = config.adapter_layernorm_option
+        self.adapter_layernorm_option = adapter_layernorm_option
         self.adapter_layer_norm_before = nn.LayerNorm(self.n_embd) \
             if self.adapter_layernorm_option != 'none' else None
         self.down_proj = nn.Linear(self.n_embd, self.down_size)
@@ -597,42 +597,4 @@ def softmax_gating(logits_1, logits_2):
     w2 = torch.sum(exp_logits_2, dim=-1) / s  # bsz x num_heads, tgt_len
 
     return w1.unsqueeze(-1), w2.unsqueeze(-1)
-
-# class InputBias(nn.Module):
-    # def __init__(self, args):
-    #     super().__init__()
-    #     self.args = args
-    #
-    #     self.prefix_embs = nn.Embedding(args.max_source_length + 2, self.n_embd)
-    #     # Option 1: a simple version, no transformations, each attention layer has its own bias parameters
-    #     self.encoder_attn_bias = nn.ModuleList([nn.Embedding(args.max_source_length + 2, self.n_embd)
-    #                                             for _ in range(self.match_n_layer)])
-    #     self.decoder_self_attn_bias = nn.ModuleList([nn.Embedding(args.max_target_length + 2, self.n_embd)
-    #                                                  for _ in range(self.match_n_layer)])
-    #
-    #     self.decoder_cross_attn_bias = nn.ModuleList([nn.Embedding(args.max_target_length + 2, self.n_embd)
-    #                                                   for _ in range(self.match_n_layer)])
-    #     for embed in self.encoder_attn_bias:
-    #         assert isinstance(embed, nn.Embedding)
-    #         nn.init.constant_(embed.weight, 0.0)
-    #     for embed in self.decoder_self_attn_bias:
-    #         assert isinstance(embed, nn.Embedding)
-    #         nn.init.constant_(embed.weight, 0.0)
-    #     for embed in self.decoder_cross_attn_bias:
-    #         assert isinstance(embed, nn.Embedding)
-    #         nn.init.constant_(embed.weight, 0.0)
-    #
-    # def forward(self, bsz, nsamples=1, device="gpu"):
-    #     result = []
-    #     max_src_len = self.args.max_source_length + 2
-    #     max_tgt_len = self.args.max_target_length + 2
-    #
-    #     src_positions = torch.arange(0, max_src_len, dtype=torch.long, device=device)
-    #     tgt_positions = torch.arange(0, max_tgt_len, dtype=torch.long, device=device)
-    #     for ii in range(self.match_n_layer):
-    #         temp_dict = {"encoder": self.encoder_attn_bias[ii].forward(src_positions),
-    #                      "self": self.decoder_self_attn_bias[ii].forward(tgt_positions),
-    #                      "encoder_decoder": self.decoder_cross_attn_bias[ii].forward(tgt_positions)}
-    #         result.append(temp_dict)
-    #     return result
 

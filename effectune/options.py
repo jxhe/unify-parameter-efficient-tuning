@@ -48,7 +48,7 @@ class TuneArguments:
         metadata={
             "choices": ["lisa", "lisa_nomlp",
             "learn_bias", "luna", "none",
-            "dlisa", "adapter", "default_cross_attn_only"], \
+            "dlisa", "adapter", "default_cross_attn_only", "prompt_tuning"], \
 
             "help": "config for attention, none to disable; \
                 lisa: lisa's mlp to output prefix P; \

@@ -396,7 +396,8 @@ class MBartEncoderLayer(nn.Module):
 
         if config.ffn_mode == 'adapter':
             self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
-                                        bottleneck=config.ffn_bn_len)
+                                                bottleneck=config.ffn_bn_len,
+                                                adapter_layernorm_option=config.adapter_layernorm_option,)
 
     def forward(
         self,
@@ -503,7 +504,8 @@ class MBartDecoderLayer(nn.Module):
 
         if config.ffn_mode == 'adapter':
             self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
-                                        bottleneck=config.ffn_bn_len)
+                                                bottleneck=config.ffn_bn_len,
+                                                adapter_layernorm_option=config.adapter_layernorm_option,)
 
     def forward(
         self,
