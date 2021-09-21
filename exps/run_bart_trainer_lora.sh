@@ -1,9 +1,9 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=tran
+#SBATCH --job-name=xsum
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:A6000:1
+#SBATCH --gres=gpu:RTX_8000:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
@@ -11,57 +11,53 @@
 
 source activate tride
 which python
+
 export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 export HF_DATASETS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 export HF_METRICS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-echo ${SCRIPT_DIR}
 
 # wandb env variables
-export WANDB_PROJECT=enro_translation
+export WANDB_PROJECT=xsum_tride
 export WANDB_WATCH="false"
 
 DATE=`date +%Y%m%d`
-dataset="wmt16"
+dataset="xsum"
 
 attn_gate="none"
 ffn_gate="none"
 
-attn_mode="bitfit"
+attn_mode="lora"
 attn_option="none"
 ffn_mode="none"
 ffn_option="none"
-preseqlen=1
+preseqlen=200
 ffn_bn_len=1
-hi_lnbefore=0  # 1=old hi, 0=new hi
-adapter_layernorm_option="out"  # in=pre, out=post
-label_smoothing_factor=0.1
+lora_alpha=32
+lora_dropout=0.1
 
-max_tokens_per_batch=4096
-gradient_steps=4
-bsz=10
-
-layer_norm_in=1
-layer_norm_out=0
 mh_reuse_proj="True"
+adapter_layernorm_option="none"
 
-max_steps=50000
+max_steps=100000
 num_train_epochs=30
 warmup_updates=0
 lr=5e-5
 lr_scheduler_type="polynomial"
-max_grad_norm=1
+max_grad_norm=0.1
 weight_decay=0.01
-#metric=bleu
-metric=loss
+bsz=16
+gradient_steps=4
+metric=rouge2
 ft='ef_'
 top_layers=12
 max_eval_samples=1600
+max_train_samples=2000
 logging_steps=100
+label_smoothing_factor=0.1
 
 eval_strategy="steps"
-save_steps=5000
+save_steps=3000
 report_to="wandb"
 
 debug=0
@@ -73,57 +69,41 @@ then
     label_smoothing_factor=0
     weight_decay=0
     max_grad_norm=1
-    max_train_samples=4000
-    max_eval_samples=150
-    bsz=10
-    gradient_steps=8
-    num_train_epochs=16
+    max_train_samples=2000
+    bsz=24
+    gradient_steps=2
+    num_train_epochs=30
     max_steps=-1
     eval_strategy='steps'
     save_steps=100
     report_to="none"
     logging_steps=10
-    extra_cmd="--max_train_samples ${max_train_samples} --max_predict_samples 150"
+    extra_cmd="--max_train_samples ${max_train_samples}"
     debug_str=".debug"
 fi
 
-#report_to="none"
-exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.alo_${adapter_layernorm_option}.hilnb_${hi_lnbefore}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
+save_steps=200
+report_to="none"
+exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.lora_alpha_dropout_${lora_alpha}_${lora_dropout}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 rm ${HF_DATASETS_CACHE}/downloads/*.lock
 rm ${HF_DATASETS_CACHE}/*.lock
 
-#python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port}
-python -u examples/pytorch/translation/run_translation.py \
-    --dataset_name ${dataset}\
-    --dataset_config_name ro-en \
-    --model_name_or_path "facebook/mbart-large-cc25" \
+python -u examples/pytorch/summarization/run_summarization.py \
+    --dataset_name 'xsum' \
+    --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
-    --source_lang en_XX \
-    --target_lang ro_RO \
-    --do_train \
-    --do_eval \
-    --do_predict \
-    --per_device_train_batch_size ${bsz} \
-    --per_device_eval_batch_size ${bsz} \
-    --max_tokens_per_batch ${max_tokens_per_batch} \
-    --adam_beta1 0.9 \
-    --adam_beta2 0.98 \
-    --adam_epsilon 1e-6 \
-    --dropout 0.1 \
-    --attention_dropout 0.0 \
+    --lora_alpha ${lora_alpha} \
+    --lora_dropout ${lora_dropout} \
+    --adapter_layernorm_option ${adapter_layernorm_option} \
     --attn_mode ${attn_mode} \
     --attn_option ${attn_option} \
-    --attn_gate ${attn_gate} \
     --ffn_mode ${ffn_mode} \
     --ffn_option ${ffn_option} \
+    --attn_gate ${attn_gate} \
     --ffn_gate ${ffn_gate} \
-    --adapter_layernorm_option ${adapter_layernorm_option} \
     --mh_reuse_proj ${mh_reuse_proj} \
-    --layer_norm_before ${layer_norm_in} \
-    --layer_norm_after ${layer_norm_out} \
-    --hi_lnbefore ${hi_lnbefore} \
     --mid_dim 800 \
     --preseqlen ${preseqlen} \
     --ffn_bn_len ${ffn_bn_len} \
@@ -131,14 +111,19 @@ python -u examples/pytorch/translation/run_translation.py \
     --unfreeze_params ${ft} \
     --num_bias_layers ${top_layers} \
     --preprocessing_num_workers 2 \
-    --max_source_length 150 \
-    --max_target_length 150 \
-    --val_max_target_length 150 \
+    --max_source_length 512 \
+    --max_target_length 128 \
+    --val_max_target_length 60 \
     --max_eval_samples ${max_eval_samples} \
-    --num_beams 5 \
-    --max_length 200 \
-    --min_length 1 \
-    --no_repeat_ngram_size 0 \
+    --num_beams 6 \
+    --max_length 60 \
+    --min_length 10 \
+    --no_repeat_ngram_size 3 \
+    --do_train \
+    --do_eval \
+    --do_predict \
+    --per_device_train_batch_size ${bsz} \
+    --per_device_eval_batch_size ${bsz} \
     --gradient_accumulation_steps ${gradient_steps} \
     --max_steps ${max_steps} \
     --num_train_epochs ${num_train_epochs} \
@@ -158,13 +143,16 @@ python -u examples/pytorch/translation/run_translation.py \
     --load_best_model_at_end \
     --report_to ${report_to} \
     --run_name ${dataset}.${DATE}.${exp_name} \
-    --overwrite_output_dir \
+    --overwrite_output_dir "True" \
     --disable_tqdm "True" \
     --metric_for_best_model ${metric} \
-    --greater_is_better "False" \
-    --ddp_find_unused_parameter "False" \
+    --greater_is_better "True" \
     --predict_with_generate \
-    --output_dir ${SAVE} ${extra_cmd} 2>&1 | tee ${SAVE}/log.txt
+    --output_dir ${SAVE} ${extra_cmd} \
+        2>&1 | tee ${SAVE}/log.txt
+    # --predict_with_generate
+    # --metric_for_best_model ${metric} \
+    # --greater_is_better "True" \
 
-cd ${SAVE}
-bash ${SCRIPT_DIR}/romanian_postprocess.sh test_generated_predictions.txt test_gold_labels.txt | tee rom.bleu
+    #--analysis_opt ${aopt} \
+#rm -rf ${SAVE}/pytorch_model.bin

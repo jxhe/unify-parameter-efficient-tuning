@@ -90,6 +90,8 @@ fi
 exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.alo_${adapter_layernorm_option}.hilnb_${hi_lnbefore}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
+rm ${HF_DATASETS_CACHE}/downloads/*.lock
+rm ${HF_DATASETS_CACHE}/*.lock
 
 #python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port}
 python -u examples/pytorch/translation/run_translation.py \

@@ -47,7 +47,7 @@ class TuneArguments:
         default="lisa",
         metadata={
             "choices": ["lisa", "lisa_nomlp",
-            "learn_bias", "luna", "none", "bitfit",
+            "learn_bias", "luna", "none", "bitfit", "lora",
             "dlisa", "adapter", "default_cross_attn_only", "prompt_tuning"], \
 
             "help": "config for attention, none to disable; \
@@ -257,6 +257,19 @@ class TuneArguments:
         },
     )
 
+    lora_alpha: Optional[float] = field(
+        default=32.0,
+        metadata={
+            "help": "scaling: alpha / r"
+        },
+    )
+
+    lora_dropout: Optional[float] = field(
+        default=0.0,
+        metadata={
+            "help": "scaling: alpha / r"
+        },
+    )
 
 
 @dataclass

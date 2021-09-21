@@ -48,7 +48,7 @@ from .configuration_bart import BartConfig
 import sys
 sys.path.insert(2, "./")
 from effectune.luna_attention import luna_attention_enc_dec
-from effectune.bias_factory import Adapter_Layer, MHAdapter_Layer, softmax_gating
+from effectune.bias_factory import Adapter_Layer, MHAdapter_Layer, softmax_gating, Linear
 
 logger = logging.get_logger(__name__)
 
@@ -152,9 +152,16 @@ class BartAttention(nn.Module):
         self.scaling = self.head_dim ** -0.5
         self.is_decoder = is_decoder
 
+        if config.attn_mode == "lora":
+            self.q_proj = Linear(embed_dim, embed_dim, r=config.preseqlen, lora_alpha=config.lora_alpha,
+                                 lora_dropout=config.lora_dropout)
+            self.v_proj = Linear(embed_dim, embed_dim, r=config.preseqlen, lora_alpha=config.lora_alpha,
+                                 lora_dropout=config.lora_dropout)
+        else:
+            self.q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
+            self.v_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
+
         self.k_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
-        self.v_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
-        self.q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
         assert cache_key in ['self', 'encoder_decoder', 'encoder']
