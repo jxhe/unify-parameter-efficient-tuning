@@ -47,7 +47,7 @@ class TuneArguments:
         default="lisa",
         metadata={
             "choices": ["lisa", "lisa_nomlp",
-            "learn_bias", "luna", "none",
+            "learn_bias", "luna", "none", "bitfit",
             "dlisa", "adapter", "default_cross_attn_only", "prompt_tuning"], \
 
             "help": "config for attention, none to disable; \

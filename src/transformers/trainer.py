@@ -629,7 +629,7 @@ class Trainer:
                 pin_memory=self.args.dataloader_pin_memory,
             )
 
-        if self.args.max_tokens_per_batch == 0:
+        if not hasattr(self.args, "max_tokens_per_batch") or self.args.max_tokens_per_batch == 0:
             train_sampler = self._get_train_sampler()
 
             return DataLoader(

@@ -857,6 +857,11 @@ class MBartEncoder(MBartPreTrainedModel):
         self.layernorm_embedding = nn.LayerNorm(embed_dim)
         self.layer_norm = nn.LayerNorm(config.d_model)
 
+        if config.attn_mode == "prompt_tuning":
+            self.ef_prefix_emb = nn.Embedding(config.preseqlen, embed_dim)
+            self.ef_prefix_emb.weight.data.normal_(mean=0.0, std=0.02)
+            self.ef_prefix_input_tokens = torch.arange(config.preseqlen).long()
+
         self.init_weights()
 
     def forward(
@@ -930,6 +935,18 @@ class MBartEncoder(MBartPreTrainedModel):
         embed_pos = self.embed_positions(input_shape)
 
         hidden_states = inputs_embeds + embed_pos
+        if self.config.attn_mode == "prompt_tuning":
+            bsz = hidden_states.size(0)
+            index_tokens = self.ef_prefix_input_tokens.unsqueeze(0).expand(bsz, -1).to(hidden_states.device)
+            prefix_embs = self.ef_prefix_emb(index_tokens)
+            hidden_states = torch.cat([prefix_embs, hidden_states], dim=1)
+
+            if not self.training and attention_mask.size(1) == input_ids.size(1):
+                # generation time
+                attention_mask = torch.cat(
+                    [torch.ones(bsz, self.config.preseqlen).to(input_ids.device),
+                     attention_mask], dim=1)
+
         hidden_states = self.layernorm_embedding(hidden_states)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
@@ -1358,6 +1375,11 @@ class MBartModel(MBartPreTrainedModel):
         if decoder_input_ids is None and decoder_inputs_embeds is None:
             decoder_input_ids = shift_tokens_right(input_ids, self.config.pad_token_id)
 
+        assert attention_mask is not None
+        if self.config.attn_mode == "prompt_tuning" and encoder_outputs is None:
+            # training time
+            attention_mask = torch.cat([torch.ones(decoder_input_ids.size(0), self.config.preseqlen).to(decoder_input_ids.device), attention_mask], dim=1)
+
         if encoder_outputs is None:
             encoder_outputs = self.encoder(
                 input_ids=input_ids,
@@ -1550,6 +1572,11 @@ class MBartForConditionalGeneration(MBartPreTrainedModel):
         # cut decoder_input_ids if past is used
         if past is not None:
             decoder_input_ids = decoder_input_ids[:, -1:]
+
+        assert attention_mask is not None
+        if self.config.attn_mode == "prompt_tuning":
+            attention_mask = torch.cat(
+                [torch.ones(decoder_input_ids.size(0), self.config.preseqlen).to(decoder_input_ids.device), attention_mask], dim=1)
 
         return {
             "input_ids": None,  # encoder_outputs is defined. input_ids not needed
