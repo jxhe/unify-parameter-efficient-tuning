@@ -61,7 +61,7 @@ class TuneArguments:
     ffn_mode: Optional[str] = field(
         default="none",
         metadata={
-            "choices": ["adapter", "none", "mh_adapter", "mh_adapter_random"],
+            "choices": ["adapter", "none", "mh_adapter", "mh_adapter_random", "lora"],
 
             "help": "config for ffn, none to disable; \
             adapter: adapter mode; \

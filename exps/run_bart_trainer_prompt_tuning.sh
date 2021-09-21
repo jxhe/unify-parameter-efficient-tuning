@@ -85,6 +85,8 @@ fi
 exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.mh_reuse_proj_${mh_reuse_proj}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
+rm ${HF_DATASETS_CACHE}/downloads/*.lock
+rm ${HF_DATASETS_CACHE}/*.lock
 
 python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \

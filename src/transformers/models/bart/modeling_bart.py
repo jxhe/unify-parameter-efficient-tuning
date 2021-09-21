@@ -557,8 +557,14 @@ class BartEncoderLayer(nn.Module):
         self.dropout = config.dropout
         self.activation_fn = ACT2FN[config.activation_function]
         self.activation_dropout = config.activation_dropout
-        self.fc1 = nn.Linear(self.embed_dim, config.encoder_ffn_dim)
-        self.fc2 = nn.Linear(config.encoder_ffn_dim, self.embed_dim)
+        if config.ffn_mode == 'lora':
+            self.fc1 = Linear(self.embed_dim, config.encoder_ffn_dim, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+                              lora_dropout=config.lora_dropout)
+            self.fc2 = Linear(config.encoder_ffn_dim, self.embed_dim, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+                              lora_dropout=config.lora_dropout)
+        else:
+            self.fc1 = nn.Linear(self.embed_dim, config.encoder_ffn_dim)
+            self.fc2 = nn.Linear(config.encoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.ffn_mode == 'adapter':
@@ -681,8 +687,14 @@ class BartDecoderLayer(nn.Module):
             layer_id=layer_id,
         )
         self.encoder_attn_layer_norm = nn.LayerNorm(self.embed_dim)
-        self.fc1 = nn.Linear(self.embed_dim, config.decoder_ffn_dim)
-        self.fc2 = nn.Linear(config.decoder_ffn_dim, self.embed_dim)
+        if config.ffn_mode == 'lora':
+            self.fc1 = Linear(self.embed_dim, config.decoder_ffn_dim, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+                              lora_dropout=config.lora_dropout)
+            self.fc2 = Linear(config.decoder_ffn_dim, self.embed_dim, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+                              lora_dropout=config.lora_dropout)
+        else:
+            self.fc1 = nn.Linear(self.embed_dim, config.decoder_ffn_dim)
+            self.fc2 = nn.Linear(config.decoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.ffn_mode == 'adapter':

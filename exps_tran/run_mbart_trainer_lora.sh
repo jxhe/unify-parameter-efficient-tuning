@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=tran
+#SBATCH --job-name=tran.lora.ffn.120
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:A6000:1
 #SBATCH --mem=30g
@@ -34,6 +34,14 @@ ffn_mode="none"
 ffn_option="none"
 preseqlen=200
 ffn_bn_len=1
+
+attn_mode="none"
+attn_option="none"
+ffn_mode="lora"
+ffn_option="none"
+preseqlen=1
+ffn_bn_len=120
+
 hi_lnbefore=0  # 1=old hi, 0=new hi
 adapter_layernorm_option="out"  # in=pre, out=post
 label_smoothing_factor=0.1

@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=xsum
+#SBATCH --job-name=xsum.lora.ffn
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:RTX_8000:1
 #SBATCH --mem=30g
@@ -33,6 +33,14 @@ ffn_mode="none"
 ffn_option="none"
 preseqlen=200
 ffn_bn_len=1
+
+attn_mode="none"
+attn_option="none"
+ffn_mode="lora"
+ffn_option="none"
+preseqlen=1
+ffn_bn_len=120
+
 lora_alpha=32
 lora_dropout=0.1
 
