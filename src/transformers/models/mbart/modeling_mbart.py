@@ -46,7 +46,7 @@ from .configuration_mbart import MBartConfig
 
 import sys
 sys.path.insert(2, "./")
-from effectune.bias_factory import Adapter_Layer, softmax_gating
+from effectune.bias_factory import Adapter_Layer, MHAdapter_Layer, softmax_gating
 logger = logging.get_logger(__name__)
 
 _CHECKPOINT_FOR_DOC = "facebook/mbart-large-cc25"
@@ -173,6 +173,14 @@ class MBartAttention(nn.Module):
         elif self.attn_mode == 'adapter':
             if "attn_adapter" in self.config.attn_option:
                 self.ef_attn_adapter = Adapter_Layer(self.config, dropout=self.dropout, bottleneck=self.config.preseqlen)
+            elif self.config.attn_option == "mh_adapter":
+                self.ef_attn_adapter = MHAdapter_Layer(d_model=self.embed_dim,
+                                                       bottleneck=self.config.preseqlen,
+                                                       num_heads=self.num_heads,
+                                                       dropout=self.dropout,
+                                                       init_with_bert=True,
+                                                       adapter_layernorm_option=self.config.adapter_layernorm_option,
+                                                       )
             else:
                 raise ValueError("adapter option not supported")
 
@@ -297,8 +305,10 @@ class MBartAttention(nn.Module):
         if self.config.attn_mode == 'adapter':
             if "attn_adapter" in self.config.attn_option:
                 cross_attn_output = self.ef_attn_adapter(hidden_states, add_residual=False)
-                if self.config.layer_norm_after:
-                    cross_attn_output = self.ef_transform_layer_norm_out(cross_attn_output)
+            elif self.config.attn_option == "mh_adapter":
+                cross_attn_output = self.ef_attn_adapter(hidden_states, add_residual=False, q_proj=self.q_proj)
+            # if self.config.layer_norm_after:
+            #     cross_attn_output = self.ef_transform_layer_norm_out(cross_attn_output)
 
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))

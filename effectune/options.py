@@ -78,7 +78,8 @@ class TuneArguments:
                         "cross_attn_plug_before_outproj",
                         "cross_attn_relu",
                         "kv_proj", "attn_adapter",
-                        "attn_adapter_after_oproj", "none",
+                        "attn_adapter_after_oproj", 
+                        "mh_adapter", "none",
                         ], \
 
             "help": "specific attn configs; \
@@ -90,7 +91,8 @@ class TuneArguments:
                 cross_attn_relu: change the softmax in cross_attn to relu; \
                 kv_proj: P_k and P_v are projections from P; \
                 attn_adapter: a single head adapter, \
-                attn_adapter_after_oproj: Hi as input, add to Ho (after output proj)",
+                attn_adapter_after_oproj: Hi as input, add to Ho (after output proj), \
+                mh_adapter: multi-head adapter like attention",
 
         },
     )

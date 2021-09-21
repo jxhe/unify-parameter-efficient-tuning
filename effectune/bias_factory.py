@@ -418,7 +418,9 @@ class MHAdapter_Layer(nn.Module):
                  bottleneck,
                  num_heads=1,
                  dropout=0.0,
-                 init_with_bert=True):
+                 init_with_bert=True,
+                 adapter_layernorm_option="in",
+                 ):
         super().__init__()
         self.n_embd = d_model
         self.num_heads = num_heads
@@ -427,7 +429,9 @@ class MHAdapter_Layer(nn.Module):
         self.down_size = bottleneck
         # self.non_linearity = args.non_linearity  # use ReLU by default
 
-        self.adapter_layer_norm_before = nn.LayerNorm(self.n_embd)
+        self.adapter_layernorm_option = adapter_layernorm_option
+        if adapter_layernorm_option != "none":
+            self.adapter_layer_norm_before = nn.LayerNorm(self.n_embd)
         #legacy
         # self.adapter_layer_norm_before= nn.LayerNorm(self.n_embd)
         self.down_proj_weight = nn.Parameter(torch.zeros((
@@ -458,14 +462,18 @@ class MHAdapter_Layer(nn.Module):
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
 
-    def forward(self, x, add_residual=True):
+    def forward(self, x, add_residual=True, q_proj=None):
         residual = x
 
-        import pdb; pdb.set_trace()
-        x = self.adapter_layer_norm_before(x)
+        if self.adapter_layernorm_option == 'in':
+            # import pdb; pdb.set_trace()
+            x = self.adapter_layer_norm_before(x)
 
-        # (bsz, seqlen, nembed)
-        x = self.freeze_q_proj(x)
+        if q_proj is None:
+            # (bsz, seqlen, nembed)
+            x = self.freeze_q_proj(x)
+        else:
+            x = q_proj(x)
 
         bsz, seqlen, embed_dim = x.size()
         proj_shape = (bsz * self.num_heads, -1, self.head_dim)
@@ -499,6 +507,9 @@ class MHAdapter_Layer(nn.Module):
 
         up = up.view(bsz, self.num_heads, seqlen, self.head_dim)
         up = up.transpose(1, 2).reshape(bsz, seqlen, self.n_embd)
+
+        if self.adapter_layernorm_option == 'out':
+            up = self.adapter_layer_norm_before(up)
 
         if add_residual:
             output = up + residual

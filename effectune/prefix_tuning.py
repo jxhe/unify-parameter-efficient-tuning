@@ -63,7 +63,7 @@ class PrefixTuning(BartPretrainedModel):
         logger.info(not_freeze_set)
 
         freeze_set = []
-        if args.ffn_mode == 'mh_adapter_random':
+        if args.ffn_mode == 'mh_adapter_random' or args.attn_option == 'mh_adapter':
             # freeze the random mapping matrix
             freeze_set = ['freeze_q_proj']
 
