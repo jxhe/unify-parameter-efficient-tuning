@@ -1,11 +1,11 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=xsum
+#SBATCH --job-name=xsum.lora.ffn
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:v100:1
-#SBATCH --mem=25g
-#SBATCH --cpus-per-task=2
+#SBATCH --gres=gpu:RTX_8000:1
+#SBATCH --mem=30g
+#SBATCH --cpus-per-task=3
 #SBATCH --time=0
 ##SBATCH --array=0
 
@@ -13,87 +13,60 @@ source activate tride
 which python
 
 export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
+export HF_DATASETS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
+export HF_METRICS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
 
 # wandb env variables
-export WANDB_PROJECT=xsum_low
+export WANDB_PROJECT=xsum_tride
 export WANDB_WATCH="false"
 
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-attn_mode="lisa"
-attn_option="concat"
+attn_gate="none"
+ffn_gate="none"
+
+attn_mode="lora"
+attn_option="none"
 ffn_mode="none"
 ffn_option="none"
-gate_option="none"
-preseqlen=30
-ffn_bn_len=-1
+preseqlen=200
+ffn_bn_len=1
 
 attn_mode="none"
 attn_option="none"
-ffn_mode="adapter"
-ffn_option="ffn_hi_input"
-gate_option="none"
-preseqlen=-1
-ffn_bn_len=30
+ffn_mode="lora"
+ffn_option="none"
+preseqlen=1
+ffn_bn_len=120
 
-attn_mode="none"
-attn_option="none"
-ffn_mode="adapter"
-ffn_option="ffn_ho_input"
-gate_option="none"
-preseqlen=-1
-ffn_bn_len=30
+lora_alpha=32
+lora_dropout=0.1
 
-# train params
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#gate_option="none"
-#preseqlen=200
-#ffn_bn_len=512
-#
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="adapter"
-#ffn_option="ffn_ho_input"
-#gate_option="none"
-#preseqlen=200
-#ffn_bn_len=512
-
-N=1K
-data_dir=/projects/tir5/users/chuntinz/data/tride/xsum/xsum_1k
 mh_reuse_proj="True"
-adapter_post_layernorm=0
+adapter_layernorm_option="none"
 
-max_steps=-1
+max_steps=100000
 num_train_epochs=30
 warmup_updates=0
 lr=5e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=0.1
 weight_decay=0.01
-label_smoothing_factor=0.1
 bsz=16
 gradient_steps=4
 metric=rouge2
 ft='ef_'
 top_layers=12
-max_eval_samples=1000
+max_eval_samples=1600
 max_train_samples=2000
-logging_steps=50
-
-max_grad_norm=1
-weight_decay=0.0
-label_smoothing_factor=0.0
+logging_steps=100
+label_smoothing_factor=0.1
 
 eval_strategy="steps"
-save_steps=50
+save_steps=3000
 report_to="wandb"
-
-report_to="none"
 
 debug=0
 extra_cmd=""
@@ -117,24 +90,27 @@ then
     debug_str=".debug"
 fi
 
-
-exp_name=xsum_tride.data_${N}.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+save_steps=200
+report_to="none"
+exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.lora_alpha_dropout_${lora_alpha}_${lora_dropout}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
-
 rm -rf ${SAVE}; mkdir -p ${SAVE}
+rm ${HF_DATASETS_CACHE}/downloads/*.lock
+rm ${HF_DATASETS_CACHE}/*.lock
 
 python -u examples/pytorch/summarization/run_summarization.py \
-    --train_file ${data_dir}/train.json \
-    --validation_file ${data_dir}/valid.json \
-    --test_file ${data_dir}/test.json \
+    --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
+    --lora_alpha ${lora_alpha} \
+    --lora_dropout ${lora_dropout} \
+    --adapter_layernorm_option ${adapter_layernorm_option} \
     --attn_mode ${attn_mode} \
-    --adapter_post_layernorm ${adapter_post_layernorm} \
     --attn_option ${attn_option} \
     --ffn_mode ${ffn_mode} \
     --ffn_option ${ffn_option} \
-    --gate_option ${gate_option} \
+    --attn_gate ${attn_gate} \
+    --ffn_gate ${ffn_gate} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --mid_dim 800 \
     --preseqlen ${preseqlen} \
@@ -186,10 +162,5 @@ python -u examples/pytorch/summarization/run_summarization.py \
     # --metric_for_best_model ${metric} \
     # --greater_is_better "True" \
 
-rm -rf ${SAVE}/pytorch_model.bin
-rm -rf ${SAVE}/checkpoint*
-rm -rf ${SAVE}/tokenizer.json
-rm -rf ${SAVE}/optimizer.pt
-rm -rf ${SAVE}/trainer_state.json
-rm -rf ${SAVE}/vocab.json
-rm -rf ${SAVE}/merges.txt
+    #--analysis_opt ${aopt} \
+#rm -rf ${SAVE}/pytorch_model.bin

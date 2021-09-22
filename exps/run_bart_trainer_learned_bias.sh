@@ -23,14 +23,14 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-use_prefix="lisa_adapter"
-lisa_option="cross_attn_before_norm"
+use_prefix="learn_bias"
+#use_prefix="adapter"
 
-max_steps=80000
+max_steps=120000
 warmup_updates=0
 lr=5e-5
 lr_scheduler_type="polynomial"
-max_grad_norm=0.1
+max_grad_norm=1.0
 weight_decay=0.01
 bsz=24
 gradient_steps=3
@@ -70,7 +70,7 @@ then
 fi
 
 
-exp_name=xsum_tride.prefix.${use_prefix}.${lisa_option}.ms${max_steps}.ls${label_smoothing_factor}.wd${weight_decay}.mgn${max_grad_norm}${debug_str}
+exp_name=xsum_tride.prefix.${use_prefix}.ms${max_steps}.ls${label_smoothing_factor}.wd${weight_decay}.mgn${max_grad_norm}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
@@ -80,13 +80,13 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
     --use_prefix ${use_prefix} \
-    --lisa_option ${lisa_option} \
     --init_with_bert 1 \
     --mid_dim 800 \
     --preseqlen 200 \
     --unfreeze_params ${ft} \
     --num_bias_layers ${top_layers} \
     --preprocessing_num_workers 2 \
+    --prefix_dropout 0.1 \
     --max_source_length 512 \
     --max_target_length 128 \
     --val_max_target_length 60 \

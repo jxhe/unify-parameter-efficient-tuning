@@ -1,9 +1,9 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=tran.ho.200.0.1
+#SBATCH --job-name=tran
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:RTX_8000:1
+#SBATCH --gres=gpu:A6000:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
@@ -25,94 +25,22 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="wmt16"
 
-port=20292
-
 attn_gate="none"
 ffn_gate="none"
 
-# Hi adapter
-attn_mode="none"
+attn_mode="bitfit"
 attn_option="none"
-ffn_mode="adapter"
-ffn_option="ffn_ho_input"
+ffn_mode="none"
+ffn_option="none"
 preseqlen=1
-ffn_bn_len=512
+ffn_bn_len=1
 hi_lnbefore=0  # 1=old hi, 0=new hi
 adapter_layernorm_option="out"  # in=pre, out=post
-label_smoothing_factor=0.2
+label_smoothing_factor=0.1
 
 max_tokens_per_batch=4096
 gradient_steps=4
 bsz=10
-
-# Ho adapter
-attn_mode="none"
-attn_option="none"
-ffn_mode="adapter"
-ffn_option="ffn_ho_input"
-preseqlen=0
-ffn_bn_len=200
-hi_lnbefore=1
-adapter_layernorm_option="none"
-label_smoothing_factor=0.1
-
-# PT + Hi adapter
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=30
-#ffn_bn_len=512
-#hi_lnbefore=1
-#adapter_layernorm_option="none"
-#label_smoothing_factor=0.2
-
-# all adapter
-#attn_mode="adapter"
-#attn_option="attn_adapter"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=30
-#ffn_bn_len=512
-#hi_lnbefore=1
-#adapter_layernorm_option="none"
-#label_smoothing_factor=0.1
-
-#max_tokens_per_batch=3096
-#gradient_steps=5
-#bsz=10
-
-# lisa default
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="none"
-#ffn_option="none"
-#preseqlen=200
-#ffn_bn_len=1
-
-# lisa cross attention version
-#attn_mode="lisa"
-#attn_option="cross_attn"
-#ffn_mode="none"
-#ffn_option="none"
-#preseqlen=200
-#ffn_bn_len=1
-
-# adapter at attention
-#attn_mode="adapter"
-#attn_option="attn_adapter"
-#ffn_mode="none"
-#ffn_option="none"
-#preseqlen=200
-#ffn_bn_len=1
-
-# cross attention
-#attn_mode="lisa"
-#attn_option="cross_attn"
-#ffn_mode="none"
-#ffn_option="none"
-#preseqlen=200
-#ffn_bn_len=1
 
 layer_norm_in=1
 layer_norm_out=0

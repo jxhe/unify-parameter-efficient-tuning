@@ -47,8 +47,8 @@ class TuneArguments:
         default="lisa",
         metadata={
             "choices": ["lisa", "lisa_nomlp",
-            "learn_bias", "luna", "none",
-            "dlisa", "adapter", "default_cross_attn_only"], \
+            "learn_bias", "luna", "none", "bitfit", "lora",
+            "dlisa", "adapter", "default_cross_attn_only", "prompt_tuning"], \
 
             "help": "config for attention, none to disable; \
                 lisa: lisa's mlp to output prefix P; \
@@ -61,7 +61,7 @@ class TuneArguments:
     ffn_mode: Optional[str] = field(
         default="none",
         metadata={
-            "choices": ["adapter", "none", "mh_adapter", "mh_adapter_random"],
+            "choices": ["adapter", "none", "mh_adapter", "mh_adapter_random", "lora"],
 
             "help": "config for ffn, none to disable; \
             adapter: adapter mode; \
@@ -79,7 +79,7 @@ class TuneArguments:
                         "cross_attn_relu",
                         "kv_proj", "attn_adapter",
                         "attn_adapter_after_oproj", 
-                        "mh_adapter", "none",
+                        "mh_adapter", "houlsby", "none",
                         ], \
 
             "help": "specific attn configs; \
@@ -92,7 +92,8 @@ class TuneArguments:
                 kv_proj: P_k and P_v are projections from P; \
                 attn_adapter: a single head adapter, \
                 attn_adapter_after_oproj: Hi as input, add to Ho (after output proj), \
-                mh_adapter: multi-head adapter like attention",
+                mh_adapter: multi-head adapter like attention, \
+                houlsby: the Houlsby config adapter baseline (like attention Ho)",
 
         },
     )
@@ -100,11 +101,12 @@ class TuneArguments:
     ffn_option: Optional[str] = field(
         default="ffn_hi_input",
         metadata={
-            "choices": ["ffn_hi_input", "ffn_ho_input", "none"], \
+            "choices": ["ffn_hi_input", "ffn_ho_input", "pfeiffer", "none"], \
 
             "help": "specific ffn configs; \
                 ffn_hi_input: ffn uses Hi as input; \
-                ffn_ho_input: ffn uses Ho as input"
+                ffn_ho_input: ffn uses Ho as input; \
+                pfeiffer: the Pfeiffer adapter config"
         },
     )
 
@@ -259,6 +261,19 @@ class TuneArguments:
         },
     )
 
+    lora_alpha: Optional[float] = field(
+        default=32.0,
+        metadata={
+            "help": "scaling: alpha / r"
+        },
+    )
+
+    lora_dropout: Optional[float] = field(
+        default=0.0,
+        metadata={
+            "help": "scaling: alpha / r"
+        },
+    )
 
 
 @dataclass

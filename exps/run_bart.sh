@@ -11,20 +11,20 @@
 ##SBATCH --array=0
 
 source activate nmt
-export TRANSFORMERS_CACHE=checkpoints/hf_model
-cache_dir=${TRANSFORMERS_CACHE}
+export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
+cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
 
 exp_name=xsum
 SAVE=checkpoints/${exp_name}
 mkdir -p ${SAVE}
 
-epochs=30
-lr=5e-5
+epochs=10
+lr=3e-5
+warmup=8000
 bsz=24
-gradient_steps=2
+gradient_steps=3
 metric=rouge2
-ft='LN+PE'
-eval_batch=150
+eval_batch=200
 
 python -u examples/pytorch/summarization/run_summarization_no_trainer.py \
     --dataset_name 'xsum' \
@@ -40,13 +40,14 @@ python -u examples/pytorch/summarization/run_summarization_no_trainer.py \
     --eval_max_length 62 \
     --eval_min_length 11 \
     --num_beam 6 \
-    --do_train \
+    --do_train 1 \
     --val_metric ${metric} \
     --per_device_train_batch_size ${bsz} \
     --gradient_accumulation_steps ${gradient_steps} \
     --num_train_epochs ${epochs} \
     --learning_rate ${lr} \
+    --num_warmup_steps ${warmup} \
     --fp16 \
     --output_dir ${SAVE} 2>&1 | tee ${SAVE}/log.txt
 
-#rm -rf ${SAVE}/pytorch_model.bin
+rm -rf ${SAVE}/pytorch_model.bin

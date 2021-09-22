@@ -48,7 +48,7 @@ from .configuration_bart import BartConfig
 import sys
 sys.path.insert(2, "./")
 from effectune.luna_attention import luna_attention_enc_dec
-from effectune.bias_factory import Adapter_Layer, MHAdapter_Layer, softmax_gating
+from effectune.bias_factory import Adapter_Layer, MHAdapter_Layer, softmax_gating, Linear
 
 logger = logging.get_logger(__name__)
 
@@ -152,9 +152,16 @@ class BartAttention(nn.Module):
         self.scaling = self.head_dim ** -0.5
         self.is_decoder = is_decoder
 
+        if config.attn_mode == "lora":
+            self.q_proj = Linear(embed_dim, embed_dim, r=config.preseqlen, lora_alpha=config.lora_alpha,
+                                 lora_dropout=config.lora_dropout)
+            self.v_proj = Linear(embed_dim, embed_dim, r=config.preseqlen, lora_alpha=config.lora_alpha,
+                                 lora_dropout=config.lora_dropout)
+        else:
+            self.q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
+            self.v_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
+
         self.k_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
-        self.v_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
-        self.q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
         assert cache_key in ['self', 'encoder_decoder', 'encoder']
@@ -550,8 +557,14 @@ class BartEncoderLayer(nn.Module):
         self.dropout = config.dropout
         self.activation_fn = ACT2FN[config.activation_function]
         self.activation_dropout = config.activation_dropout
-        self.fc1 = nn.Linear(self.embed_dim, config.encoder_ffn_dim)
-        self.fc2 = nn.Linear(config.encoder_ffn_dim, self.embed_dim)
+        if config.ffn_mode == 'lora':
+            self.fc1 = Linear(self.embed_dim, config.encoder_ffn_dim, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+                              lora_dropout=config.lora_dropout)
+            self.fc2 = Linear(config.encoder_ffn_dim, self.embed_dim, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+                              lora_dropout=config.lora_dropout)
+        else:
+            self.fc1 = nn.Linear(self.embed_dim, config.encoder_ffn_dim)
+            self.fc2 = nn.Linear(config.encoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.ffn_mode == 'adapter':
@@ -674,8 +687,14 @@ class BartDecoderLayer(nn.Module):
             layer_id=layer_id,
         )
         self.encoder_attn_layer_norm = nn.LayerNorm(self.embed_dim)
-        self.fc1 = nn.Linear(self.embed_dim, config.decoder_ffn_dim)
-        self.fc2 = nn.Linear(config.decoder_ffn_dim, self.embed_dim)
+        if config.ffn_mode == 'lora':
+            self.fc1 = Linear(self.embed_dim, config.decoder_ffn_dim, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+                              lora_dropout=config.lora_dropout)
+            self.fc2 = Linear(config.decoder_ffn_dim, self.embed_dim, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+                              lora_dropout=config.lora_dropout)
+        else:
+            self.fc1 = nn.Linear(self.embed_dim, config.decoder_ffn_dim)
+            self.fc2 = nn.Linear(config.decoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.ffn_mode == 'adapter':
@@ -1058,6 +1077,11 @@ class BartEncoder(BartPretrainedModel):
         self.layers = nn.ModuleList([BartEncoderLayer(config, layer_id=ii) for ii in range(config.encoder_layers)])
         self.layernorm_embedding = nn.LayerNorm(embed_dim)
 
+        if config.attn_mode == "prompt_tuning":
+            self.ef_prefix_emb = nn.Embedding(config.preseqlen, embed_dim)
+            self.ef_prefix_emb.weight.data.normal_(mean=0.0, std=0.02)
+            self.ef_prefix_input_tokens = torch.arange(config.preseqlen).long()
+
         self.init_weights()
 
     def forward(
@@ -1131,6 +1155,17 @@ class BartEncoder(BartPretrainedModel):
         embed_pos = self.embed_positions(input_shape)
 
         hidden_states = inputs_embeds + embed_pos
+        if self.config.attn_mode == "prompt_tuning":
+            bsz = hidden_states.size(0)
+            index_tokens = self.ef_prefix_input_tokens.unsqueeze(0).expand(bsz, -1).to(hidden_states.device)
+            prefix_embs = self.ef_prefix_emb(index_tokens)
+            hidden_states = torch.cat([prefix_embs, hidden_states], dim=1)
+
+            if not self.training and attention_mask.size(1) == input_ids.size(1):
+                # generation time
+                attention_mask = torch.cat(
+                    [torch.ones(bsz, self.config.preseqlen).to(input_ids.device),
+                     attention_mask], dim=1)
 
         if self.config.attn_mode == 'dlisa':
             p_prime_e, p_prime_ds, p_prime_dc = prefix_state.forward_pe_attn(hidden_states, attention_mask)
@@ -1567,6 +1602,12 @@ class BartModel(BartPretrainedModel):
                 input_ids, self.config.pad_token_id, self.config.decoder_start_token_id
             )
 
+        assert attention_mask is not None
+        if self.config.attn_mode == "prompt_tuning" and encoder_outputs is None:
+            # training time
+            attention_mask = torch.cat(
+                [torch.ones(decoder_input_ids.size(0), self.config.preseqlen).to(decoder_input_ids.device), attention_mask], dim=1)
+
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -1780,6 +1821,11 @@ class BartForConditionalGeneration(BartPretrainedModel):
             p_prime = kwargs["prefix_state"].forward_pe(encoder_outputs[0], attention_mask)
         else:
             p_prime = None
+
+        assert attention_mask is not None
+        if self.config.attn_mode == "prompt_tuning":
+            attention_mask = torch.cat(
+                [torch.ones(decoder_input_ids.size(0), self.config.preseqlen).to(decoder_input_ids.device), attention_mask], dim=1)
 
         # print("generate")
         # logger.info(kwargs["prefix_state"].biases[6]["self"]["prev_key"][:2])

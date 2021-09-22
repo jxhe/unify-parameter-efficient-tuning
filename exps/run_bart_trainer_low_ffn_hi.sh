@@ -13,6 +13,8 @@ source activate tride
 which python
 
 export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
+export HF_DATASETS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
+export HF_METRICS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
 
 # wandb env variables
@@ -22,21 +24,21 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-attn_mode="lisa"
-attn_option="concat"
-ffn_mode="none"
-ffn_option="none"
-gate_option="none"
-preseqlen=30
-ffn_bn_len=-1
-
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
+#attn_mode="lisa"
+#attn_option="concat"
+#ffn_mode="none"
+#ffn_option="none"
 #gate_option="none"
-#preseqlen=-1
-#ffn_bn_len=256
+#preseqlen=30
+#ffn_bn_len=-1
+
+attn_mode="none"
+attn_option="none"
+ffn_mode="adapter"
+ffn_option="ffn_ho_input"
+gate_option="none"
+preseqlen=-1
+ffn_bn_len=${1}
 
 # train params
 #attn_mode="lisa"
@@ -77,9 +79,9 @@ max_eval_samples=1000
 max_train_samples=2000
 logging_steps=50
 
-#max_grad_norm=1
-#weight_decay=0.0
-#label_smoothing_factor=0.0
+max_grad_norm=1
+weight_decay=0.0
+label_smoothing_factor=0.0
 
 eval_strategy="steps"
 save_steps=50

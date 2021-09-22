@@ -46,7 +46,8 @@ from .configuration_mbart import MBartConfig
 
 import sys
 sys.path.insert(2, "./")
-from effectune.bias_factory import Adapter_Layer, MHAdapter_Layer, softmax_gating
+
+from effectune.bias_factory import Adapter_Layer, softmax_gating, Linear, MHAdapter_Layer
 logger = logging.get_logger(__name__)
 
 _CHECKPOINT_FOR_DOC = "facebook/mbart-large-cc25"
@@ -156,9 +157,16 @@ class MBartAttention(nn.Module):
         self.scaling = self.head_dim ** -0.5
         self.is_decoder = is_decoder
 
+        if config.attn_mode == "lora":
+            self.q_proj = Linear(embed_dim, embed_dim, r=config.preseqlen, lora_alpha=config.lora_alpha,
+                                 lora_dropout=config.lora_dropout)
+            self.v_proj = Linear(embed_dim, embed_dim, r=config.preseqlen, lora_alpha=config.lora_alpha,
+                                 lora_dropout=config.lora_dropout)
+        else:
+            self.q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
+            self.v_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
+
         self.k_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
-        self.v_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
-        self.q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
 
         assert cache_key in ['self', 'encoder_decoder', 'encoder']
@@ -173,6 +181,12 @@ class MBartAttention(nn.Module):
         elif self.attn_mode == 'adapter':
             if "attn_adapter" in self.config.attn_option:
                 self.ef_attn_adapter = Adapter_Layer(self.config, dropout=self.dropout, bottleneck=self.config.preseqlen)
+            elif self.config.attn_option == "houlsby":
+                self.ef_attn_adapter = Adapter_Layer(self.config, 
+                                                     dropout=self.dropout, 
+                                                     bottleneck=self.config.preseqlen,
+                                                     adapter_layernorm_option="in",
+                                                     )
             elif self.config.attn_option == "mh_adapter":
                 self.ef_attn_adapter = MHAdapter_Layer(d_model=self.embed_dim,
                                                        bottleneck=self.config.preseqlen,
@@ -381,6 +395,10 @@ class MBartAttention(nn.Module):
 
         attn_output = self.out_proj(attn_output)
 
+        # the Houlsby config
+        if self.config.attn_mode == "adapter" and self.config.attn_option == "houlsby":
+            attn_output = attn_output + self.ef_attn_adapter(hidden_states, add_residual=True)
+
         return attn_output, attn_weights_reshaped, past_key_value
 
 
@@ -401,13 +419,21 @@ class MBartEncoderLayer(nn.Module):
         self.dropout = config.dropout
         self.activation_fn = ACT2FN[config.activation_function]
         self.activation_dropout = config.activation_dropout
-        self.fc1 = nn.Linear(self.embed_dim, config.encoder_ffn_dim)
-        self.fc2 = nn.Linear(config.encoder_ffn_dim, self.embed_dim)
+
+        if config.ffn_mode == 'lora':
+            self.fc1 = Linear(self.embed_dim, config.encoder_ffn_dim, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+                              lora_dropout=config.lora_dropout)
+            self.fc2 = Linear(config.encoder_ffn_dim, self.embed_dim, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+                              lora_dropout=config.lora_dropout)
+        else:
+            self.fc1 = nn.Linear(self.embed_dim, config.encoder_ffn_dim)
+            self.fc2 = nn.Linear(config.encoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.ffn_mode == 'adapter':
             self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
-                                        bottleneck=config.ffn_bn_len)
+                                                bottleneck=config.ffn_bn_len,
+                                                adapter_layernorm_option=config.adapter_layernorm_option,)
 
     def forward(
         self,
@@ -457,14 +483,21 @@ class MBartEncoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
         if self.config.ffn_mode == 'adapter':
-            if self.config.ffn_option == 'ffn_ho_input':
+            if self.config.ffn_option == 'ffn_ho_input' or self.config.ffn_option == 'houlsby':
                 hidden_states = self.ef_ffn_adapter(hidden_states)
             elif self.config.ffn_option == 'ffn_hi_input':
                 hidden_states = hidden_states + adapter_change
             else:
                 raise ValueError
 
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'pfeiffer':
+            h_before_residual = hidden_states
+
         hidden_states = residual + hidden_states
+
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'pfeiffer':
+            hidden_states = self.ef_ffn_adapter(hidden_states, residual=h_before_residual)
+            hidden_states = residual + hidden_states
 
         if hidden_states.dtype == torch.float16 and (
             torch.isinf(hidden_states).any() or torch.isnan(hidden_states).any()
@@ -508,13 +541,20 @@ class MBartDecoderLayer(nn.Module):
             cache_key='encoder_decoder',
         )
         self.encoder_attn_layer_norm = nn.LayerNorm(self.embed_dim)
-        self.fc1 = nn.Linear(self.embed_dim, config.decoder_ffn_dim)
-        self.fc2 = nn.Linear(config.decoder_ffn_dim, self.embed_dim)
+        if config.ffn_mode == 'lora':
+            self.fc1 = Linear(self.embed_dim, config.decoder_ffn_dim, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+                              lora_dropout=config.lora_dropout)
+            self.fc2 = Linear(config.decoder_ffn_dim, self.embed_dim, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+                              lora_dropout=config.lora_dropout)
+        else:
+            self.fc1 = nn.Linear(self.embed_dim, config.decoder_ffn_dim)
+            self.fc2 = nn.Linear(config.decoder_ffn_dim, self.embed_dim)
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.ffn_mode == 'adapter':
             self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
-                                        bottleneck=config.ffn_bn_len)
+                                                bottleneck=config.ffn_bn_len,
+                                                adapter_layernorm_option=config.adapter_layernorm_option,)
 
     def forward(
         self,
@@ -612,14 +652,21 @@ class MBartDecoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
         if self.config.ffn_mode == 'adapter':
-            if self.config.ffn_option == 'ffn_ho_input':
+            if self.config.ffn_option == 'ffn_ho_input' or self.config.ffn_option == 'houlsby':
                 hidden_states = self.ef_ffn_adapter(hidden_states)
             elif self.config.ffn_option == 'ffn_hi_input':
                 hidden_states = hidden_states + adapter_change
             else:
                 raise ValueError
 
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'pfeiffer':
+            h_before_residual = hidden_states
+
         hidden_states = residual + hidden_states
+
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'pfeiffer':
+            hidden_states = self.ef_ffn_adapter(hidden_states, residual=h_before_residual)
+            hidden_states = residual + hidden_states
 
         outputs = (hidden_states,)
 
@@ -866,6 +913,11 @@ class MBartEncoder(MBartPreTrainedModel):
         self.layernorm_embedding = nn.LayerNorm(embed_dim)
         self.layer_norm = nn.LayerNorm(config.d_model)
 
+        if config.attn_mode == "prompt_tuning":
+            self.ef_prefix_emb = nn.Embedding(config.preseqlen, embed_dim)
+            self.ef_prefix_emb.weight.data.normal_(mean=0.0, std=0.02)
+            self.ef_prefix_input_tokens = torch.arange(config.preseqlen).long()
+
         self.init_weights()
 
     def forward(
@@ -939,6 +991,18 @@ class MBartEncoder(MBartPreTrainedModel):
         embed_pos = self.embed_positions(input_shape)
 
         hidden_states = inputs_embeds + embed_pos
+        if self.config.attn_mode == "prompt_tuning":
+            bsz = hidden_states.size(0)
+            index_tokens = self.ef_prefix_input_tokens.unsqueeze(0).expand(bsz, -1).to(hidden_states.device)
+            prefix_embs = self.ef_prefix_emb(index_tokens)
+            hidden_states = torch.cat([prefix_embs, hidden_states], dim=1)
+
+            if not self.training and attention_mask.size(1) == input_ids.size(1):
+                # generation time
+                attention_mask = torch.cat(
+                    [torch.ones(bsz, self.config.preseqlen).to(input_ids.device),
+                     attention_mask], dim=1)
+
         hidden_states = self.layernorm_embedding(hidden_states)
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
@@ -1367,6 +1431,11 @@ class MBartModel(MBartPreTrainedModel):
         if decoder_input_ids is None and decoder_inputs_embeds is None:
             decoder_input_ids = shift_tokens_right(input_ids, self.config.pad_token_id)
 
+        assert attention_mask is not None
+        if self.config.attn_mode == "prompt_tuning" and encoder_outputs is None:
+            # training time
+            attention_mask = torch.cat([torch.ones(decoder_input_ids.size(0), self.config.preseqlen).to(decoder_input_ids.device), attention_mask], dim=1)
+
         if encoder_outputs is None:
             encoder_outputs = self.encoder(
                 input_ids=input_ids,
@@ -1559,6 +1628,11 @@ class MBartForConditionalGeneration(MBartPreTrainedModel):
         # cut decoder_input_ids if past is used
         if past is not None:
             decoder_input_ids = decoder_input_ids[:, -1:]
+
+        assert attention_mask is not None
+        if self.config.attn_mode == "prompt_tuning":
+            attention_mask = torch.cat(
+                [torch.ones(decoder_input_ids.size(0), self.config.preseqlen).to(decoder_input_ids.device), attention_mask], dim=1)
 
         return {
             "input_ids": None,  # encoder_outputs is defined. input_ids not needed

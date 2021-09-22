@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
-
+import torch.nn.functional as F
+import math
 
 def init_lisa_params(module):
     std = 1e-20
@@ -227,48 +228,6 @@ class PrefixDirectInit(nn.Module):
 
         # fixme: choose a favorable init method
         self.apply(init_bert_weights)
-        # self.apply(init_zero_weights)
-
-        # lisa mlp init
-        # wte = nn.Embedding(self.preseqlen, self.n_embd)
-        # control_trans = nn.Sequential(
-        #     nn.Linear(self.n_embd, self.mid_dim),
-        #     nn.Tanh(),
-        #     nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
-
-        # wte_enc = nn.Embedding(self.preseqlen, self.n_embd)
-        # control_trans_enc = nn.Sequential(
-        #     nn.Linear(self.n_embd, self.mid_dim),
-        #     nn.Tanh(),
-        #     nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
-
-        # wte2 = nn.Embedding(self.preseqlen, self.n_embd)
-        # control_trans2 = nn.Sequential(
-        #     nn.Linear(self.n_embd, self.mid_dim),
-        #     nn.Tanh(),
-        #     nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
-
-        # def init_mlp_lisa_local(key_module, val_module, wte_t, control_t):
-        #     key_val = control_t(wte_t(self.input_tokens))
-        #     seqlen, _ = key_val.shape
-        #     key_val = key_val.view(seqlen, self.match_n_layer * 2, self.n_embd)
-        #     key_val = key_val.permute([1, 0, 2]).split(2)
-
-        #     for i in range(self.match_n_layer):
-        #         key_module[i].weight.data = key_val[i][0].data
-        #         val_module[i].weight.data = key_val[i][1].data
-
-        # # import pdb; pdb.set_trace()
-        # init_mlp_lisa_local(self.decoder_self_attn_key, self.decoder_self_attn_value,
-        #     wte, control_trans)
-
-        # init_mlp_lisa_local(self.encoder_attn_key, self.encoder_attn_value,
-        #     wte_enc, control_trans_enc)
-
-        # init_mlp_lisa_local(self.decoder_cross_attn_key, self.decoder_cross_attn_value,
-        #     wte2, control_trans2)
-
-
 
     def _shape(self, x, bsz):
         y = x.view(bsz, self.preseqlen, self.match_n_head, self.match_n_embd)
@@ -519,21 +478,21 @@ class MHAdapter_Layer(nn.Module):
         return output
 
 
-
 class Adapter_Layer(nn.Module):
     def __init__(self,
                  config=None,
                  d_model=None,
                  bottleneck=None,
                  dropout=0.0,
-                 init_with_bert=True):
+                 init_with_bert=True,
+                 adapter_layernorm_option="in"):
         super().__init__()
         self.n_embd = config.d_model if d_model is None else d_model
         self.down_size = config.preseqlen if bottleneck is None else bottleneck
         # self.non_linearity = args.non_linearity  # use ReLU by default
 
         #_before
-        self.adapter_layernorm_option = config.adapter_layernorm_option
+        self.adapter_layernorm_option = adapter_layernorm_option
         self.adapter_layer_norm_before = nn.LayerNorm(self.n_embd) \
             if self.adapter_layernorm_option != 'none' else None
         self.down_proj = nn.Linear(self.n_embd, self.down_size)
@@ -544,8 +503,8 @@ class Adapter_Layer(nn.Module):
         if init_with_bert:
             self.apply(init_bert_weights)
 
-    def forward(self, x, add_residual=True, w_orig=1.0, w_change=1.0):
-        residual = x
+    def forward(self, x, add_residual=True, w_orig=1.0, w_change=1.0, residual=None):
+        residual = x if residual is None else residual
         if self.adapter_layernorm_option == 'in':
             x = self.adapter_layer_norm_before(x)
 
@@ -609,41 +568,95 @@ def softmax_gating(logits_1, logits_2):
 
     return w1.unsqueeze(-1), w2.unsqueeze(-1)
 
-# class InputBias(nn.Module):
-    # def __init__(self, args):
-    #     super().__init__()
-    #     self.args = args
-    #
-    #     self.prefix_embs = nn.Embedding(args.max_source_length + 2, self.n_embd)
-    #     # Option 1: a simple version, no transformations, each attention layer has its own bias parameters
-    #     self.encoder_attn_bias = nn.ModuleList([nn.Embedding(args.max_source_length + 2, self.n_embd)
-    #                                             for _ in range(self.match_n_layer)])
-    #     self.decoder_self_attn_bias = nn.ModuleList([nn.Embedding(args.max_target_length + 2, self.n_embd)
-    #                                                  for _ in range(self.match_n_layer)])
-    #
-    #     self.decoder_cross_attn_bias = nn.ModuleList([nn.Embedding(args.max_target_length + 2, self.n_embd)
-    #                                                   for _ in range(self.match_n_layer)])
-    #     for embed in self.encoder_attn_bias:
-    #         assert isinstance(embed, nn.Embedding)
-    #         nn.init.constant_(embed.weight, 0.0)
-    #     for embed in self.decoder_self_attn_bias:
-    #         assert isinstance(embed, nn.Embedding)
-    #         nn.init.constant_(embed.weight, 0.0)
-    #     for embed in self.decoder_cross_attn_bias:
-    #         assert isinstance(embed, nn.Embedding)
-    #         nn.init.constant_(embed.weight, 0.0)
-    #
-    # def forward(self, bsz, nsamples=1, device="gpu"):
-    #     result = []
-    #     max_src_len = self.args.max_source_length + 2
-    #     max_tgt_len = self.args.max_target_length + 2
-    #
-    #     src_positions = torch.arange(0, max_src_len, dtype=torch.long, device=device)
-    #     tgt_positions = torch.arange(0, max_tgt_len, dtype=torch.long, device=device)
-    #     for ii in range(self.match_n_layer):
-    #         temp_dict = {"encoder": self.encoder_attn_bias[ii].forward(src_positions),
-    #                      "self": self.decoder_self_attn_bias[ii].forward(tgt_positions),
-    #                      "encoder_decoder": self.decoder_cross_attn_bias[ii].forward(tgt_positions)}
-    #         result.append(temp_dict)
-    #     return result
 
+# copied from LoRA: https://github.com/microsoft/LoRA/blob/main/loralib/layers.py
+class LoRALayer():
+    def __init__(
+            self,
+            r: int,
+            lora_alpha: int,
+            lora_dropout: float,
+            merge_weights: bool,
+    ):
+        self.r = r
+        self.lora_alpha = lora_alpha
+        # Optional dropout
+        if lora_dropout > 0.:
+            self.lora_dropout = nn.Dropout(p=lora_dropout)
+        else:
+            self.lora_dropout = lambda x: x
+        # Mark the weight as unmerged
+        self.merged = False
+        self.merge_weights = merge_weights
+
+
+class Linear(nn.Linear, LoRALayer):
+    # LoRA implemented in a dense layer
+    def __init__(
+            self,
+            in_features: int,
+            out_features: int,
+            r: int = 0,
+            lora_alpha: int = 1,
+            lora_dropout: float = 0.,
+            fan_in_fan_out: bool = False,
+            # Set this to True if the layer to replace stores weight like (fan_in, fan_out)
+            merge_weights: bool = True,
+            **kwargs
+    ):
+        nn.Linear.__init__(self, in_features, out_features, **kwargs)
+        LoRALayer.__init__(self, r=r, lora_alpha=lora_alpha, lora_dropout=lora_dropout,
+                           merge_weights=merge_weights)
+
+        self.fan_in_fan_out = fan_in_fan_out
+        # Actual trainable parameters
+        if r > 0:
+            self.ef_lora_A = nn.Parameter(self.weight.new_zeros((r, in_features)))
+            self.ef_lora_B = nn.Parameter(self.weight.new_zeros((out_features, r)))
+            self.scaling = self.lora_alpha / self.r
+            # Freezing the pre-trained weight matrix
+            self.weight.requires_grad = False
+        self.reset_parameters()
+        if fan_in_fan_out:
+            self.weight.data = self.weight.data.T
+
+    def reset_parameters(self):
+        nn.Linear.reset_parameters(self)
+        if hasattr(self, 'ef_lora_A'):
+            # initialize A the same way as the default for nn.Linear and B to zero
+            nn.init.kaiming_uniform_(self.ef_lora_A, a=math.sqrt(5))
+            nn.init.zeros_(self.ef_lora_B)
+
+    def train(self, mode: bool = True):
+        def T(w):
+            return w.T if self.fan_in_fan_out else w
+
+        nn.Linear.train(self, mode)
+        if self.merge_weights and self.merged:
+            # Make sure that the weights are not merged
+            if self.r > 0:
+                self.weight.data -= T(self.ef_lora_B @ self.ef_lora_A) * self.scaling
+            self.merged = False
+
+    def eval(self):
+        def T(w):
+            return w.T if self.fan_in_fan_out else w
+
+        nn.Linear.eval(self)
+        if self.merge_weights and not self.merged:
+            # Merge the weights and mark it
+            if self.r > 0:
+                self.weight.data += T(self.ef_lora_B @ self.ef_lora_A) * self.scaling
+            self.merged = True
+
+    def forward(self, x: torch.Tensor):
+        def T(w):
+            return w.T if self.fan_in_fan_out else w
+
+        if self.r > 0 and not self.merged:
+            result = F.linear(x, T(self.weight), bias=self.bias)
+            if self.r > 0:
+                result += (self.lora_dropout(x) @ self.ef_lora_A.T @ self.ef_lora_B.T) * self.scaling
+            return result
+        else:
+            return F.linear(x, T(self.weight), bias=self.bias)
