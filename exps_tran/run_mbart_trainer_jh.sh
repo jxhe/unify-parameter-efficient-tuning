@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=tran
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:3090:2
+#SBATCH --gres=gpu:a100:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
@@ -25,39 +25,40 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="wmt16"
 
-port=62220
-# Hi adapter
-attn_mode="none"
-attn_option="concat"
-ffn_mode="adapter"
+port=62221
+# Hi adapter200
+attn_mode="lisa_nomlp"
+attn_option="cross_attn_relu"
+ffn_mode="none"
 ffn_option="ffn_hi_input"
-preseqlen=200
+preseqlen=30
 ffn_bn_len=1024
 hi_lnbefore=1
-adapter_layernorm_option="in"
-label_smoothing_factor=0.2
-
-max_tokens_per_batch=2048
-gradient_steps=4
-bsz=10
-
-debug=1
-
+adapter_layernorm_option="none"
+max_grad_norm=1
 attn_gate="none"
 ffn_gate="none"
+
+debug=0
+
+label_smoothing_factor=0
+weight_decay=0
+max_steps=50000
+max_tokens_per_batch=4096
+gradient_steps=4
+
+bsz=10
+
 
 
 layer_norm_in=1
 layer_norm_out=0
 mh_reuse_proj="True"
 
-max_steps=50000
 num_train_epochs=30
 warmup_updates=0
 lr=5e-5
 lr_scheduler_type="polynomial"
-max_grad_norm=1
-weight_decay=0.01
 #metric=bleu
 metric=loss
 ft='ef_'
@@ -82,7 +83,7 @@ then
     bsz=10
     gradient_steps=4
     num_train_epochs=30
-    max_steps=120
+    max_steps=-1
     eval_strategy='steps'
     save_steps=100
     report_to="none"
@@ -95,8 +96,10 @@ exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
-# python -u examples/pytorch/translation/run_translation.py \
-python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port} examples/pytorch/translation/run_translation.py \
+rm checkpoints/hf_model/downloads/*.lock
+
+# python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port} examples/pytorch/translation/run_translation.py \
+python -u examples/pytorch/translation/run_translation.py \
     --dataset_name ${dataset}\
     --dataset_config_name ro-en \
     --model_name_or_path "facebook/mbart-large-cc25" \
@@ -167,5 +170,5 @@ python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port} exam
     --predict_with_generate \
     --output_dir ${SAVE} ${extra_cmd} 2>&1 | tee ${SAVE}/log.txt
 
-cd ${SAVE}
-bash ${SCRIPT_DIR}/romanian_postprocess.sh test_generated_predictions.txt test_gold_labels.txt | tee -a log.txt
+# cd ${SAVE}
+bash exps_tran/romanian_postprocess.sh ${SAVE}/test_generated_predictions.txt ${SAVE}/test_gold_labels.txt | tee -a ${SAVE}/log.txt

@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=xsum
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:v100:1
+#SBATCH --gres=gpu:A6000:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=2
 #SBATCH --time=0
@@ -25,19 +25,25 @@ dataset="xsum"
 
 attn_mode="lisa"
 attn_option="concat"
+adapter_layernorm_option="in"
 
 ffn_mode="none"
 ffn_option="ffn_ho_input"
 ffn_num_heads=16
 
-attn_gate="auto"
+attn_gate="none"
 ffn_gate="none"
 
 layer_norm_in=1
 layer_norm_out=0
 
-preseqlen=200
+preseqlen=30
 ffn_bn_len=512
+
+label_smoothing_factor=0
+weight_decay=0
+max_grad_norm=1
+debug=0
 
 # adapter_option="attn_adapter"
 mh_reuse_proj="True"
@@ -47,8 +53,6 @@ num_train_epochs=30
 warmup_updates=0
 lr=5e-5
 lr_scheduler_type="polynomial"
-max_grad_norm=0.1
-weight_decay=0.01
 bsz=16
 gradient_steps=4
 metric=rouge2
@@ -57,14 +61,12 @@ top_layers=12
 max_eval_samples=1600
 max_train_samples=2000
 logging_steps=100
-label_smoothing_factor=0.1
 
 eval_strategy="steps"
 # eval_strategy="steps"
 save_steps=3000
 report_to="wandb"
 
-debug=1
 vis_analysis=1
 extra_cmd=""
 debug_str=""
@@ -88,7 +90,7 @@ then
 fi
 
 
-exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.fnh${ffn_num_heads}.ag_${attn_gate}.fg_${ffn_gate}.lni${layer_norm_in}.lno${layer_norm_out}.unfrz_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.fnh${ffn_num_heads}.ag_${attn_gate}.fg_${ffn_gate}.adalo_${adapter_layernorm_option}.unfrz_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
@@ -102,6 +104,8 @@ then
     extra_cmd="${extra_cmd} --analysis_opt ${analysis_opt}"
 fi
 
+rm checkpoints/hf_model/downloads/*.lock
+
 python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
@@ -111,6 +115,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --attn_gate ${attn_gate} \
     --ffn_mode ${ffn_mode} \
     --ffn_gate ${ffn_gate} \
+    --adapter_layernorm_option ${adapter_layernorm_option} \
     --ffn_option ${ffn_option} \
     --ffn_num_heads ${ffn_num_heads} \
     --mh_reuse_proj ${mh_reuse_proj} \

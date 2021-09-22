@@ -275,9 +275,10 @@ class MBartAttention(nn.Module):
                 if self.config.attn_option == "cross_attn_noln":
                     cross_query_states = query_states
                 elif self.config.attn_option == "cross_attn_relu":
-                    cross_hidden = self.ef_transform_layer_norm(hidden_states)
-                    cross_query_states = self.q_proj(cross_hidden)
-                    cross_query_states = self._shape(cross_query_states, tgt_len, bsz).view(*proj_shape)
+                    cross_query_states = query_states
+                    # cross_hidden = self.ef_transform_layer_norm(hidden_states)
+                    # cross_query_states = self.q_proj(cross_hidden)
+                    # cross_query_states = self._shape(cross_query_states, tgt_len, bsz).view(*proj_shape)
                 else:
                     cross_hidden = self.ef_transform_layer_norm(hidden_states)
                     cross_query_states = self.q_proj(cross_hidden) * self.scaling

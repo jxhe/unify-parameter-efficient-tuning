@@ -214,6 +214,13 @@ class DataTrainingArguments:
         default=None, metadata={"help": "A prefix to add before every source text (useful for T5 models)."}
     )
 
+    max_tokens_per_batch: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": "dynamic batching. Override batch size when larger than 0"
+        },
+    )
+
     def __post_init__(self):
         if self.dataset_name is None and self.train_file is None and self.validation_file is None:
             raise ValueError("Need either a dataset name or a training/validation file.")
@@ -371,6 +378,8 @@ def main():
 
     for k in ['max_source_length', 'max_target_length']:
         setattr(config, k, vars(data_args)[k])
+
+    setattr(training_args, 'max_tokens_per_batch', data_args.max_tokens_per_batch)
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
