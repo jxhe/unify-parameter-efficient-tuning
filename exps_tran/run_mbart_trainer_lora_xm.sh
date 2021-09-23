@@ -15,7 +15,7 @@ which python
 export TRANSFORMERS_CACHE=pretrain_models/huggingface
 export HF_DATASETS_CACHE=pretrain_models/huggingface
 export HF_METRICS_CACHE=pretrain_models/huggingface
-cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
+cache_dir=pretrain_models/huggingface
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 echo ${SCRIPT_DIR}
 
