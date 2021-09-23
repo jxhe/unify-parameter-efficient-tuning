@@ -78,7 +78,7 @@ class TuneArguments:
                         "cross_attn_plug_before_outproj",
                         "cross_attn_relu",
                         "kv_proj", "attn_adapter",
-                        "attn_adapter_after_oproj", 
+                        "attn_adapter_after_oproj",
                         "mh_adapter", "houlsby", "none",
                         ], \
 
@@ -101,11 +101,12 @@ class TuneArguments:
     ffn_option: Optional[str] = field(
         default="ffn_hi_input",
         metadata={
-            "choices": ["ffn_hi_input", "ffn_ho_input", "pfeiffer", "none"], \
+            "choices": ["ffn_hi_input", "ffn_ho_input", "pfeiffer", "houlsby", "none"], \
 
             "help": "specific ffn configs; \
                 ffn_hi_input: ffn uses Hi as input; \
                 ffn_ho_input: ffn uses Ho as input; \
+                houlsby: the Houlsby config adapter baseline, equivalent to ffn_ho_input; \
                 pfeiffer: the Pfeiffer adapter config"
         },
     )

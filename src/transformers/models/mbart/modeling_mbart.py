@@ -182,8 +182,8 @@ class MBartAttention(nn.Module):
             if "attn_adapter" in self.config.attn_option:
                 self.ef_attn_adapter = Adapter_Layer(self.config, dropout=self.dropout, bottleneck=self.config.preseqlen)
             elif self.config.attn_option == "houlsby":
-                self.ef_attn_adapter = Adapter_Layer(self.config, 
-                                                     dropout=self.dropout, 
+                self.ef_attn_adapter = Adapter_Layer(self.config,
+                                                     dropout=self.dropout,
                                                      bottleneck=self.config.preseqlen,
                                                      adapter_layernorm_option="in",
                                                      )
@@ -487,8 +487,8 @@ class MBartEncoderLayer(nn.Module):
                 hidden_states = self.ef_ffn_adapter(hidden_states)
             elif self.config.ffn_option == 'ffn_hi_input':
                 hidden_states = hidden_states + adapter_change
-            else:
-                raise ValueError
+            # else:
+            #     raise ValueError
 
         if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'pfeiffer':
             h_before_residual = hidden_states
@@ -656,8 +656,8 @@ class MBartDecoderLayer(nn.Module):
                 hidden_states = self.ef_ffn_adapter(hidden_states)
             elif self.config.ffn_option == 'ffn_hi_input':
                 hidden_states = hidden_states + adapter_change
-            else:
-                raise ValueError
+            # else:
+            #     raise ValueError
 
         if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'pfeiffer':
             h_before_residual = hidden_states

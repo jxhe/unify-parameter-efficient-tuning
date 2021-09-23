@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=tran
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:a100:1
+#SBATCH --gres=gpu:A6000:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
@@ -27,12 +27,12 @@ dataset="wmt16"
 
 port=62221
 # Hi adapter200
-attn_mode="lisa_nomlp"
-attn_option="cross_attn_relu"
-ffn_mode="none"
-ffn_option="ffn_hi_input"
-preseqlen=30
-ffn_bn_len=1024
+attn_mode="none"
+attn_option="houlsby"
+ffn_mode="adapter"
+ffn_option="pfeiffer"
+preseqlen=200
+ffn_bn_len=600
 hi_lnbefore=1
 adapter_layernorm_option="none"
 max_grad_norm=1
@@ -41,8 +41,8 @@ ffn_gate="none"
 
 debug=0
 
-label_smoothing_factor=0
-weight_decay=0
+label_smoothing_factor=0.1
+weight_decay=0.01
 max_steps=50000
 max_tokens_per_batch=4096
 gradient_steps=4
@@ -97,6 +97,7 @@ SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
 rm checkpoints/hf_model/downloads/*.lock
+rm checkpoints/hf_model/*.lock
 
 # python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port} examples/pytorch/translation/run_translation.py \
 python -u examples/pytorch/translation/run_translation.py \
