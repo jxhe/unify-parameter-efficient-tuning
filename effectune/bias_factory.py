@@ -573,7 +573,7 @@ class MLP_Adapter_Layers(nn.Module):
         self.dropout = nn.Dropout(self.prefix_dropout)
 
         self.input_tokens = torch.arange(self.preseqlen).long()
-        self.wte = nn.Embedding(self.preseqlen, self.n_embd)
+        self.wtes = nn.Embedding(self.preseqlen, self.n_embd)
         self.control_trans = nn.Sequential(
             nn.Linear(self.n_embd, self.mid_dim),
             nn.Tanh(),
@@ -636,7 +636,7 @@ def adapter_func(x, down_w, up_w, layernorm, training, dropout=0.0, add_residual
     if add_residual:
         output = up + residual
     else:
-        dropout = up
+        output = up
     return output
 
 # copied from LoRA: https://github.com/microsoft/LoRA/blob/main/loralib/layers.py

@@ -627,7 +627,7 @@ class BartEncoderLayer(nn.Module):
         if 'adapter' in self.config.ffn_mode and self.config.ffn_option == 'ffn_hi_input':
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
-        if self.config.ffn_mode == "mlp_adapter"  and self.config.ffn_option == 'ffn_hi_input':
+        if self.config.ffn_mode == "mlp_adapter" and self.config.ffn_option == 'ffn_hi_input':
             params = prefix_state.get(self.fc_key)
             down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
             adapter_change = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,

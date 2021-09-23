@@ -30,9 +30,6 @@ class PrefixTuning(BartPretrainedModel):
             self.setup_dependent_lisa(args, config)
         elif args.attn_mode == 'bitfit' or args.attn_mode == 'adapter':
             self.get_prompt = self.get_fake_prompt
-        elif args.attn_mode == 'none':
-            # includes only with ffn mode
-            self.get_prompt = self.get_fake_prompt
         elif args.attn_mode == "default_cross_attn_only":
             self.prompt_model = PrefixCrossAttn(args, config)
             self.get_prompt = self.get_standard_prompt
@@ -43,6 +40,9 @@ class PrefixTuning(BartPretrainedModel):
         elif args.attn_mode == "mlp_adapter" or args.ffn_mode == "mlp_adapter":
             self.prompt_model = MLP_Adapter(config)
             self.get_prompt = self.get_standard_prompt
+        elif args.attn_mode == 'none':
+            # includes only with ffn mode
+            self.get_prompt = self.get_fake_prompt
         else:
             raise ValueError
 
