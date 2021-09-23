@@ -114,6 +114,25 @@ label_smoothing_factor=0.1
 #preseqlen=200
 #ffn_bn_len=1
 
+# mlp adapter at attention
+attn_mode="mlp_adapter"
+attn_option="attn_adapter"
+ffn_mode="none"
+ffn_option="none"
+preseqlen=30
+ffn_bn_len=1
+
+# mlp adapter at attention
+attn_mode="none"
+attn_option="none"
+ffn_mode="mlp_adapter"
+ffn_option="ffn_hi_input"
+preseqlen=1
+ffn_bn_len=512
+hi_lnbefore=1
+adapter_layernorm_option="none"
+label_smoothing_factor=0.1
+
 layer_norm_in=1
 layer_norm_out=0
 mh_reuse_proj="True"
@@ -136,7 +155,7 @@ eval_strategy="steps"
 save_steps=5000
 report_to="wandb"
 
-debug=0
+debug=1
 extra_cmd=""
 debug_str=""
 
@@ -147,8 +166,9 @@ then
     max_grad_norm=1
     max_train_samples=4000
     max_eval_samples=150
-    bsz=10
+    max_tokens_per_batch=512
     gradient_steps=8
+    bsz=10
     num_train_epochs=16
     max_steps=-1
     eval_strategy='steps'
@@ -159,7 +179,8 @@ then
     debug_str=".debug"
 fi
 
-#report_to="none"
+save_steps=200
+report_to="none"
 exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.alo_${adapter_layernorm_option}.hilnb_${hi_lnbefore}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}

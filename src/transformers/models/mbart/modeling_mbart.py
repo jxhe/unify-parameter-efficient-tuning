@@ -456,7 +456,7 @@ class MBartEncoderLayer(nn.Module):
             and self.config.hi_lnbefore == 1:
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
-        if self.config.ffn_mode == "mlp_adapter"  and self.config.ffn_option == 'ffn_hi_input' \
+        if self.config.ffn_mode == "mlp_adapter" and self.config.ffn_option == 'ffn_hi_input' \
                 and self.config.hi_lnbefore == 1:
             params = prefix_state.get(self.fc_key)
             down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
@@ -642,7 +642,7 @@ class MBartDecoderLayer(nn.Module):
             and self.config.hi_lnbefore == 1:
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
-        if self.config.ffn_mode == "mlp_adapter"  and self.config.ffn_option == 'ffn_hi_input' \
+        if self.config.ffn_mode == "mlp_adapter" and self.config.ffn_option == 'ffn_hi_input' \
                 and self.config.hi_lnbefore == 1:
             params = prefix_state.get(self.fc_key)
             down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]

@@ -567,7 +567,8 @@ class MLP_Adapter_Layers(nn.Module):
         self.n_embd = config.d_model
 
         self.mid_dim = config.mid_dim
-        self.preseqlen = config.preseqlen
+
+        self.preseqlen = config.preseqlen if "ffn" not in cache_key else config.ffn_bn_len
         self.prefix_dropout = config.prefix_dropout
 
         self.dropout = nn.Dropout(self.prefix_dropout)
@@ -629,7 +630,16 @@ def adapter_func(x, down_w, up_w, layernorm, training, dropout=0.0, add_residual
 
     if layernorm is not None:
         x = layernorm(x)
+    print("x", x.size())
+    print(x)
+    input()
+    print("down w", down_w.size())
+    print(down_w)
+    input()
     down = x @ down_w
+    print("down", down.size())
+    print(down)
+    input()
     down = nn.functional.relu(down)
     down = nn.functional.dropout(down, p=dropout, training=training)
     up = down @ up_w
