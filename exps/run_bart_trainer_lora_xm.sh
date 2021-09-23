@@ -17,6 +17,8 @@ export HF_DATASETS_CACHE=pretrain_models/huggingface
 export HF_METRICS_CACHE=pretrain_models/huggingface
 cache_dir=pretrain_models/huggingface
 
+export TRANSFORMERS_OFFLINE=1
+export WANDB_MODE=offline
 # wandb env variables
 export WANDB_PROJECT=xsum_tride
 export WANDB_WATCH="false"

@@ -19,6 +19,9 @@ cache_dir=pretrain_models/huggingface
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 echo ${SCRIPT_DIR}
 
+export TRANSFORMERS_OFFLINE=1
+export WANDB_MODE=offline
+
 # wandb env variables
 export WANDB_PROJECT=enro_translation
 export WANDB_WATCH="false"
@@ -50,8 +53,8 @@ adapter_layernorm_option="out"  # in=pre, out=post
 label_smoothing_factor=0.1
 lora_dropout=0.1
 
-max_tokens_per_batch=2750
-gradient_steps=3
+max_tokens_per_batch=3196
+gradient_steps=5
 bsz=10
 
 layer_norm_in=1
@@ -108,7 +111,8 @@ rm ${HF_DATASETS_CACHE}/downloads/*.lock
 rm ${HF_DATASETS_CACHE}/*.lock
 
 #python -u
-python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port} examples/pytorch/translation/run_translation.py \
+#python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port}
+python -u examples/pytorch/translation/run_translation.py \
     --dataset_name ${dataset}\
     --dataset_config_name ro-en \
     --model_name_or_path "facebook/mbart-large-cc25" \
