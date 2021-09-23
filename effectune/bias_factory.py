@@ -558,6 +558,87 @@ def softmax_gating(logits_1, logits_2):
     return w1.unsqueeze(-1), w2.unsqueeze(-1)
 
 
+class MLP_Adapter_Layers(nn.Module):
+    # parameter generator
+    def __init__(self, config, cache_key):
+        super().__init__()
+        # one particular adapter (fc1 / xattn) from all the layers share parameters
+        self.match_n_layer = config.num_bias_layers
+        self.n_embd = config.d_model
+
+        self.mid_dim = config.mid_dim
+        self.preseqlen = config.preseqlen
+        self.prefix_dropout = config.prefix_dropout
+
+        self.dropout = nn.Dropout(self.prefix_dropout)
+
+        self.input_tokens = torch.arange(self.preseqlen).long()
+        self.wte = nn.Embedding(self.preseqlen, self.n_embd)
+        self.control_trans = nn.Sequential(
+            nn.Linear(self.n_embd, self.mid_dim),
+            nn.Tanh(),
+            nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
+
+        self.adapter_layernorm_option = config.adapter_layernorm_option if "ffn" in cache_key else "in"
+        if self.adapter_layernorm_option != 'none':
+            self.adapter_layer_norm = nn.ModuleList([nn.LayerNorm(self.n_embd) for _ in self.match_n_layer])
+        else:
+            self.adapter_layer_norm = None
+
+        self.cache_key = cache_key
+
+    def forward(self, device="gpu"):
+        temp_control = self.wtes(self.input_tokens.to(device))
+        down_up_weights = self.control_trans(temp_control)  # rank, layer*emb
+        rank, _ = down_up_weights.shape
+        down_up_weights = down_up_weights.view(rank, self.match_n_layer * 2, self.n_embd)
+        down_up_weights = self.dropout(down_up_weights)
+        down_up_weights = down_up_weights.permute([1, 0, 2]).split(2)  # [nlayers, L, d]
+        return down_up_weights, self.adapter_layer_norm
+
+
+class MLP_Adapter(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.n_layers = config.num_bias_layers
+        attn_mode = config.attn_mode
+        ffn_mode = config.ffn_mode
+
+        if attn_mode == "mlp_adapter" and ffn_mode != "mlp_adapter":
+            self.keys = ["encoder", "self", "encoder_decoder"]
+        elif attn_mode != "mlp_adapter" and ffn_mode == "mlp_adapter":
+            self.keys = ["encoder_ffn", "decoder_ffn"]
+        elif attn_mode == "mlp_adapter" and ffn_mode == "mlp_adapter":
+            self.keys = ["encoder", "self", "encoder_decoder", "encoder_ffn", "decoder_ffn"]
+
+        self.mlp_params = nn.ModuleList([MLP_Adapter_Layers(config, key) for key in self.keys])
+
+    def forward(self, bsz, nsamples=1, device="gpu"):
+        result = [{} for _ in range(self.n_layers)]
+        for mlp in self.mlp_params:
+            key, (down_up_weights, layer_norms) = mlp.cache_key, mlp(device)
+            for i, weights in enumerate(down_up_weights):
+                result[i][key] = {"down": weights[0].transpose(0, 1),
+                                  "up": weights[1],
+                                  "layernorm": layer_norms[i] if layer_norms is not None else None}
+        return result
+
+
+def adapter_func(x, down_w, up_w, layernorm, training, dropout=0.0, add_residual=True):
+    residual = x
+
+    if layernorm is not None:
+        x = layernorm(x)
+    down = x @ down_w
+    down = nn.functional.relu(down)
+    down = nn.functional.dropout(down, p=dropout, training=training)
+    up = down @ up_w
+    if add_residual:
+        output = up + residual
+    else:
+        dropout = up
+    return output
+
 # copied from LoRA: https://github.com/microsoft/LoRA/blob/main/loralib/layers.py
 class LoRALayer():
     def __init__(

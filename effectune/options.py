@@ -47,7 +47,7 @@ class TuneArguments:
         default="lisa",
         metadata={
             "choices": ["lisa", "lisa_nomlp",
-            "learn_bias", "luna", "none", "bitfit", "lora",
+            "learn_bias", "luna", "none", "bitfit", "lora", "mlp_adapter",
             "dlisa", "adapter", "default_cross_attn_only", "prompt_tuning"], \
 
             "help": "config for attention, none to disable; \
@@ -61,7 +61,7 @@ class TuneArguments:
     ffn_mode: Optional[str] = field(
         default="none",
         metadata={
-            "choices": ["adapter", "none", "mh_adapter", "mh_adapter_random", "lora"],
+            "choices": ["adapter", "none", "mh_adapter", "mh_adapter_random", "lora", "mlp_adapter"],
 
             "help": "config for ffn, none to disable; \
             adapter: adapter mode; \

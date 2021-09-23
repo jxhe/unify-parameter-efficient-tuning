@@ -3,7 +3,7 @@ from transformers import BartPretrainedModel
 import torch.nn as nn
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 from effectune.luna_attention import luna_attention, luna_attention_enc_dec, SimpleAttnBias
-from effectune.bias_factory import Prefix, MLP_Bias, Bias, PrefixDirectInit, PrefixCrossAttn
+from effectune.bias_factory import Prefix, MLP_Bias, Bias, PrefixDirectInit, PrefixCrossAttn, MLP_Adapter
 from transformers.utils import logging
 logger = logging.get_logger(__name__)
 
@@ -40,6 +40,9 @@ class PrefixTuning(BartPretrainedModel):
             self.get_prompt = self.get_fake_prompt
         elif args.attn_mode == "lora":
             self.get_prompt = self.get_fake_prompt
+        elif args.attn_mode == "mlp_adapter" or args.ffn_mode == "mlp_adapter":
+            self.prompt_model = MLP_Adapter(config)
+            self.get_prompt = self.get_standard_prompt
         else:
             raise ValueError
 

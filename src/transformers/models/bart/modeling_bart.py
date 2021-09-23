@@ -48,7 +48,7 @@ from .configuration_bart import BartConfig
 import sys
 sys.path.insert(2, "./")
 from effectune.luna_attention import luna_attention_enc_dec
-from effectune.bias_factory import Adapter_Layer, MHAdapter_Layer, softmax_gating, Linear
+from effectune.bias_factory import Adapter_Layer, MHAdapter_Layer, softmax_gating, Linear, adapter_func
 
 logger = logging.get_logger(__name__)
 
@@ -344,6 +344,13 @@ class BartAttention(nn.Module):
                 if self.config.layer_norm_after:
                     cross_attn_output = self.ef_transform_layer_norm_out(cross_attn_output)
 
+        if self.config.attn_mode == "mlp_adapter":
+            params = prefix_state.get(self.cache_key)
+            down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
+            cross_attn_output = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout, add_residual=False)
+            if self.config.layer_norm_after:
+                cross_attn_output = self.ef_transform_layer_norm_out(cross_attn_output)
+
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
 
@@ -575,6 +582,7 @@ class BartEncoderLayer(nn.Module):
                                                   bottleneck=config.ffn_bn_len,
                                                   num_heads=config.ffn_num_heads,
                                                   dropout=self.dropout)
+        self.fc_key = "encoder_ffn"
 
     def forward(
         self,
@@ -619,12 +627,17 @@ class BartEncoderLayer(nn.Module):
         if 'adapter' in self.config.ffn_mode and self.config.ffn_option == 'ffn_hi_input':
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
+        if self.config.ffn_mode == "mlp_adapter"  and self.config.ffn_option == 'ffn_hi_input':
+            params = prefix_state.get(self.fc_key)
+            down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
+            adapter_change = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
+                                          add_residual=False)
+
         if self.config.ffn_gate == 'none':
             w_orig = w_change = 1.0
         else:
             w_orig = self.config.ffn_gate
             w_change = 1. - w_orig
-
 
         residual = hidden_states
         hidden_states = self.activation_fn(self.fc1(hidden_states))
@@ -637,6 +650,16 @@ class BartEncoderLayer(nn.Module):
                 hidden_states = self.ef_ffn_adapter(hidden_states, w_orig=w_orig, w_change=w_change)
             elif self.config.ffn_option == 'ffn_hi_input':
                 hidden_states = w_orig * hidden_states + w_change * adapter_change
+            else:
+                raise ValueError
+
+        if self.config.ffn_mode == "mlp_adapter":
+            if self.config.ffn_option == 'ffn_ho_input':
+                params = prefix_state.get(self.fc_key)
+                down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
+                hidden_states = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,)
+            elif self.config.ffn_option == 'ffn_hi_input':
+                hidden_states = hidden_states + adapter_change
             else:
                 raise ValueError
 
