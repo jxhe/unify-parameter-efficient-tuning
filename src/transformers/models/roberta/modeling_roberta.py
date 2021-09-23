@@ -49,7 +49,10 @@ from ...modeling_utils import (
 from ...utils import logging
 from .configuration_roberta import RobertaConfig
 
+import sys
+sys.path.insert(2, "./")
 
+from effectune.bias_factory import Adapter_Layer, softmax_gating, Linear, MHAdapter_Layer
 logger = logging.get_logger(__name__)
 
 _CHECKPOINT_FOR_DOC = "roberta-base"
@@ -159,7 +162,7 @@ class RobertaEmbeddings(nn.Module):
 
 # Copied from transformers.models.bert.modeling_bert.BertSelfAttention with Bert->Roberta
 class RobertaSelfAttention(nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, cache_key=None):
         super().__init__()
         if config.hidden_size % config.num_attention_heads != 0 and not hasattr(config, "embedding_size"):
             raise ValueError(
@@ -171,9 +174,16 @@ class RobertaSelfAttention(nn.Module):
         self.attention_head_size = int(config.hidden_size / config.num_attention_heads)
         self.all_head_size = self.num_attention_heads * self.attention_head_size
 
-        self.query = nn.Linear(config.hidden_size, self.all_head_size)
+        if config.attn_mode == "lora":
+            self.query = Linear(config.hidden_size, self.all_head_size, r=config.preseqlen, lora_alpha=config.lora_alpha,
+                                 lora_dropout=config.lora_dropout)
+            self.value = Linear(config.hidden_size, self.all_head_size, r=config.preseqlen, lora_alpha=config.lora_alpha,
+                                 lora_dropout=config.lora_dropout)
+        else:
+            self.query = nn.Linear(config.hidden_size, self.all_head_size)
+            self.value = nn.Linear(config.hidden_size, self.all_head_size)
+
         self.key = nn.Linear(config.hidden_size, self.all_head_size)
-        self.value = nn.Linear(config.hidden_size, self.all_head_size)
 
         self.dropout = nn.Dropout(config.attention_probs_dropout_prob)
         self.position_embedding_type = getattr(config, "position_embedding_type", "absolute")
@@ -182,6 +192,41 @@ class RobertaSelfAttention(nn.Module):
             self.distance_embedding = nn.Embedding(2 * config.max_position_embeddings - 1, self.attention_head_size)
 
         self.is_decoder = config.is_decoder
+
+        assert cache_key in ['self', 'encoder_decoder', 'encoder']
+        self.attn_mode = config.attn_mode
+        self.config = config
+        self.cache_key = cache_key
+
+        if 'lisa' in self.attn_mode:
+            if self.config.attn_option == 'cross_attn':
+                self.ef_transform_layer_norm = nn.LayerNorm(embed_dim)
+
+        elif self.attn_mode == 'adapter':
+            if "attn_adapter" in self.config.attn_option:
+                self.ef_attn_adapter = Adapter_Layer(d_model=config.hidden_size, 
+                                                     dropout=config.attention_probs_dropout_prob, 
+                                                     bottleneck=self.config.preseqlen,
+                                                     adapter_layernorm_option="in")
+            elif self.config.attn_option == "houlsby":
+                self.ef_attn_adapter = Adapter_Layer(d_model=config.hidden_size,
+                                                     dropout=config.attention_probs_dropout_prob,
+                                                     bottleneck=self.config.preseqlen,
+                                                     adapter_layernorm_option="in",
+                                                     )
+            elif self.config.attn_option == "mh_adapter":
+                self.ef_attn_adapter = MHAdapter_Layer(d_model=config.hidden_size,
+                                                       bottleneck=self.config.preseqlen,
+                                                       num_heads=self.num_attention_heads,
+                                                       dropout=config.attention_probs_dropout_prob,
+                                                       init_with_bert=True,
+                                                       adapter_layernorm_option=self.config.adapter_layernorm_option,
+                                                       )
+            else:
+                raise ValueError("adapter option not supported")
+
+        if self.config.layer_norm_after:
+            self.ef_transform_layer_norm_out = nn.LayerNorm(embed_dim)
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
@@ -197,6 +242,8 @@ class RobertaSelfAttention(nn.Module):
         encoder_attention_mask=None,
         past_key_value=None,
         output_attentions=False,
+        prefix_state= None,  # added by Chunting
+        step: Optional[int] = None,
     ):
         mixed_query_layer = self.query(hidden_states)
 
@@ -204,6 +251,7 @@ class RobertaSelfAttention(nn.Module):
         # and values come from an encoder; the attention mask needs to be
         # such that the encoder's padding tokens are not attended to.
         is_cross_attention = encoder_hidden_states is not None
+        bsz, tgt_len, embed_dim = hidden_states.size()
 
         if is_cross_attention and past_key_value is not None:
             # reuse k,v, cross_attentions
@@ -223,6 +271,7 @@ class RobertaSelfAttention(nn.Module):
             key_layer = self.transpose_for_scores(self.key(hidden_states))
             value_layer = self.transpose_for_scores(self.value(hidden_states))
 
+        # (bsz, nhead, seqlen, head_dim)
         query_layer = self.transpose_for_scores(mixed_query_layer)
 
         if self.is_decoder:
@@ -235,8 +284,92 @@ class RobertaSelfAttention(nn.Module):
             # if encoder bi-directional self-attention `past_key_value` is always `None`
             past_key_value = (key_layer, value_layer)
 
+        cross_attn_output = None
+        if prefix_state is not None and 'lisa' in self.attn_mode:
+            # legacy
+            prefix_key = prefix_state.get(self.cache_key)['prev_key']  # bsz x nhead, preseqlen, head_dim
+            prefix_value = prefix_state.get(self.cache_key)['prev_value']
+            prefix_mask = prefix_state.get(self.cache_key)['prev_key_padding_mask']  # bsz, preseqlen: zeros
+
+            # (bsz, nhead, preseqlen, head_im)
+            prefix_key = prefix_key.view(bsz, self.num_attention_heads, *prefix_key.size()[-2:])
+            prefix_value = prefix_value.view(bsz, self.num_attention_heads, *prefix_value.size()[-2:])
+
+            # import pdb; pdb.set_trace()
+            if self.config.attn_option == 'concat':
+                # original lisa prefix-tuning
+                # if self.cache_key == "self":
+                #     key_states = torch.cat([key_states[:, 0, :].unsqueeze(1), prefix_key, key_states[:, 1:, :]], dim=1)
+                #     value_states = torch.cat([value_states[:, 0, :].unsqueeze(1), prefix_value, value_states[:, 1:, :]], dim=1)
+                # else:
+                key_layer = torch.cat([prefix_key, key_layer], dim=2)
+                value_layer = torch.cat([prefix_value, value_layer], dim=2)
+
+                if attention_mask is not None:
+                    expanded_prefix_mask = prefix_mask[:, None, None, :].expand(bsz, 1, tgt_len,
+                                                                                prefix_mask.size(1)).to(
+                        attention_mask.dtype)
+                    attention_mask = torch.cat([expanded_prefix_mask, attention_mask], dim=-1)
+
+            elif self.config.attn_option == "cross_attn" or self.config.attn_option == "cross_attn_noln" \
+                or self.config.attn_option == "cross_attn_relu":
+                # optimize an added layernorm
+                if self.config.attn_option == "cross_attn_noln":
+                    cross_query_states = query_layer
+                elif self.config.attn_option == "cross_attn_relu":
+                    cross_query_states = query_layer
+                    # cross_hidden = self.ef_transform_layer_norm(hidden_states)
+                    # cross_query_states = self.q_proj(cross_hidden)
+                    # cross_query_states = self._shape(cross_query_states, tgt_len, bsz).view(*proj_shape)
+                else:
+                    cross_hidden = self.ef_transform_layer_norm(hidden_states)
+                    cross_query_states = self.query(cross_hidden)
+                    cross_query_states = self.transpose_for_scores(cross_query_states)
+
+                cross_attn_logits = torch.matmul(cross_query_states, prefix_key.transpose(-1, -2))
+                cross_attn_logits = cross_attn_logits / math.sqrt(self.attention_head_size)
+
+                # bsz * num_heads, tgt_len, prefix_len
+                if self.config.attn_option == "cross_attn_relu":
+                    cross_attn_weights = nn.functional.relu(cross_attn_logits)
+                else:
+                    cross_attn_weights = nn.functional.softmax(cross_attn_logits, dim=-1)
+
+                cross_attn_probs = nn.functional.dropout(cross_attn_weights, p=self.config.attention_probs_dropout_prob, training=self.training)
+                cross_attn_output = torch.matmul(cross_attn_probs, prefix_value)
+
+
+                # when not mimicing the same gating behaviour of prefix tuning
+                if self.config.attn_gate != "auto":
+                    # (bsz, seq_len, nhead, head_dim) -> (bsz, seq_len, nembed)
+                    cross_attn_output = cross_attn_output.permute(0, 2, 1, 3).contiguous()
+                    new_shape = cross_attn_output.size()[:-2] + (self.all_head_size,)
+                    cross_attn_output = cross_attn_output.view(*new_shape)
+
+                    if self.config.layer_norm_after:
+                        cross_attn_output = self.ef_transform_layer_norm_out(cross_attn_output)
+
+        if self.config.attn_mode == 'adapter':
+            if "attn_adapter" in self.config.attn_option:
+                cross_attn_output = self.ef_attn_adapter(hidden_states, add_residual=False)
+            elif self.config.attn_option == "mh_adapter":
+                cross_attn_output = self.ef_attn_adapter(hidden_states, add_residual=False, q_proj=self.q_proj)
+
         # Take the dot product between "query" and "key" to get the raw attention scores.
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
+
+        if self.config.attn_mode != "none":
+            if self.config.attn_gate == "none":
+                w_prefix = w_attn = 1.0
+            elif self.config.attn_gate == "auto":
+                if attention_mask is not None:
+                    attention_scores_local = attention_scores.view(bsz, self.num_attention_heads, tgt_len, src_len) + attention_mask
+                    attention_scores_local = attention_scores_local.view(bsz * self.num_attention_heads, tgt_len, src_len)
+                w_prefix, w_attn = softmax_gating(cross_attn_logits, attention_scores_local)  # bsz, num_heads, tgt_len, 1
+            elif self.config.attn_gate >= 0:
+                # distinguish training and
+                w_attn = self.config.attn_gate
+                w_prefix = 1.0 - w_attn
 
         if self.position_embedding_type == "relative_key" or self.position_embedding_type == "relative_key_query":
             seq_length = hidden_states.size()[1]
@@ -272,9 +405,18 @@ class RobertaSelfAttention(nn.Module):
 
         context_layer = torch.matmul(attention_probs, value_layer)
 
-        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
+        if self.config.attn_mode != "none" and self.config.attn_gate == "auto":
+            attn_output = context_layer * w_attn + cross_attn_output * w_prefix
+            cross_attn_output = None
+
+        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(*new_context_layer_shape)
+        new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
+        context_layer = context_layer.view(*new_context_layer_shape)
+
+        if cross_attn_output is not None:
+            context_layer = context_layer + cross_attn_output
 
         outputs = (context_layer, attention_probs) if output_attentions else (context_layer,)
 
@@ -291,8 +433,20 @@ class RobertaSelfOutput(nn.Module):
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
+        self.config = config
+
+        if config.attn_mode == "adapter" and config.attn_option == "houlsby":
+            self.ef_attn_adapter = Adapter_Layer(d_model=config.hidden_size,
+                                                 dropout=config.hidden_dropout_prob,
+                                                 bottleneck=config.preseqlen,
+                                                 adapter_layernorm_option="in",
+                                                 )
+
     def forward(self, hidden_states, input_tensor):
         hidden_states = self.dense(hidden_states)
+        if self.config.attn_mode == "adapter" and self.config.attn_option == "houlsby":
+            hidden_states = hidden_states + self.ef_attn_adapter(hidden_states, add_residual=True)
+
         hidden_states = self.dropout(hidden_states)
         hidden_states = self.LayerNorm(hidden_states + input_tensor)
         return hidden_states
@@ -352,7 +506,11 @@ class RobertaAttention(nn.Module):
 class RobertaIntermediate(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.intermediate_size)
+        if config.ffn_mode == 'lora':
+            self.dense = Linear(config.hidden_size, config.intermediate_size, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+                              lora_dropout=config.lora_dropout)
+        else:
+            self.dense = nn.Linear(config.hidden_size, config.intermediate_size)
         if isinstance(config.hidden_act, str):
             self.intermediate_act_fn = ACT2FN[config.hidden_act]
         else:
@@ -368,14 +526,39 @@ class RobertaIntermediate(nn.Module):
 class RobertaOutput(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.dense = nn.Linear(config.intermediate_size, config.hidden_size)
+        if config.ffn_mode == 'lora':
+            self.dense = Linear(config.intermediate_size, config.hidden_size, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+                              lora_dropout=config.lora_dropout)
+        else:
+            self.dense = nn.Linear(config.intermediate_size, config.hidden_size)
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
-    def forward(self, hidden_states, input_tensor):
+        self.config = config
+
+        if config.ffn_mode == 'adapter':
+            if config.ffn_option == 'ffn_ho_input' or config.ffn_option == 'pfeiffer' or config.ffn_option == 'houlsby':
+                self.ef_ffn_adapter = Adapter_Layer(config, dropout=config.hidden_dropout_prob,
+                                                    bottleneck=config.ffn_bn_len,
+                                                    adapter_layernorm_option=config.adapter_layernorm_option,)
+
+    def forward(self, hidden_states, input_tensor, adapter_change=None):
         hidden_states = self.dense(hidden_states)
         hidden_states = self.dropout(hidden_states)
+        if self.config.ffn_mode == 'adapter':
+            if self.config.ffn_option == 'ffn_ho_input' or self.config.ffn_option == 'houlsby':
+                hidden_states = self.ef_ffn_adapter(hidden_states)
+            elif self.self.config.ffn_option == 'ffn_hi_input' and adapter_change is not None:
+                hidden_states =  hidden_states + adapter_change
+
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'pfeiffer':
+            h_before_residule = hidden_states
+
         hidden_states = self.LayerNorm(hidden_states + input_tensor)
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'pfeiffer':
+            hidden_states = self.ef_ffn_adapter(hidden_states, residual=h_before_residule)
+            hidden_states = self.LayerNorm(hidden_states + input_tensor)
+
         return hidden_states
 
 
@@ -394,6 +577,13 @@ class RobertaLayer(nn.Module):
         self.intermediate = RobertaIntermediate(config)
         self.output = RobertaOutput(config)
 
+        self.config = config
+
+        if config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
+            self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=config.hidden_dropout_prob,
+                                                bottleneck=config.ffn_bn_len,
+                                                adapter_layernorm_option=config.adapter_layernorm_option,)
+
     def forward(
         self,
         hidden_states,
@@ -403,6 +593,7 @@ class RobertaLayer(nn.Module):
         encoder_attention_mask=None,
         past_key_value=None,
         output_attentions=False,
+        prefix_state=None,
     ):
         # decoder uni-directional self-attention cached key/values tuple is at positions 1,2
         self_attn_past_key_value = past_key_value[:2] if past_key_value is not None else None
@@ -412,6 +603,7 @@ class RobertaLayer(nn.Module):
             head_mask,
             output_attentions=output_attentions,
             past_key_value=self_attn_past_key_value,
+            prefix_state=prefix_state,
         )
         attention_output = self_attention_outputs[0]
 
@@ -458,8 +650,13 @@ class RobertaLayer(nn.Module):
         return outputs
 
     def feed_forward_chunk(self, attention_output):
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
+            adapter_change = self.ef_ffn_adapter(attention_output, add_residual=False)
+        else:
+            adapter_change = None
+
         intermediate_output = self.intermediate(attention_output)
-        layer_output = self.output(intermediate_output, attention_output)
+        layer_output = self.output(intermediate_output, attention_output, adapter_change=adapter_change)
         return layer_output
 
 
@@ -482,6 +679,7 @@ class RobertaEncoder(nn.Module):
         output_attentions=False,
         output_hidden_states=False,
         return_dict=True,
+        prefix_state=None,
     ):
         all_hidden_states = () if output_hidden_states else None
         all_self_attentions = () if output_attentions else None
@@ -519,6 +717,11 @@ class RobertaEncoder(nn.Module):
                     encoder_attention_mask,
                 )
             else:
+                # if prefix_state is not None and idx + self.config.num_bias_layers >= self.config.encoder_layers:
+                #     idx = idx - (self.config.encoder_layers - self.config.num_bias_layers)
+                #     pass_prefix_state = prefix_state[idx] if isinstance(prefix_state, list) else prefix_state
+                # else:
+                #     pass_prefix_state = None
                 layer_outputs = layer_module(
                     hidden_states,
                     attention_mask,
@@ -527,6 +730,7 @@ class RobertaEncoder(nn.Module):
                     encoder_attention_mask,
                     past_key_value,
                     output_attentions,
+                    prefix_state=prefix_state[i] if isinstance(prefix_state, list) else prefix_state,
                 )
 
             hidden_states = layer_outputs[0]
@@ -589,6 +793,7 @@ class RobertaPreTrainedModel(PreTrainedModel):
     # Copied from transformers.models.bert.modeling_bert.BertPreTrainedModel._init_weights
     def _init_weights(self, module):
         """Initialize the weights"""
+        print("============================ init weights is called! ====================================")
         if isinstance(module, nn.Linear):
             # Slightly different from the TF version which uses truncated_normal for initialization
             # cf https://github.com/pytorch/pytorch/pull/5617
@@ -758,6 +963,7 @@ class RobertaModel(RobertaPreTrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
+        prefix_state=None,
     ):
         r"""
         encoder_hidden_states  (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`, `optional`):
@@ -857,6 +1063,7 @@ class RobertaModel(RobertaPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            prefix_state=prefix_state,
         )
         sequence_output = encoder_outputs[0]
         pooled_output = self.pooler(sequence_output) if self.pooler is not None else None
@@ -1177,6 +1384,7 @@ class RobertaForSequenceClassification(RobertaPreTrainedModel):
         output_attentions=None,
         output_hidden_states=None,
         return_dict=None,
+        prefix_state=None,
     ):
         r"""
         labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
@@ -1196,6 +1404,7 @@ class RobertaForSequenceClassification(RobertaPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            prefix_state=prefix_state,
         )
         sequence_output = outputs[0]
         logits = self.classifier(sequence_output)

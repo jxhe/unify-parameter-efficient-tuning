@@ -44,6 +44,14 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
+from effectune.options import (
+    GenerationArguments,
+    TuneArguments,
+)
+from effectune.prefix_tuning_roberta import PrefixTuning
+from effectune.dynamic_batching import DynamicBatchingDataset
+
+
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.9.0.dev0")
@@ -131,6 +139,13 @@ class DataTrainingArguments:
     )
     test_file: Optional[str] = field(default=None, metadata={"help": "A csv or a json file containing the test data."})
 
+    max_tokens_per_batch: Optional[int] = field(
+        default=0,
+        metadata={
+            "help": "dynamic batching. Override batch size when larger than 0"
+        },
+    )
+
     def __post_init__(self):
         if self.task_name is not None:
             self.task_name = self.task_name.lower()
@@ -190,13 +205,14 @@ def main():
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments,
+                               TuneArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
-        model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
+        model_args, data_args, training_args, tune_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
     else:
-        model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, tune_args = parser.parse_args_into_dataclasses()
 
     # Setup logging
     logging.basicConfig(
@@ -331,6 +347,14 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
+
+    # put useful args into config: these arguments will be used in models, thus adding them to config
+    # interested_args = ['use_prefix', 'mid_dim', 'preseqlen', 'prefix_dropout', 'unfreeze_params']
+    for k, v in vars(tune_args).items():
+        if not hasattr(config, k):
+            setattr(config, k, v)
+
+    setattr(training_args, 'max_tokens_per_batch', data_args.max_tokens_per_batch)
 
     # Preprocessing the datasets
     if data_args.task_name is not None:

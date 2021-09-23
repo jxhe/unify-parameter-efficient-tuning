@@ -333,9 +333,9 @@ class MBartAttention(nn.Module):
                 w_prefix = w_attn = 1.0
             elif self.config.attn_gate == "auto":
                 if attention_mask is not None:
-                    attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
-                    attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
-                w_prefix, w_attn = softmax_gating(cross_attn_logits, attn_weights)  # bsz x num_heads, tgt_len, 1
+                    attn_weights_local = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
+                    attn_weights_local = attn_weights_local.view(bsz * self.num_heads, tgt_len, src_len)
+                w_prefix, w_attn = softmax_gating(cross_attn_logits, attn_weights_local)  # bsz x num_heads, tgt_len, 1
             elif self.config.attn_gate >= 0:
                 # distinguish training and
                 w_attn = self.config.attn_gate
