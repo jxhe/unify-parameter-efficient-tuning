@@ -50,7 +50,7 @@ adapter_layernorm_option="out"  # in=pre, out=post
 label_smoothing_factor=0.1
 lora_dropout=0.1
 
-max_tokens_per_batch=2814
+max_tokens_per_batch=2750
 gradient_steps=3
 bsz=10
 
