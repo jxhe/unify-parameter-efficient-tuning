@@ -7,6 +7,7 @@
 #SBATCH --partition=gpu
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
+#SBATCH --time=2-00:00:00
 ##SBATCH --array=0
 
 port=15217
