@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=tran.lora.attn.s4
+#SBATCH --job-name=tran.lora.comb.s2
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:v100:1
 #SBATCH --partition=gpu
@@ -32,13 +32,13 @@ dataset="wmt16"
 attn_gate="none"
 ffn_gate="none"
 
-attn_mode="lora"
-attn_option="none"
-ffn_mode="none"
-ffn_option="none"
-preseqlen=200
-ffn_bn_len=1
-lora_alpha=800
+#attn_mode="lora"
+#attn_option="none"
+#ffn_mode="none"
+#ffn_option="none"
+#preseqlen=200
+#ffn_bn_len=1
+#lora_alpha=800
 
 #attn_mode="none"
 #attn_option="none"
@@ -47,6 +47,14 @@ lora_alpha=800
 #preseqlen=1
 #ffn_bn_len=120
 #lora_alpha=480
+
+attn_mode="lisa"
+attn_option="concat"
+ffn_mode="lora"
+ffn_option="none"
+preseqlen=30
+ffn_bn_len=102
+lora_alpha=204
 
 hi_lnbefore=0  # 1=old hi, 0=new hi
 adapter_layernorm_option="out"  # in=pre, out=post
@@ -104,7 +112,7 @@ fi
 
 #report_to="none"
 #save_steps=150
-exp_name=wmt16_roen_tride.am_${attn_mode}.fm_${ffn_mode}.abn${preseqlen}.fbn${ffn_bn_len}.lora_alpha_dropout_${lora_alpha}_${lora_dropout}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
+exp_name=wmt16_roen_tride.am_${attn_mode}.${ao}_${attn_option}.fm_${ffn_mode}.abn${preseqlen}.fbn${ffn_bn_len}.lora_alpha_dropout_${lora_alpha}_${lora_dropout}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 rm ${HF_DATASETS_CACHE}/downloads/*.lock
