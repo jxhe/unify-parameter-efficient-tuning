@@ -7,7 +7,6 @@
 #SBATCH --partition=gpu
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
-#SBATCH --partition=gpu
 ##SBATCH --array=0
 
 source activate tride
