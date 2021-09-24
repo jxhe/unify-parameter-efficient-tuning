@@ -17,6 +17,7 @@ export HF_METRICS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 echo ${SCRIPT_DIR}
+#export TRANSFORMERS_OFFLINE=1
 
 # wandb env variables
 export WANDB_PROJECT=enro_translation
@@ -29,6 +30,10 @@ port=20292
 
 attn_gate="none"
 ffn_gate="none"
+max_tokens_per_batch=4096
+gradient_steps=4
+bsz=10
+
 
 # Hi adapter
 attn_mode="none"
@@ -40,10 +45,6 @@ ffn_bn_len=512
 hi_lnbefore=0  # 1=old hi, 0=new hi
 adapter_layernorm_option="out"  # in=pre, out=post
 label_smoothing_factor=0.2
-
-max_tokens_per_batch=4096
-gradient_steps=4
-bsz=10
 
 # Ho adapter
 attn_mode="none"
@@ -78,10 +79,6 @@ label_smoothing_factor=0.1
 #adapter_layernorm_option="none"
 #label_smoothing_factor=0.1
 
-#max_tokens_per_batch=3096
-#gradient_steps=5
-#bsz=10
-
 # lisa default
 #attn_mode="lisa"
 #attn_option="concat"
@@ -115,23 +112,76 @@ label_smoothing_factor=0.1
 #ffn_bn_len=1
 
 # mlp adapter at attention
-attn_mode="mlp_adapter"
-attn_option="attn_adapter"
-ffn_mode="none"
-ffn_option="none"
-preseqlen=30
-ffn_bn_len=1
+#attn_mode="mlp_adapter"
+#attn_option="attn_adapter"
+#ffn_mode="none"
+#ffn_option="none"
+#preseqlen=30
+#ffn_bn_len=1
 
-# mlp adapter at attention
+# mlp adapter at ffn
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="mlp_adapter"
+#ffn_option="ffn_hi_input"
+#preseqlen=1
+#ffn_bn_len=512
+#hi_lnbefore=1
+#adapter_layernorm_option="in"
+#label_smoothing_factor=0.1
+
+# ffn Hi adapter with learned scalar, bert init
 attn_mode="none"
 attn_option="none"
-ffn_mode="mlp_adapter"
+ffn_mode="adapter"
 ffn_option="ffn_hi_input"
 preseqlen=1
 ffn_bn_len=512
 hi_lnbefore=1
-adapter_layernorm_option="none"
+adapter_init_option="bert"
+adapter_layernorm_option="learnable_scalar"
+adapter_scalar=2
 label_smoothing_factor=0.1
+
+# ffn Hi adapter with fixed scalar, bert init
+attn_mode="none"
+attn_option="none"
+ffn_mode="adapter"
+ffn_option="ffn_hi_input"
+preseqlen=1
+ffn_bn_len=512
+hi_lnbefore=1
+adapter_init_option="bert"
+adapter_layernorm_option="fixed_scalar"
+adapter_scalar=2
+label_smoothing_factor=0.1
+
+
+# ffn Hi adapter with learned scalar, lora init
+attn_mode="none"
+attn_option="none"
+ffn_mode="adapter"
+ffn_option="ffn_hi_input"
+preseqlen=1
+ffn_bn_len=512
+hi_lnbefore=1
+adapter_init_option="lora"
+adapter_layernorm_option="learnable_scalar"
+adapter_scalar=2
+label_smoothing_factor=0.1
+
+# ffn Hi adapter with fixed scalar, lora init
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#preseqlen=1
+#ffn_bn_len=512
+#hi_lnbefore=1
+#adapter_init_option="lora"
+#adapter_layernorm_option="fixed_scalar"
+#adapter_scalar=2
+#label_smoothing_factor=0.1
 
 layer_norm_in=1
 layer_norm_out=0
@@ -155,7 +205,7 @@ eval_strategy="steps"
 save_steps=5000
 report_to="wandb"
 
-debug=1
+debug=0
 extra_cmd=""
 debug_str=""
 
@@ -166,22 +216,22 @@ then
     max_grad_norm=1
     max_train_samples=4000
     max_eval_samples=150
-    max_tokens_per_batch=512
+    max_tokens_per_batch=4096
     gradient_steps=8
     bsz=10
-    num_train_epochs=16
+    num_train_epochs=100
     max_steps=-1
     eval_strategy='steps'
-    save_steps=100
+    save_steps=200
     report_to="none"
     logging_steps=10
     extra_cmd="--max_train_samples ${max_train_samples} --max_predict_samples 150"
     debug_str=".debug"
 fi
 
-save_steps=200
-report_to="none"
-exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.alo_${adapter_layernorm_option}.hilnb_${hi_lnbefore}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
+#save_steps=200
+#report_to="none"
+exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.ainit_${adapter_init_option}.alo_${adapter_layernorm_option}.as_${adapter_scalar}.hilnb_${hi_lnbefore}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 rm ${HF_DATASETS_CACHE}/downloads/*.lock
@@ -213,6 +263,8 @@ python -u examples/pytorch/translation/run_translation.py \
     --ffn_option ${ffn_option} \
     --ffn_gate ${ffn_gate} \
     --adapter_layernorm_option ${adapter_layernorm_option} \
+    --adapter_init_option ${adapter_init_option} \
+    --adapter_scalar ${adapter_scalar} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --layer_norm_before ${layer_norm_in} \
     --layer_norm_after ${layer_norm_out} \
@@ -259,5 +311,4 @@ python -u examples/pytorch/translation/run_translation.py \
     --predict_with_generate \
     --output_dir ${SAVE} ${extra_cmd} 2>&1 | tee ${SAVE}/log.txt
 
-cd ${SAVE}
-bash ${SCRIPT_DIR}/romanian_postprocess.sh test_generated_predictions.txt test_gold_labels.txt | tee rom.bleu
+bash ${SCRIPT_DIR}/romanian_postprocess.sh ${SAVE}/test_generated_predictions.txt ${SAVE}/test_gold_labels.txt | tee -a ${SAVE}/log.txt

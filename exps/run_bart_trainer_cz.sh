@@ -1,10 +1,10 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=xsum
+#SBATCH --job-name=xsum.bert.init.learn
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:v100:1
-#SBATCH --mem=25g
+#SBATCH --gres=gpu:a100:1
+#SBATCH --mem=30g
 #SBATCH --cpus-per-task=2
 #SBATCH --time=0
 ##SBATCH --array=0
@@ -24,44 +24,13 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#gate_option="none"
-#preseqlen=100
-#ffn_bn_len=512
-#
-attn_mode="lisa"
-attn_option="cross_attn"
-ffn_mode="adapter"
-ffn_option="ffn_hi_input"
-gate_option="cross_attn"
-preseqlen=30
-ffn_bn_len=512
+attn_gate="none"
+ffn_gate="none"
 
 #attn_mode="adapter"
 #attn_option="attn_adapter"
 #ffn_mode="adapter"
 #ffn_option="ffn_hi_input"
-#gate_option="none"
-#preseqlen=200
-#ffn_bn_len=200
-#
-#attn_mode="adapter"
-#attn_option="attn_adapter"
-#ffn_mode="none"
-#ffn_option="none"
-#gate_option="none"
-#preseqlen=200
-#ffn_bn_len=200
-#
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#gate_option="none"
 #preseqlen=200
 #ffn_bn_len=200
 
@@ -69,9 +38,52 @@ attn_mode="lisa"
 attn_option="concat"
 ffn_mode="adapter"
 ffn_option="ffn_hi_input"
-gate_option="none"
 preseqlen=30
 ffn_bn_len=512
+
+# ffn Hi adapter with learned scalar, bert init
+attn_mode="none"
+attn_option="none"
+ffn_mode="adapter"
+ffn_option="ffn_hi_input"
+preseqlen=1
+ffn_bn_len=512
+adapter_init_option="bert"
+adapter_layernorm_option="learnable_scalar"
+adapter_scalar=2
+
+# ffn Hi adapter with fixed scalar, bert init
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#preseqlen=1
+#ffn_bn_len=512
+#adapter_init_option="bert"
+#adapter_layernorm_option="fixed_scalar"
+#adapter_scalar=2
+
+## ffn Hi adapter with learned scalar, lora init
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#preseqlen=1
+#ffn_bn_len=512
+#adapter_init_option="lora"
+#adapter_layernorm_option="learnable_scalar"
+#adapter_scalar=2
+#
+## ffn Hi adapter with fixed scalar, lora init
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#preseqlen=1
+#ffn_bn_len=512
+#adapter_init_option="lora"
+#adapter_layernorm_option="fixed_scalar"
+#adapter_scalar=2
 
 mh_reuse_proj="True"
 adapter_post_layernorm=0
@@ -119,21 +131,25 @@ then
     debug_str=".debug"
 fi
 
-
-exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.mh_reuse_proj_${mh_reuse_proj}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ainit_${adapter_init_option}.alo_${adapter_layernorm_option}.as_${adapter_scalar}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
+rm ${HF_DATASETS_CACHE}/downloads/*.lock
+rm ${HF_DATASETS_CACHE}/*.lock
 
 python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
     --attn_mode ${attn_mode} \
-    --adapter_post_layernorm ${adapter_post_layernorm} \
     --attn_option ${attn_option} \
     --ffn_mode ${ffn_mode} \
     --ffn_option ${ffn_option} \
-    --gate_option ${gate_option} \
+    --attn_gate ${attn_gate} \
+    --ffn_gate ${ffn_gate} \
+    --adapter_layernorm_option ${adapter_layernorm_option} \
+    --adapter_init_option ${adapter_init_option} \
+    --adapter_scalar ${adapter_scalar} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --mid_dim 800 \
     --preseqlen ${preseqlen} \
@@ -181,9 +197,3 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --predict_with_generate \
     --output_dir ${SAVE} ${extra_cmd} \
         2>&1 | tee ${SAVE}/log.txt
-    # --predict_with_generate
-    # --metric_for_best_model ${metric} \
-    # --greater_is_better "True" \
-
-    #--analysis_opt ${aopt} \
-#rm -rf ${SAVE}/pytorch_model.bin
