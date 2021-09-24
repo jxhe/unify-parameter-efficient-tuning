@@ -418,6 +418,7 @@ class MBartEncoderLayer(nn.Module):
         if config.ffn_mode == 'adapter':
             self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
                                                 bottleneck=config.ffn_bn_len,
+                                                init_option=config.adapter_init_option,
                                                 adapter_layernorm_option=config.adapter_layernorm_option,)
         self.fc_key = "encoder_ffn"
 
@@ -460,7 +461,8 @@ class MBartEncoderLayer(nn.Module):
                 and self.config.hi_lnbefore == 1:
             params = prefix_state.get(self.fc_key)
             down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
-            adapter_change = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout, add_residual=False)
+            adapter_change = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
+                                          add_residual=False, layernorm_option=self.config.adapter_layernorm_option)
 
         residual = hidden_states
         hidden_states = self.final_layer_norm(hidden_states)
@@ -474,7 +476,7 @@ class MBartEncoderLayer(nn.Module):
             params = prefix_state.get(self.fc_key)
             down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
             adapter_change = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
-                                          add_residual=False)
+                                          add_residual=False, layernorm_option=self.config.adapter_layernorm_option)
 
         hidden_states = self.activation_fn(self.fc1(hidden_states))
         hidden_states = nn.functional.dropout(hidden_states, p=self.activation_dropout, training=self.training)
@@ -493,7 +495,8 @@ class MBartEncoderLayer(nn.Module):
             if self.config.ffn_option == 'ffn_ho_input':
                 params = prefix_state.get(self.fc_key)
                 down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
-                hidden_states = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,)
+                hidden_states = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
+                                             layernorm_option=self.config.adapter_layernorm_option)
             elif self.config.ffn_option == 'ffn_hi_input':
                 hidden_states = hidden_states + adapter_change
             else:
@@ -556,6 +559,7 @@ class MBartDecoderLayer(nn.Module):
         if config.ffn_mode == 'adapter':
             self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
                                                 bottleneck=config.ffn_bn_len,
+                                                init_option=config.adapter_init_option,
                                                 adapter_layernorm_option=config.adapter_layernorm_option,)
 
         self.fc_key = "decoder_ffn"
@@ -647,7 +651,7 @@ class MBartDecoderLayer(nn.Module):
             params = prefix_state.get(self.fc_key)
             down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
             adapter_change = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
-                                          add_residual=False)
+                                          add_residual=False, layernorm_option=self.config.adapter_layernorm_option)
 
         # Fully Connected
         residual = hidden_states
@@ -662,7 +666,7 @@ class MBartDecoderLayer(nn.Module):
             params = prefix_state.get(self.fc_key)
             down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
             adapter_change = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
-                                          add_residual=False)
+                                          add_residual=False, layernorm_option=self.config.adapter_layernorm_option)
 
         hidden_states = self.activation_fn(self.fc1(hidden_states))
         hidden_states = nn.functional.dropout(hidden_states, p=self.activation_dropout, training=self.training)
@@ -681,7 +685,8 @@ class MBartDecoderLayer(nn.Module):
             if self.config.ffn_option == 'ffn_ho_input':
                 params = prefix_state.get(self.fc_key)
                 down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
-                hidden_states = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,)
+                hidden_states = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
+                                             layernorm_option=self.config.adapter_layernorm_option)
             elif self.config.ffn_option == 'ffn_hi_input':
                 hidden_states = hidden_states + adapter_change
             else:

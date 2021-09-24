@@ -3,10 +3,11 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=tran.lora.ffn.s4
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:v100:2
+#SBATCH --gres=gpu:v100:1
+#SBATCH --partition=gpu
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
-#SBATCH --time=0
+#SBATCH --partition=gpu
 ##SBATCH --array=0
 
 port=15217
@@ -187,5 +188,4 @@ python -u examples/pytorch/translation/run_translation.py \
     --predict_with_generate \
     --output_dir ${SAVE} ${extra_cmd} 2>&1 | tee ${SAVE}/log.txt
 
-cd ${SAVE}
-bash ${SCRIPT_DIR}/romanian_postprocess.sh test_generated_predictions.txt test_gold_labels.txt | tee rom.bleu
+bash ${SCRIPT_DIR}/rpxm.sh ${SAVE}/test_generated_predictions.txt ${SAVE}/test_gold_labels.txt | tee -a ${SAVE}/log.txt

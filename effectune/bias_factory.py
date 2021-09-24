@@ -473,7 +473,7 @@ class Adapter_Layer(nn.Module):
                  d_model=None,
                  bottleneck=None,
                  dropout=0.0,
-                 init_with_bert=True,
+                 init_option="bert",
                  adapter_layernorm_option="in"):
         super().__init__()
         self.n_embd = config.d_model if d_model is None else d_model
@@ -482,15 +482,28 @@ class Adapter_Layer(nn.Module):
 
         #_before
         self.adapter_layernorm_option = adapter_layernorm_option
-        self.adapter_layer_norm_before = nn.LayerNorm(self.n_embd) \
-            if self.adapter_layernorm_option != 'none' else None
+
+        self.adapter_layer_norm_before = None
+        if adapter_layernorm_option == "in" or adapter_layernorm_option == "out":
+            self.adapter_layer_norm_before = nn.LayerNorm(self.n_embd)
+        elif adapter_layernorm_option == "fixed_scalar":
+            self.scale = config.adapter_scalar
+        elif adapter_layernorm_option == "learnable_scalar":
+            self.scale = nn.Parameter(torch.ones(1))
+
         self.down_proj = nn.Linear(self.n_embd, self.down_size)
         self.non_linear_func = nn.ReLU()
         self.up_proj = nn.Linear(self.down_size, self.n_embd)
 
         self.dropout = dropout
-        if init_with_bert:
+        if init_option == "bert":
             self.apply(init_bert_weights)
+        elif init_option == "lora":
+            with torch.no_grad():
+                nn.init.kaiming_uniform_(self.down_proj.weight, a=math.sqrt(5))
+                nn.init.zeros_(self.up_proj.weight)
+                nn.init.zeros_(self.down_proj.bias)
+                nn.init.zeros_(self.up_proj.bias)
 
     def forward(self, x, add_residual=True, w_orig=1.0, w_change=1.0):
         residual = x
@@ -502,6 +515,8 @@ class Adapter_Layer(nn.Module):
         down = nn.functional.dropout(down, p=self.dropout, training=self.training)
         up = self.up_proj(down)
 
+        if "scalar" in self.adapter_layernorm_option:
+            up = up * self.scale
         if self.adapter_layernorm_option == 'out':
             up = self.adapter_layer_norm_before(up)
 
@@ -582,7 +597,7 @@ class MLP_Adapter_Layers(nn.Module):
 
         self.adapter_layernorm_option = config.adapter_layernorm_option if "ffn" in cache_key else "in"
         if self.adapter_layernorm_option != 'none':
-            self.adapter_layer_norm = nn.ModuleList([nn.LayerNorm(self.n_embd) for _ in self.match_n_layer])
+            self.adapter_layer_norm = nn.ModuleList([nn.LayerNorm(self.n_embd) for _ in range(self.match_n_layer)])
         else:
             self.adapter_layer_norm = None
 
@@ -625,24 +640,27 @@ class MLP_Adapter(nn.Module):
         return result
 
 
-def adapter_func(x, down_w, up_w, layernorm, training, dropout=0.0, add_residual=True):
+def adapter_func(x, down_w, up_w, layernorm, training, dropout=0.0, add_residual=True, layernorm_option="in"):
     residual = x
 
-    if layernorm is not None:
+    if layernorm is not None and layernorm_option == "in":
         x = layernorm(x)
-    print("x", x.size())
-    print(x)
-    input()
-    print("down w", down_w.size())
-    print(down_w)
-    input()
+    # print("x", x.size())
+    # print(x)
+    # input()
+    # print("down w", down_w.size())
+    # print(down_w)
+    # input()
     down = x @ down_w
-    print("down", down.size())
-    print(down)
-    input()
+    # print("down", down.size())
+    # print(down)
+    # input()
     down = nn.functional.relu(down)
     down = nn.functional.dropout(down, p=dropout, training=training)
     up = down @ up_w
+
+    if layernorm is not None and layernorm_option == "out":
+        up = layernorm(x)
     if add_residual:
         output = up + residual
     else:

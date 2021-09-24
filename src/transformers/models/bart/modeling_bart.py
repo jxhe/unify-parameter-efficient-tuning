@@ -575,8 +575,10 @@ class BartEncoderLayer(nn.Module):
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.ffn_mode == 'adapter':
-            self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
-                bottleneck=config.ffn_bn_len)
+            self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout, bottleneck=config.ffn_bn_len,
+                                                init_option=config.adapter_init_option,
+                                                adapter_layernorm_option=config.adapter_layernorm_option,
+                                                )
         elif config.ffn_mode == 'mh_adapter' or config.ffn_mode == 'mh_adapter_random':
             self.ef_ffn_adapter = MHAdapter_Layer(self.embed_dim,
                                                   bottleneck=config.ffn_bn_len,
@@ -721,8 +723,10 @@ class BartDecoderLayer(nn.Module):
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.ffn_mode == 'adapter':
-            self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
-                bottleneck=config.ffn_bn_len)
+            self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout, bottleneck=config.ffn_bn_len,
+                                                init_option=config.adapter_init_option,
+                                                adapter_layernorm_option=config.adapter_layernorm_option,
+                                                )
         elif config.ffn_mode == 'mh_adapter' or config.ffn_mode == 'mh_adapter_random':
             self.ef_ffn_adapter = MHAdapter_Layer(self.embed_dim,
                                                   bottleneck=config.ffn_bn_len,

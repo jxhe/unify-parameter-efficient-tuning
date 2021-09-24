@@ -118,8 +118,7 @@ class TuneArguments:
     adapter_layernorm_option: Optional[str] = field(
         default="in",
         metadata={
-            "choices": ["in", "out", "none"], \
-
+            "choices": ["in", "out", "none", "fixed_scalar", "learnable_scalar"],
             "help": "adapter layernorm options; \
                 none: no layernorm; \
                 in: layernorm applied to input; \
@@ -127,6 +126,20 @@ class TuneArguments:
         },
     )
 
+    adapter_init_option: Optional[str] = field(
+        default="bert",
+        metadata={
+            "choices": ["bert", "lora"],
+            "help": ""
+        },
+    )
+
+    adapter_scalar: Optional[float] = field(
+        default=2,
+        metadata={
+            "help": "used for fixed scalar"
+        },
+    )
 
     attn_gate: Optional[str] = field(
         default="none",
@@ -232,7 +245,7 @@ class TuneArguments:
     init_with_bert: Optional[int] = field(
         default=1,
         metadata={
-            "help": ""
+            "help": "deprecated"
         },
     )
 
