@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=tran.lora.ffn.s4
+#SBATCH --job-name=tran.lora.attn.s4
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:v100:1
 #SBATCH --partition=gpu
@@ -33,21 +33,21 @@ dataset="wmt16"
 attn_gate="none"
 ffn_gate="none"
 
-#attn_mode="lora"
-#attn_option="none"
-#ffn_mode="none"
-#ffn_option="none"
-#preseqlen=200
-#ffn_bn_len=1
-#lora_alpha=800
-
-attn_mode="none"
+attn_mode="lora"
 attn_option="none"
-ffn_mode="lora"
+ffn_mode="none"
 ffn_option="none"
-preseqlen=1
-ffn_bn_len=120
-lora_alpha=480
+preseqlen=200
+ffn_bn_len=1
+lora_alpha=800
+
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="lora"
+#ffn_option="none"
+#preseqlen=1
+#ffn_bn_len=120
+#lora_alpha=480
 
 #attn_mode="lisa"
 #attn_option="concat"
