@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=tran.prompt.30
+#SBATCH --job-name=tran.prompt.1
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:v100:1
 #SBATCH --partition=gpu
@@ -45,15 +45,15 @@ adapter_layernorm_option="out"  # in=pre, out=post
 label_smoothing_factor=0.1
 
 # tran.prompt.30
-attn_mode="prompt_tuning"
-attn_option="none"
-ffn_mode="none"
-ffn_option="none"
-preseqlen=30
-ffn_bn_len=1
-hi_lnbefore=0  # 1=old hi, 0=new hi
-adapter_layernorm_option="out"  # in=pre, out=post
-label_smoothing_factor=0.1
+#attn_mode="prompt_tuning"
+#attn_option="none"
+#ffn_mode="none"
+#ffn_option="none"
+#preseqlen=30
+#ffn_bn_len=1
+#hi_lnbefore=0  # 1=old hi, 0=new hi
+#adapter_layernorm_option="out"  # in=pre, out=post
+#label_smoothing_factor=0.1
 
 max_tokens_per_batch=1024
 gradient_steps=16

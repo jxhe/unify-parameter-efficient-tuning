@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=xsum.lora.bert.ffn.102.4
+#SBATCH --job-name=xsum.lora.bert.ffn.102.2
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:v100:1
 #SBATCH --partition=gpu
@@ -97,14 +97,14 @@ lora_alpha=204
 lora_init="bert"
 
 # xsum.lora.bert.ffn.102.4
-attn_mode="none"
-attn_option="none"
-ffn_mode="lora"
-ffn_option="none"
-preseqlen=1
-ffn_bn_len=102
-lora_alpha=408
-lora_init="bert"
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="lora"
+#ffn_option="none"
+#preseqlen=1
+#ffn_bn_len=102
+#lora_alpha=408
+#lora_init="bert"
 
 #
 #attn_mode="lisa"

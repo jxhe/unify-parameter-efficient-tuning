@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=tran.comb.pt.30.ffn.adapter.lora.init.512.4
+#SBATCH --job-name=tran.ffn.adapter.lora.init.512.4
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:v100:1
 #SBATCH --partition=gpu
@@ -49,17 +49,17 @@ adapter_scalar=4
 label_smoothing_factor=0.1
 
 # tran.comb.pt.30.ffn.adapter.lora.init.512.4
-attn_mode="lisa"
-attn_option="concat"
-ffn_mode="adapter"
-ffn_option="ffn_hi_input"
-preseqlen=30
-ffn_bn_len=512
-hi_lnbefore=1
-adapter_init_option="lora"
-adapter_layernorm_option="fixed_scalar"
-adapter_scalar=4
-label_smoothing_factor=0.1
+#attn_mode="lisa"
+#attn_option="concat"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#preseqlen=30
+#ffn_bn_len=512
+#hi_lnbefore=1
+#adapter_init_option="lora"
+#adapter_layernorm_option="fixed_scalar"
+#adapter_scalar=4
+#label_smoothing_factor=0.1
 
 layer_norm_in=1
 layer_norm_out=0
