@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
+from transformers import RobertaConfig
+
 def init_lisa_params(module):
     std = 1e-20
     if isinstance(module, nn.Linear):
@@ -45,9 +47,14 @@ class Prefix(nn.Module):
         super().__init__()
 
         # self.match_n_layer = config.decoder_layers if args.num_bias_layers < 0 else args.num_bias_layers
-        self.match_n_layer = args.num_bias_layers
-        self.match_n_head = config.decoder_attention_heads
-        self.n_embd = config.d_model
+        if isinstance(config, RobertaConfig):
+            self.match_n_layer = config.num_hidden_layers
+            self.match_n_head = config.num_attention_heads
+            self.n_embd = config.hidden_size
+        else:
+            self.match_n_layer = args.num_bias_layers
+            self.match_n_head = config.decoder_attention_heads
+            self.n_embd = config.d_model
         self.match_n_embd = self.n_embd // self.match_n_head
 
         self.mid_dim = args.mid_dim
@@ -134,9 +141,14 @@ class PrefixCrossAttn(nn.Module):
         super().__init__()
 
         # self.match_n_layer = config.decoder_layers if args.num_bias_layers < 0 else args.num_bias_layers
-        self.match_n_layer = args.num_bias_layers
-        self.match_n_head = config.decoder_attention_heads
-        self.n_embd = config.d_model
+        if isinstance(config, RobertaConfig):
+            self.match_n_layer = config.num_hidden_layers
+            self.match_n_head = config.num_attention_heads
+            self.n_embd = config.hidden_size
+        else:
+            self.match_n_layer = args.num_bias_layers
+            self.match_n_head = config.decoder_attention_heads
+            self.n_embd = config.d_model
         self.match_n_embd = self.n_embd // self.match_n_head
 
         self.mid_dim = args.mid_dim
@@ -201,9 +213,14 @@ class PrefixDirectInit(nn.Module):
         super().__init__()
 
         # self.match_n_layer = config.decoder_layers if args.num_bias_layers < 0 else args.num_bias_layers
-        self.match_n_layer = args.num_bias_layers
-        self.match_n_head = config.decoder_attention_heads
-        self.n_embd = config.d_model
+        if isinstance(config, RobertaConfig):
+            self.match_n_layer = config.num_hidden_layers
+            self.match_n_head = config.num_attention_heads
+            self.n_embd = config.hidden_size
+        else:
+            self.match_n_layer = args.num_bias_layers
+            self.match_n_head = config.decoder_attention_heads
+            self.n_embd = config.d_model
         self.match_n_embd = self.n_embd // self.match_n_head
 
         self.mid_dim = args.mid_dim
@@ -266,9 +283,14 @@ class MLP_Bias(nn.Module):
     def __init__(self, args, config):
         super().__init__()
 
-        self.match_n_layer = config.decoder_layers if args.num_bias_layers < 0 else args.num_bias_layers
-        self.match_n_head = config.decoder_attention_heads
-        self.n_embd = config.d_model
+        if isinstance(config, RobertaConfig):
+            self.match_n_layer = config.num_hidden_layers
+            self.match_n_head = config.num_attention_heads
+            self.n_embd = config.hidden_size
+        else:
+            self.match_n_layer = config.decoder_layers if args.num_bias_layers < 0 else args.num_bias_layers
+            self.match_n_head = config.decoder_attention_heads
+            self.n_embd = config.d_model
         self.match_n_embd = self.n_embd // self.match_n_head
 
         self.mid_dim = args.mid_dim

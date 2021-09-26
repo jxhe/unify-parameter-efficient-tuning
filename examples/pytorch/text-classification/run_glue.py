@@ -332,6 +332,15 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
+
+    # put useful args into config: these arguments will be used in models, thus adding them to config
+    # interested_args = ['use_prefix', 'mid_dim', 'preseqlen', 'prefix_dropout', 'unfreeze_params']
+    for k, v in vars(tune_args).items():
+        if not hasattr(config, k):
+            setattr(config, k, v)
+
+    setattr(training_args, 'max_tokens_per_batch', data_args.max_tokens_per_batch)
+
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
@@ -348,13 +357,6 @@ def main():
         use_auth_token=True if model_args.use_auth_token else None,
     )
 
-    # put useful args into config: these arguments will be used in models, thus adding them to config
-    # interested_args = ['use_prefix', 'mid_dim', 'preseqlen', 'prefix_dropout', 'unfreeze_params']
-    for k, v in vars(tune_args).items():
-        if not hasattr(config, k):
-            setattr(config, k, v)
-
-    setattr(training_args, 'max_tokens_per_batch', data_args.max_tokens_per_batch)
 
     # Preprocessing the datasets
     if data_args.task_name is not None:
@@ -407,6 +409,25 @@ def main():
             f"model ({tokenizer.model_max_length}). Using max_seq_length={tokenizer.model_max_length}."
         )
     max_seq_length = min(data_args.max_seq_length, tokenizer.model_max_length)
+
+    if tune_args.attn_mode != "none" or tune_args.ffn_mode != "none":
+        if tune_args.load_path == "":
+            model = PrefixTuning(config, tune_args, model)
+        else:
+            model = PrefixTuning.from_pretrained(
+                tune_args.load_path,
+                from_tf=bool(".ckpt" in model_args.model_name_or_path),
+                config=config,
+                cache_dir=model_args.cache_dir,
+                revision=model_args.model_revision,
+                use_auth_token=True if model_args.use_auth_token else None,
+                args=tune_args,
+                pretrained_model=model,
+            )
+
+    print(model)
+    for n, p in model.named_parameters():
+        print(n, p.requires_grad)
 
     def preprocess_function(examples):
         # Tokenize the texts

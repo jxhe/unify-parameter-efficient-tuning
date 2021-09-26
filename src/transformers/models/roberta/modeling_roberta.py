@@ -193,7 +193,7 @@ class RobertaSelfAttention(nn.Module):
 
         self.is_decoder = config.is_decoder
 
-        assert cache_key in ['self', 'encoder_decoder', 'encoder']
+        assert cache_key in ['self']
         self.attn_mode = config.attn_mode
         self.config = config
         self.cache_key = cache_key
@@ -204,8 +204,8 @@ class RobertaSelfAttention(nn.Module):
 
         elif self.attn_mode == 'adapter':
             if "attn_adapter" in self.config.attn_option:
-                self.ef_attn_adapter = Adapter_Layer(d_model=config.hidden_size, 
-                                                     dropout=config.attention_probs_dropout_prob, 
+                self.ef_attn_adapter = Adapter_Layer(d_model=config.hidden_size,
+                                                     dropout=config.attention_probs_dropout_prob,
                                                      bottleneck=self.config.preseqlen,
                                                      adapter_layernorm_option="in")
             elif self.config.attn_option == "houlsby":
@@ -243,7 +243,7 @@ class RobertaSelfAttention(nn.Module):
         past_key_value=None,
         output_attentions=False,
         prefix_state= None,  # added by Chunting
-        step: Optional[int] = None,
+        step=None,
     ):
         mixed_query_layer = self.query(hidden_states)
 
@@ -305,8 +305,10 @@ class RobertaSelfAttention(nn.Module):
                 key_layer = torch.cat([prefix_key, key_layer], dim=2)
                 value_layer = torch.cat([prefix_value, value_layer], dim=2)
 
+                # import pdb; pdb.set_trace()
                 if attention_mask is not None:
-                    expanded_prefix_mask = prefix_mask[:, None, None, :].expand(bsz, 1, tgt_len,
+                    # import pdb; pdb.set_trace()
+                    expanded_prefix_mask = prefix_mask[:, None, None, :].expand(bsz, 1, attention_mask.size(2),
                                                                                 prefix_mask.size(1)).to(
                         attention_mask.dtype)
                     attention_mask = torch.cat([expanded_prefix_mask, attention_mask], dim=-1)
@@ -371,6 +373,7 @@ class RobertaSelfAttention(nn.Module):
                 w_attn = self.config.attn_gate
                 w_prefix = 1.0 - w_attn
 
+        # import pdb; pdb.set_trace()
         if self.position_embedding_type == "relative_key" or self.position_embedding_type == "relative_key_query":
             seq_length = hidden_states.size()[1]
             position_ids_l = torch.arange(seq_length, dtype=torch.long, device=hidden_states.device).view(-1, 1)
@@ -409,9 +412,7 @@ class RobertaSelfAttention(nn.Module):
             attn_output = context_layer * w_attn + cross_attn_output * w_prefix
             cross_attn_output = None
 
-        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
-        new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
-        context_layer = context_layer.view(*new_context_layer_shape)
+        context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(*new_context_layer_shape)
 
@@ -456,7 +457,7 @@ class RobertaSelfOutput(nn.Module):
 class RobertaAttention(nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.self = RobertaSelfAttention(config)
+        self.self = RobertaSelfAttention(config, cache_key='self')
         self.output = RobertaSelfOutput(config)
         self.pruned_heads = set()
 
@@ -487,6 +488,7 @@ class RobertaAttention(nn.Module):
         encoder_attention_mask=None,
         past_key_value=None,
         output_attentions=False,
+        prefix_state=None,
     ):
         self_outputs = self.self(
             hidden_states,
@@ -496,6 +498,7 @@ class RobertaAttention(nn.Module):
             encoder_attention_mask,
             past_key_value,
             output_attentions,
+            prefix_state=prefix_state,
         )
         attention_output = self.output(self_outputs[0], hidden_states)
         outputs = (attention_output,) + self_outputs[1:]  # add attentions if we output them
@@ -538,7 +541,8 @@ class RobertaOutput(nn.Module):
 
         if config.ffn_mode == 'adapter':
             if config.ffn_option == 'ffn_ho_input' or config.ffn_option == 'pfeiffer' or config.ffn_option == 'houlsby':
-                self.ef_ffn_adapter = Adapter_Layer(config, dropout=config.hidden_dropout_prob,
+                self.ef_ffn_adapter = Adapter_Layer(d_model=config.hidden_size,
+                                                    dropout=config.hidden_dropout_prob,
                                                     bottleneck=config.ffn_bn_len,
                                                     adapter_layernorm_option=config.adapter_layernorm_option,)
 
@@ -548,7 +552,7 @@ class RobertaOutput(nn.Module):
         if self.config.ffn_mode == 'adapter':
             if self.config.ffn_option == 'ffn_ho_input' or self.config.ffn_option == 'houlsby':
                 hidden_states = self.ef_ffn_adapter(hidden_states)
-            elif self.self.config.ffn_option == 'ffn_hi_input' and adapter_change is not None:
+            elif self.config.ffn_option == 'ffn_hi_input' and adapter_change is not None:
                 hidden_states =  hidden_states + adapter_change
 
         if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'pfeiffer':
@@ -580,7 +584,8 @@ class RobertaLayer(nn.Module):
         self.config = config
 
         if config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
-            self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=config.hidden_dropout_prob,
+            self.ef_ffn_adapter = Adapter_Layer(d_model=config.hidden_size,
+                                                dropout=config.hidden_dropout_prob,
                                                 bottleneck=config.ffn_bn_len,
                                                 adapter_layernorm_option=config.adapter_layernorm_option,)
 
@@ -1353,7 +1358,7 @@ class RobertaLMHead(nn.Module):
     ROBERTA_START_DOCSTRING,
 )
 class RobertaForSequenceClassification(RobertaPreTrainedModel):
-    _keys_to_ignore_on_load_missing = [r"position_ids"]
+    _keys_to_ignore_on_load_missing = [r"position_ids", r"ef_"]
 
     def __init__(self, config):
         super().__init__(config)

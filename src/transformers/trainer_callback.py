@@ -497,6 +497,7 @@ class PrinterCallback(TrainerCallback):
     """
 
     def on_log(self, args, state, control, logs=None, **kwargs):
+        # import pdb; pdb.set_trace()
         _ = logs.pop("total_flos", None)
         if state.is_local_process_zero:
             print(logs)
