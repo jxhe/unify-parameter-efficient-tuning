@@ -27,20 +27,22 @@ dataset="wmt16"
 
 port=62221
 # Hi adapter200
-attn_mode="none"
+attn_mode="adapter"
 attn_option="houlsby"
-ffn_mode="adapter"
+ffn_mode="none"
 ffn_option="pfeiffer"
-preseqlen=200
+preseqlen=30
 ffn_bn_len=600
 hi_lnbefore=1
-adapter_layernorm_option="none"
+adapter_layernorm_option="in"
 max_grad_norm=1
 attn_gate="none"
 ffn_gate="none"
 
 debug=0
 
+# label_smoothing_factor=0
+# weight_decay=0
 label_smoothing_factor=0.1
 weight_decay=0.01
 max_steps=50000

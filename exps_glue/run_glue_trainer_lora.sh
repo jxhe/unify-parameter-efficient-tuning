@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=glue
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:a100:1
+#SBATCH --gres=gpu:v100:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
@@ -16,9 +16,9 @@ export HF_METRICS_CACHE=checkpoints/hf_model
 cache_dir=${TRANSFORMERS_CACHE}
 
 
-TASK_NAME=mnli
+# TASK_NAME=sst2
 metric="accuracy"
-# TASK_NAME=mnli
+TASK_NAME=mnli
 # wandb env variables
 export WANDB_PROJECT=glue.${TASK_NAME}
 export WANDB_WATCH="false"
@@ -34,8 +34,8 @@ attn_mode="lora"
 attn_option="none"
 ffn_mode="none"
 ffn_option="none"
-preseqlen=8
-lora_alpha=16
+preseqlen=16
+lora_alpha=32
 ffn_bn_len=16
 lora_dropout=0.1
 hi_lnbefore=1

@@ -23,11 +23,11 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-attn_mode="lisa"
+attn_mode="none"
 attn_option="concat"
-adapter_layernorm_option="in"
+adapter_layernorm_option="none"
 
-ffn_mode="none"
+ffn_mode="adapter"
 ffn_option="ffn_ho_input"
 ffn_num_heads=16
 
@@ -37,11 +37,11 @@ ffn_gate="none"
 layer_norm_in=1
 layer_norm_out=0
 
-preseqlen=30
-ffn_bn_len=512
+preseqlen=1
+ffn_bn_len=1
 
-label_smoothing_factor=0
-weight_decay=0
+label_smoothing_factor=0.1
+weight_decay=0.01
 max_grad_norm=1
 debug=0
 

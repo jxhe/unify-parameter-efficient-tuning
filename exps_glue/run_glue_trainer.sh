@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=glue
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:A6000:1
+#SBATCH --gres=gpu:3090:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
@@ -31,14 +31,16 @@ declare -a seed_list=(42 2 4 6 8)
 
 port=62221
 # Hi adapter200
-attn_mode="none"
-attn_option="houlsby"
+attn_mode="lisa"
+attn_option="concat"
 ffn_mode="none"
-ffn_option="ffn_hi_input"
-preseqlen=16
-ffn_bn_len=16
+ffn_option="houlsby"
+preseqlen=32
+ffn_bn_len=32
 hi_lnbefore=1
-adapter_layernorm_option="none"
+adapter_init_option="bert"
+adapter_layernorm_option="in"
+adapter_scalar=2
 max_grad_norm=1
 attn_gate="none"
 ffn_gate="none"
@@ -49,8 +51,10 @@ report_to="wandb"
 bsz=32
 gradient_steps=1
 
-# lr=1e-4
-lr=1e-5
+# lr=5e-5
+lr=1e-4
+# lr=1e-5
+# weight_decay=0
 weight_decay=0.1
 warmup_updates=0
 warmup_ratio=0.06
@@ -97,7 +101,7 @@ fi
 
 for seed in "${seed_list[@]}"; do
 
-    exp_name=glue.${TASK_NAME}.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.adalo_${adapter_layernorm_option}.hilnb_${hi_lnbefore}.uf_${ft}.ne${num_train_epochs}.warm${warmup_ratio}.wd${weight_decay}.seed${seed}.${debug_str}
+    exp_name=glue.${TASK_NAME}.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.adalo_${adapter_layernorm_option}.adainit_${adapter_init_option}.scale${adapter_scalar}.hilnb_${hi_lnbefore}.uf_${ft}.ne${num_train_epochs}.warm${warmup_ratio}.wd${weight_decay}.seed${seed}.${debug_str}
     SAVE=checkpoints/glue/${TASK_NAME}/${DATE}/${exp_name}
     rm -rf ${SAVE}; mkdir -p ${SAVE}
 
@@ -126,6 +130,8 @@ for seed in "${seed_list[@]}"; do
         --ffn_option ${ffn_option} \
         --ffn_gate ${ffn_gate} \
         --adapter_layernorm_option ${adapter_layernorm_option} \
+        --adapter_init_option ${adapter_init_option} \
+        --adapter_scalar ${adapter_scalar} \
         --mh_reuse_proj ${mh_reuse_proj} \
         --layer_norm_before ${layer_norm_in} \
         --layer_norm_after ${layer_norm_out} \
