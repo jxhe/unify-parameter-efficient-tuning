@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=tran.lora.attn.30.4
+#SBATCH --job-name=tran.lora.attn.1.4
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:v100:1
 #SBATCH --partition=gpu
@@ -43,13 +43,13 @@ ffn_bn_len=1
 lora_alpha=4
 
 # tran.lora.attn.30.4
-attn_mode="lora"
-attn_option="none"
-ffn_mode="none"
-ffn_option="none"
-preseqlen=30
-ffn_bn_len=1
-lora_alpha=120
+#attn_mode="lora"
+#attn_option="none"
+#ffn_mode="none"
+#ffn_option="none"
+#preseqlen=30
+#ffn_bn_len=1
+#lora_alpha=120
 
 # tran.lora.attn.400.4
 #attn_mode="lora"
