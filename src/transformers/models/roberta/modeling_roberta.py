@@ -207,11 +207,13 @@ class RobertaSelfAttention(nn.Module):
                 self.ef_attn_adapter = Adapter_Layer(d_model=config.hidden_size,
                                                      dropout=config.attention_probs_dropout_prob,
                                                      bottleneck=self.config.preseqlen,
+                                                     init_option=config.adapter_init_option,
                                                      adapter_layernorm_option="in")
             elif self.config.attn_option == "houlsby":
                 self.ef_attn_adapter = Adapter_Layer(d_model=config.hidden_size,
                                                      dropout=config.attention_probs_dropout_prob,
                                                      bottleneck=self.config.preseqlen,
+                                                     init_option=config.adapter_init_option,
                                                      adapter_layernorm_option="in",
                                                      )
             elif self.config.attn_option == "mh_adapter":
@@ -440,6 +442,7 @@ class RobertaSelfOutput(nn.Module):
             self.ef_attn_adapter = Adapter_Layer(d_model=config.hidden_size,
                                                  dropout=config.hidden_dropout_prob,
                                                  bottleneck=config.preseqlen,
+                                                 init_option=config.adapter_init_option,
                                                  adapter_layernorm_option="in",
                                                  )
 
@@ -544,6 +547,7 @@ class RobertaOutput(nn.Module):
                 self.ef_ffn_adapter = Adapter_Layer(d_model=config.hidden_size,
                                                     dropout=config.hidden_dropout_prob,
                                                     bottleneck=config.ffn_bn_len,
+                                                    init_option=config.adapter_init_option,
                                                     adapter_layernorm_option=config.adapter_layernorm_option,)
 
     def forward(self, hidden_states, input_tensor, adapter_change=None):
@@ -587,6 +591,7 @@ class RobertaLayer(nn.Module):
             self.ef_ffn_adapter = Adapter_Layer(d_model=config.hidden_size,
                                                 dropout=config.hidden_dropout_prob,
                                                 bottleneck=config.ffn_bn_len,
+                                                init_option=config.adapter_init_option,
                                                 adapter_layernorm_option=config.adapter_layernorm_option,)
 
     def forward(
