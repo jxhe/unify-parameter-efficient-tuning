@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=tran.lora.ffn.120
+#SBATCH --job-name=tran.lora.ffn.s2
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:A6000:1
 #SBATCH --mem=30g
@@ -34,6 +34,7 @@ ffn_mode="none"
 ffn_option="none"
 preseqlen=200
 ffn_bn_len=1
+lora_alpha=400
 
 attn_mode="none"
 attn_option="none"
@@ -41,11 +42,11 @@ ffn_mode="lora"
 ffn_option="none"
 preseqlen=1
 ffn_bn_len=120
+lora_alpha=240
 
 hi_lnbefore=0  # 1=old hi, 0=new hi
 adapter_layernorm_option="out"  # in=pre, out=post
 label_smoothing_factor=0.1
-lora_alpha=32
 lora_dropout=0.1
 
 max_tokens_per_batch=4096
@@ -97,8 +98,8 @@ then
     debug_str=".debug"
 fi
 
-report_to="none"
-save_steps=150
+#report_to="none"
+#save_steps=150
 exp_name=wmt16_roen_tride.am_${attn_mode}.fm_${ffn_mode}.abn${preseqlen}.fbn${ffn_bn_len}.lora_alpha_dropout_${lora_alpha}_${lora_dropout}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}

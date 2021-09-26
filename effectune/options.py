@@ -47,7 +47,7 @@ class TuneArguments:
         default="lisa",
         metadata={
             "choices": ["lisa", "lisa_nomlp",
-            "learn_bias", "luna", "none", "bitfit", "lora",
+            "learn_bias", "luna", "none", "bitfit", "lora", "mlp_adapter",
             "dlisa", "adapter", "default_cross_attn_only", "prompt_tuning"], \
 
             "help": "config for attention, none to disable; \
@@ -61,7 +61,7 @@ class TuneArguments:
     ffn_mode: Optional[str] = field(
         default="none",
         metadata={
-            "choices": ["adapter", "none", "mh_adapter", "mh_adapter_random", "lora"],
+            "choices": ["adapter", "none", "mh_adapter", "mh_adapter_random", "lora", "mlp_adapter"],
 
             "help": "config for ffn, none to disable; \
             adapter: adapter mode; \
@@ -123,8 +123,7 @@ class TuneArguments:
     adapter_layernorm_option: Optional[str] = field(
         default="in",
         metadata={
-            "choices": ["in", "out", "none"], \
-
+            "choices": ["in", "out", "none", "fixed_scalar", "learnable_scalar"],
             "help": "adapter layernorm options; \
                 none: no layernorm; \
                 in: layernorm applied to input; \
@@ -132,6 +131,20 @@ class TuneArguments:
         },
     )
 
+    adapter_init_option: Optional[str] = field(
+        default="bert",
+        metadata={
+            "choices": ["bert", "lora"],
+            "help": ""
+        },
+    )
+
+    adapter_scalar: Optional[float] = field(
+        default=2,
+        metadata={
+            "help": "used for fixed scalar"
+        },
+    )
 
     attn_gate: Optional[str] = field(
         default="none",
@@ -237,7 +250,7 @@ class TuneArguments:
     init_with_bert: Optional[int] = field(
         default=1,
         metadata={
-            "help": ""
+            "help": "deprecated"
         },
     )
 

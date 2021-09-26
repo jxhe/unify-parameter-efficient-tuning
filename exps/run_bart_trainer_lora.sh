@@ -1,9 +1,9 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=xsum.lora.ffn
+#SBATCH --job-name=xsum.lora.ffn.s2
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:RTX_8000:1
+#SBATCH --gres=gpu:a100:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
@@ -33,15 +33,16 @@ ffn_mode="none"
 ffn_option="none"
 preseqlen=200
 ffn_bn_len=1
+lora_alpha=400
 
-attn_mode="none"
-attn_option="none"
-ffn_mode="lora"
-ffn_option="none"
-preseqlen=1
-ffn_bn_len=120
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="lora"
+#ffn_option="none"
+#preseqlen=1
+#ffn_bn_len=120
+#lora_alpha=240
 
-lora_alpha=32
 lora_dropout=0.1
 
 mh_reuse_proj="True"
@@ -90,8 +91,8 @@ then
     debug_str=".debug"
 fi
 
-save_steps=200
-report_to="none"
+#save_steps=200
+#report_to="none"
 exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.lora_alpha_dropout_${lora_alpha}_${lora_dropout}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}

@@ -2,7 +2,7 @@ import torch
 from transformers import MBartPreTrainedModel
 import torch.nn as nn
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
-from effectune.bias_factory import Prefix, MLP_Bias, Bias, PrefixDirectInit, PrefixCrossAttn
+from effectune.bias_factory import Prefix, MLP_Bias, Bias, PrefixDirectInit, PrefixCrossAttn, MLP_Adapter
 from transformers.utils import logging
 logger = logging.get_logger(__name__)
 
@@ -25,15 +25,18 @@ class PrefixTuning(MBartPreTrainedModel):
             self.setup_bias_mlp(args, config)
         elif args.attn_mode == 'bitfit' or args.attn_mode == 'adapter':
             self.get_prompt = self.get_fake_prompt
-        elif args.attn_mode == 'none':
-            # includes only with ffn mode
-            self.get_prompt = self.get_fake_prompt
+        elif args.attn_mode == "mlp_adapter" or args.ffn_mode == "mlp_adapter":
+            self.prompt_model = MLP_Adapter(config)
+            self.get_prompt = self.get_standard_prompt
         elif args.attn_mode == "default_cross_attn_only":
             self.prompt_model = PrefixCrossAttn(args, config)
             self.get_prompt = self.get_standard_prompt
         elif args.attn_mode == "prompt_tuning":
             self.get_prompt = self.get_fake_prompt
         elif args.attn_mode == "lora":
+            self.get_prompt = self.get_fake_prompt
+        elif args.attn_mode == 'none':
+            # includes only with ffn mode
             self.get_prompt = self.get_fake_prompt
         else:
             raise ValueError

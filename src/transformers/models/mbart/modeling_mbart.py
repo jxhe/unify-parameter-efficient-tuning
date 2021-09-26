@@ -47,7 +47,8 @@ from .configuration_mbart import MBartConfig
 import sys
 sys.path.insert(2, "./")
 
-from effectune.bias_factory import Adapter_Layer, softmax_gating, Linear, MHAdapter_Layer
+from effectune.bias_factory import Adapter_Layer, softmax_gating, Linear, MHAdapter_Layer, adapter_func
+
 logger = logging.get_logger(__name__)
 
 _CHECKPOINT_FOR_DOC = "facebook/mbart-large-cc25"
@@ -325,6 +326,13 @@ class MBartAttention(nn.Module):
             # if self.config.layer_norm_after:
             #     cross_attn_output = self.ef_transform_layer_norm_out(cross_attn_output)
 
+        if self.config.attn_mode == "mlp_adapter":
+            params = prefix_state.get(self.cache_key)
+            down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
+            cross_attn_output = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout, add_residual=False)
+            if self.config.layer_norm_after:
+                cross_attn_output = self.ef_transform_layer_norm_out(cross_attn_output)
+
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
 
@@ -433,7 +441,9 @@ class MBartEncoderLayer(nn.Module):
         if config.ffn_mode == 'adapter':
             self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
                                                 bottleneck=config.ffn_bn_len,
+                                                init_option=config.adapter_init_option,
                                                 adapter_layernorm_option=config.adapter_layernorm_option,)
+        self.fc_key = "encoder_ffn"
 
     def forward(
         self,
@@ -470,12 +480,26 @@ class MBartEncoderLayer(nn.Module):
             and self.config.hi_lnbefore == 1:
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
+        if self.config.ffn_mode == "mlp_adapter" and self.config.ffn_option == 'ffn_hi_input' \
+                and self.config.hi_lnbefore == 1:
+            params = prefix_state.get(self.fc_key)
+            down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
+            adapter_change = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
+                                          add_residual=False, layernorm_option=self.config.adapter_layernorm_option)
+
         residual = hidden_states
         hidden_states = self.final_layer_norm(hidden_states)
 
         if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input' \
             and self.config.hi_lnbefore == 0:
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
+
+        if self.config.ffn_mode == "mlp_adapter" and self.config.ffn_option == 'ffn_hi_input' \
+                and self.config.hi_lnbefore == 0:
+            params = prefix_state.get(self.fc_key)
+            down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
+            adapter_change = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
+                                          add_residual=False, layernorm_option=self.config.adapter_layernorm_option)
 
         hidden_states = self.activation_fn(self.fc1(hidden_states))
         hidden_states = nn.functional.dropout(hidden_states, p=self.activation_dropout, training=self.training)
@@ -492,6 +516,17 @@ class MBartEncoderLayer(nn.Module):
 
         if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'pfeiffer':
             h_before_residual = hidden_states
+
+        if self.config.ffn_mode == "mlp_adapter":
+            if self.config.ffn_option == 'ffn_ho_input':
+                params = prefix_state.get(self.fc_key)
+                down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
+                hidden_states = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
+                                             layernorm_option=self.config.adapter_layernorm_option)
+            elif self.config.ffn_option == 'ffn_hi_input':
+                hidden_states = hidden_states + adapter_change
+            else:
+                raise ValueError
 
         hidden_states = residual + hidden_states
 
@@ -554,7 +589,10 @@ class MBartDecoderLayer(nn.Module):
         if config.ffn_mode == 'adapter':
             self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
                                                 bottleneck=config.ffn_bn_len,
+                                                init_option=config.adapter_init_option,
                                                 adapter_layernorm_option=config.adapter_layernorm_option,)
+
+        self.fc_key = "decoder_ffn"
 
     def forward(
         self,
@@ -638,6 +676,13 @@ class MBartDecoderLayer(nn.Module):
             and self.config.hi_lnbefore == 1:
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
+        if self.config.ffn_mode == "mlp_adapter" and self.config.ffn_option == 'ffn_hi_input' \
+                and self.config.hi_lnbefore == 1:
+            params = prefix_state.get(self.fc_key)
+            down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
+            adapter_change = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
+                                          add_residual=False, layernorm_option=self.config.adapter_layernorm_option)
+
         # Fully Connected
         residual = hidden_states
         hidden_states = self.final_layer_norm(hidden_states)
@@ -645,6 +690,13 @@ class MBartDecoderLayer(nn.Module):
         if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input' \
             and self.config.hi_lnbefore == 0:
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
+
+        if self.config.ffn_mode == "mlp_adapter"  and self.config.ffn_option == 'ffn_hi_input' \
+                and self.config.hi_lnbefore == 0:
+            params = prefix_state.get(self.fc_key)
+            down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
+            adapter_change = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
+                                          add_residual=False, layernorm_option=self.config.adapter_layernorm_option)
 
         hidden_states = self.activation_fn(self.fc1(hidden_states))
         hidden_states = nn.functional.dropout(hidden_states, p=self.activation_dropout, training=self.training)
@@ -661,6 +713,17 @@ class MBartDecoderLayer(nn.Module):
 
         if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'pfeiffer':
             h_before_residual = hidden_states
+
+        if self.config.ffn_mode == "mlp_adapter":
+            if self.config.ffn_option == 'ffn_ho_input':
+                params = prefix_state.get(self.fc_key)
+                down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
+                hidden_states = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
+                                             layernorm_option=self.config.adapter_layernorm_option)
+            elif self.config.ffn_option == 'ffn_hi_input':
+                hidden_states = hidden_states + adapter_change
+            else:
+                raise ValueError
 
         hidden_states = residual + hidden_states
 

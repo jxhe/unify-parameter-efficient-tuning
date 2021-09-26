@@ -1,22 +1,25 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=xsum.bert.init.learn
+#SBATCH --job-name=xsum.lora.attn.s4
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:a100:1
+#SBATCH --gres=gpu:v100:1
+#SBATCH --partition=gpu
 #SBATCH --mem=30g
-#SBATCH --cpus-per-task=2
-#SBATCH --time=0
+#SBATCH --cpus-per-task=3
+#SBATCH --time=2-00:00:00
 ##SBATCH --array=0
 
 source activate tride
 which python
 
-export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
-export HF_DATASETS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
-export HF_METRICS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
-cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
+export TRANSFORMERS_CACHE=pretrain_models/huggingface
+export HF_DATASETS_CACHE=pretrain_models/huggingface
+export HF_METRICS_CACHE=pretrain_models/huggingface
+cache_dir=pretrain_models/huggingface
 
+export TRANSFORMERS_OFFLINE=1
+export WANDB_MODE=offline
 # wandb env variables
 export WANDB_PROJECT=xsum_tride
 export WANDB_WATCH="false"
@@ -27,66 +30,34 @@ dataset="xsum"
 attn_gate="none"
 ffn_gate="none"
 
-#attn_mode="adapter"
-#attn_option="attn_adapter"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=200
-#ffn_bn_len=200
-
-attn_mode="lisa"
-attn_option="concat"
-ffn_mode="adapter"
-ffn_option="ffn_hi_input"
-preseqlen=30
-ffn_bn_len=512
-
-# ffn Hi adapter with learned scalar, bert init
-attn_mode="none"
+attn_mode="lora"
 attn_option="none"
-ffn_mode="adapter"
-ffn_option="ffn_hi_input"
-preseqlen=1
-ffn_bn_len=512
-adapter_init_option="bert"
-adapter_layernorm_option="learnable_scalar"
-adapter_scalar=2
-
-# ffn Hi adapter with fixed scalar, bert init
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=1
-#ffn_bn_len=512
-#adapter_init_option="bert"
-#adapter_layernorm_option="fixed_scalar"
-#adapter_scalar=2
-
-## ffn Hi adapter with learned scalar, lora init
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=1
-#ffn_bn_len=512
-#adapter_init_option="lora"
-#adapter_layernorm_option="learnable_scalar"
-#adapter_scalar=2
+ffn_mode="none"
+ffn_option="none"
+preseqlen=200
+ffn_bn_len=1
+lora_alpha=800
 #
-## ffn Hi adapter with fixed scalar, lora init
 #attn_mode="none"
 #attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
+#ffn_mode="lora"
+#ffn_option="none"
 #preseqlen=1
-#ffn_bn_len=512
-#adapter_init_option="lora"
-#adapter_layernorm_option="fixed_scalar"
-#adapter_scalar=2
+#ffn_bn_len=120
+#lora_alpha=480
+#
+#attn_mode="lisa"
+#attn_option="concat"
+#ffn_mode="lora"
+#ffn_option="none"
+#preseqlen=30
+#ffn_bn_len=102
+#lora_alpha=204
+
+lora_dropout=0.1
 
 mh_reuse_proj="True"
-adapter_post_layernorm=0
+adapter_layernorm_option="none"
 
 max_steps=100000
 num_train_epochs=30
@@ -131,7 +102,9 @@ then
     debug_str=".debug"
 fi
 
-exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ainit_${adapter_init_option}.alo_${adapter_layernorm_option}.as_${adapter_scalar}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+#save_steps=200
+#report_to="none"
+exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.lora_alpha_dropout_${lora_alpha}_${lora_dropout}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 rm ${HF_DATASETS_CACHE}/downloads/*.lock
@@ -141,15 +114,15 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
+    --lora_alpha ${lora_alpha} \
+    --lora_dropout ${lora_dropout} \
+    --adapter_layernorm_option ${adapter_layernorm_option} \
     --attn_mode ${attn_mode} \
     --attn_option ${attn_option} \
     --ffn_mode ${ffn_mode} \
     --ffn_option ${ffn_option} \
     --attn_gate ${attn_gate} \
     --ffn_gate ${ffn_gate} \
-    --adapter_layernorm_option ${adapter_layernorm_option} \
-    --adapter_init_option ${adapter_init_option} \
-    --adapter_scalar ${adapter_scalar} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --mid_dim 800 \
     --preseqlen ${preseqlen} \
