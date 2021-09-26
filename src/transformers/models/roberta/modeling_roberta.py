@@ -449,7 +449,7 @@ class RobertaSelfOutput(nn.Module):
     def forward(self, hidden_states, input_tensor):
         hidden_states = self.dense(hidden_states)
         if self.config.attn_mode == "adapter" and self.config.attn_option == "houlsby":
-            hidden_states = hidden_states + self.ef_attn_adapter(hidden_states, add_residual=True)
+            hidden_states = self.ef_attn_adapter(hidden_states, add_residual=True)
 
         hidden_states = self.dropout(hidden_states)
         hidden_states = self.LayerNorm(hidden_states + input_tensor)

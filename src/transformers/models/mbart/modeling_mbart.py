@@ -405,7 +405,7 @@ class MBartAttention(nn.Module):
 
         # the Houlsby config
         if self.config.attn_mode == "adapter" and self.config.attn_option == "houlsby":
-            attn_output = attn_output + self.ef_attn_adapter(hidden_states, add_residual=True)
+            attn_output = self.ef_attn_adapter(attn_output, add_residual=True)
 
         return attn_output, attn_weights_reshaped, past_key_value
 
