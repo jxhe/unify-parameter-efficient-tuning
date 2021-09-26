@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=xsum.lora.attn.s4.r1
+#SBATCH --job-name=xsum.prompt.1
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:v100:1
 #SBATCH --partition=gpu
@@ -10,16 +10,19 @@
 #SBATCH --time=2-00:00:00
 ##SBATCH --array=0
 
+port=15217
 source activate tride
 which python
-
 export TRANSFORMERS_CACHE=pretrain_models/huggingface
 export HF_DATASETS_CACHE=pretrain_models/huggingface
 export HF_METRICS_CACHE=pretrain_models/huggingface
 cache_dir=pretrain_models/huggingface
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+echo ${SCRIPT_DIR}
 
 export TRANSFORMERS_OFFLINE=1
 export WANDB_MODE=offline
+
 # wandb env variables
 export WANDB_PROJECT=gaogao
 export WANDB_WATCH="false"
@@ -29,93 +32,14 @@ dataset="xsum"
 
 attn_gate="none"
 ffn_gate="none"
-lora_init="lora"
 
-# xsum.lora.ffn.102.1
-attn_mode="none"
-attn_option="none"
-ffn_mode="lora"
-ffn_option="none"
-preseqlen=1
-ffn_bn_len=102
-lora_alpha=102
-
-# xsum.lora.ffn.102.2
-attn_mode="none"
-attn_option="none"
-ffn_mode="lora"
-ffn_option="none"
-preseqlen=1
-ffn_bn_len=102
-lora_alpha=204
-
-# xsum.lora.attn.1.4
-attn_mode="lora"
+# xsum.prompt.1
+attn_mode="prompt_tuning"
 attn_option="none"
 ffn_mode="none"
 ffn_option="none"
 preseqlen=1
 ffn_bn_len=1
-lora_alpha=4
-
-# xsum.lora.attn.30.4
-attn_mode="lora"
-attn_option="none"
-ffn_mode="none"
-ffn_option="none"
-preseqlen=30
-ffn_bn_len=1
-lora_alpha=120
-
-# xsum.lora.attn.400.4
-attn_mode="lora"
-attn_option="none"
-ffn_mode="none"
-ffn_option="none"
-preseqlen=400
-ffn_bn_len=1
-lora_alpha=1600
-
-# xsum.lora.bert.ffn.102.1
-attn_mode="none"
-attn_option="none"
-ffn_mode="lora"
-ffn_option="none"
-preseqlen=1
-ffn_bn_len=102
-lora_alpha=102
-lora_init="bert"
-
-# xsum.lora.bert.ffn.102.2
-attn_mode="none"
-attn_option="none"
-ffn_mode="lora"
-ffn_option="none"
-preseqlen=1
-ffn_bn_len=102
-lora_alpha=204
-lora_init="bert"
-
-# xsum.lora.bert.ffn.102.4
-attn_mode="none"
-attn_option="none"
-ffn_mode="lora"
-ffn_option="none"
-preseqlen=1
-ffn_bn_len=102
-lora_alpha=408
-lora_init="bert"
-
-#
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="lora"
-#ffn_option="none"
-#preseqlen=30
-#ffn_bn_len=102
-#lora_alpha=408
-
-lora_dropout=0.1
 
 mh_reuse_proj="True"
 adapter_layernorm_option="none"
@@ -165,7 +89,7 @@ fi
 
 #save_steps=200
 #report_to="none"
-exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.lora_alpha_dropout_${lora_alpha}_${lora_dropout}.lorainit_${lora_init}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.mh_reuse_proj_${mh_reuse_proj}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 rm ${HF_DATASETS_CACHE}/downloads/*.lock
@@ -175,9 +99,6 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
-    --lora_alpha ${lora_alpha} \
-    --lora_dropout ${lora_dropout} \
-    --lora_init ${lora_init} \
     --adapter_layernorm_option ${adapter_layernorm_option} \
     --attn_mode ${attn_mode} \
     --attn_option ${attn_option} \
@@ -232,3 +153,9 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --predict_with_generate \
     --output_dir ${SAVE} ${extra_cmd} \
         2>&1 | tee ${SAVE}/log.txt
+    # --predict_with_generate
+    # --metric_for_best_model ${metric} \
+    # --greater_is_better "True" \
+
+    #--analysis_opt ${aopt} \
+#rm -rf ${SAVE}/pytorch_model.bin
