@@ -190,6 +190,12 @@ class BartAttention(nn.Module):
         elif self.attn_mode == 'adapter':
             if "attn_adapter" in self.config.attn_option:
                 self.ef_attn_adapter = Adapter_Layer(self.config, dropout=self.dropout, bottleneck=self.config.preseqlen)
+            elif self.config.attn_option == "houlsby":
+                self.ef_attn_adapter = Adapter_Layer(self.config,
+                                                     dropout=self.dropout,
+                                                     bottleneck=self.config.preseqlen,
+                                                     adapter_layernorm_option="in",
+                                                     )
             else:
                 raise ValueError("adapter option not supported")
 
@@ -512,6 +518,10 @@ class BartAttention(nn.Module):
         # import pdb; pdb.set_trace()
         attn_output = self.out_proj(attn_output)
 
+        # the Houlsby config
+        if self.config.attn_mode == "adapter" and self.config.attn_option == "houlsby":
+            attn_output = self.ef_attn_adapter(attn_output, add_residual=True)
+
         if cross_attn_output is not None and self.config.attn_option == "attn_adapter_after_oproj":
             attn_output = attn_output + cross_attn_output
 
@@ -648,7 +658,7 @@ class BartEncoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
         if 'adapter' in self.config.ffn_mode:
-            if self.config.ffn_option == 'ffn_ho_input':
+            if self.config.ffn_option == 'ffn_ho_input' or self.config.ffn_option == 'houlsby'::
                 hidden_states = self.ef_ffn_adapter(hidden_states, w_orig=w_orig, w_change=w_change)
             elif self.config.ffn_option == 'ffn_hi_input':
                 hidden_states = w_orig * hidden_states + w_change * adapter_change
@@ -838,7 +848,7 @@ class BartDecoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
         if 'adapter' in self.config.ffn_mode:
-            if self.config.ffn_option == 'ffn_ho_input':
+            if self.config.ffn_option == 'ffn_ho_input' or self.config.ffn_option == 'houlsby':
                 hidden_states = self.ef_ffn_adapter(hidden_states, w_orig=w_orig, w_change=w_change)
             elif self.config.ffn_option == 'ffn_hi_input':
                 hidden_states = w_orig * hidden_states + w_change * adapter_change
