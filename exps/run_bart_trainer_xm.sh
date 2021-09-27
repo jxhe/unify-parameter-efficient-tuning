@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=5.attn.adapter.cross_attn_noln.200
+#SBATCH --job-name=4.attn.adapter.cross_attn_relu.200
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:v100:1
 #SBATCH --partition=gpu
@@ -84,17 +84,17 @@ label_smoothing_factor=0.0
 weight_decay=0.0
 
 # 5.attn.adapter.cross_attn_noln.200
-attn_mode="lisa"
-attn_option="cross_attn_noln"
-ffn_mode="none"
-ffn_option="none"
-preseqlen=30
-ffn_bn_len=0
-adapter_init_option="bert"
-adapter_layernorm_option="none"
-adapter_scalar=1
-label_smoothing_factor=0.0
-weight_decay=0.0
+#attn_mode="lisa"
+#attn_option="cross_attn_noln"
+#ffn_mode="none"
+#ffn_option="none"
+#preseqlen=30
+#ffn_bn_len=0
+#adapter_init_option="bert"
+#adapter_layernorm_option="none"
+#adapter_scalar=1
+#label_smoothing_factor=0.0
+#weight_decay=0.0
 
 mh_reuse_proj="True"
 adapter_post_layernorm=0
