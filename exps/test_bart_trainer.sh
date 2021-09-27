@@ -101,9 +101,11 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --ffn_option ${ffn_option} \
     --attn_gate ${attn_gate} \
     --ffn_gate ${ffn_gate} \
+    --adapter_layernorm_option ${adapter_layernorm_option} \
+    --adapter_init_option ${adapter_init_option} \
+    --adapter_scalar ${adapter_scalar} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --mid_dim 800 \
-    --preseqlen 200 \
     --preseqlen ${preseqlen} \
     --ffn_bn_len ${ffn_bn_len} \
     --init_with_bert 1 \
@@ -118,7 +120,6 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --max_length 60 \
     --min_length 10 \
     --no_repeat_ngram_size 3 \
-    --length_penalty ${length_penalty} \
     --do_eval \
     --do_predict \
     --per_device_train_batch_size ${bsz} \
@@ -147,10 +148,4 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --metric_for_best_model ${metric} \
     --greater_is_better "True" \
     --predict_with_generate \
-    --output_dir ${SAVE} ${extra_cmd} \
-        2>&1 | tee ${SAVE}/${log}
-    # --predict_with_generate
-    # --metric_for_best_model ${metric} \
-    # --greater_is_better "True" \
-
-#rm -rf ${SAVE}/pytorch_model.bin
+    --output_dir ${SAVE} ${extra_cmd} 2>&1 | tee ${SAVE}/test.log
