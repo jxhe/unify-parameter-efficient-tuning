@@ -507,6 +507,7 @@ class Adapter_Layer(nn.Module):
                  bottleneck=None,
                  dropout=0.0,
                  init_option="bert",
+                 adapter_scalar=None,
                  adapter_layernorm_option="in"):
         super().__init__()
         self.n_embd = config.d_model if d_model is None else d_model
@@ -520,7 +521,7 @@ class Adapter_Layer(nn.Module):
         if adapter_layernorm_option == "in" or adapter_layernorm_option == "out":
             self.adapter_layer_norm_before = nn.LayerNorm(self.n_embd)
         elif adapter_layernorm_option == "fixed_scalar":
-            self.scale = config.adapter_scalar
+            self.scale = config.adapter_scalar if adapter_scalar is None else adapter_scalar
         elif adapter_layernorm_option == "learnable_scalar":
             self.scale = nn.Parameter(torch.ones(1))
 

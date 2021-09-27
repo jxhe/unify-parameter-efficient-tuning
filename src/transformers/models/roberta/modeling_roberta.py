@@ -444,6 +444,7 @@ class RobertaSelfOutput(nn.Module):
                                                  bottleneck=config.preseqlen,
                                                  init_option=config.adapter_init_option,
                                                  adapter_layernorm_option="in",
+                                                 adapter_scalar=config.adapter_scalar,
                                                  )
 
     def forward(self, hidden_states, input_tensor):
@@ -548,7 +549,9 @@ class RobertaOutput(nn.Module):
                                                     dropout=config.hidden_dropout_prob,
                                                     bottleneck=config.ffn_bn_len,
                                                     init_option=config.adapter_init_option,
-                                                    adapter_layernorm_option=config.adapter_layernorm_option,)
+                                                    adapter_layernorm_option=config.adapter_layernorm_option,
+                                                    adapter_scalar=config.adapter_scalar,
+                                                    )
 
     def forward(self, hidden_states, input_tensor, adapter_change=None):
         hidden_states = self.dense(hidden_states)
@@ -592,7 +595,9 @@ class RobertaLayer(nn.Module):
                                                 dropout=config.hidden_dropout_prob,
                                                 bottleneck=config.ffn_bn_len,
                                                 init_option=config.adapter_init_option,
-                                                adapter_layernorm_option=config.adapter_layernorm_option,)
+                                                adapter_layernorm_option=config.adapter_layernorm_option,
+                                                adapter_scalar=config.adapter_scalar
+                                                )
 
     def forward(
         self,

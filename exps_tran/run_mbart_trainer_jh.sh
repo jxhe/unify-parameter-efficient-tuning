@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=tran
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:A6000:1
+#SBATCH --gres=gpu:v100:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
@@ -27,14 +27,14 @@ dataset="wmt16"
 
 port=62221
 # Hi adapter200
-attn_mode="adapter"
+attn_mode="none"
 attn_option="houlsby"
-ffn_mode="none"
-ffn_option="pfeiffer"
-preseqlen=30
-ffn_bn_len=600
+ffn_mode="adapter"
+ffn_option="ffn_ho_input"
+preseqlen=200
+ffn_bn_len=30
 hi_lnbefore=1
-adapter_layernorm_option="in"
+adapter_layernorm_option="none"
 max_grad_norm=1
 attn_gate="none"
 ffn_gate="none"

@@ -16,8 +16,8 @@ export HF_METRICS_CACHE=checkpoints/hf_model
 cache_dir=${TRANSFORMERS_CACHE}
 
 
-# TASK_NAME=mnli
-TASK_NAME=sst2
+TASK_NAME=mnli
+# TASK_NAME=sst2
 metric="accuracy"
 # TASK_NAME=mnli
 # wandb env variables
@@ -33,13 +33,13 @@ port=62221
 # Hi adapter200
 attn_mode="lisa"
 attn_option="concat"
-ffn_mode="none"
-ffn_option="houlsby"
-preseqlen=32
-ffn_bn_len=32
+ffn_mode="adapter"
+ffn_option="ffn_hi_input"
+preseqlen=16
+ffn_bn_len=16
 hi_lnbefore=1
-adapter_init_option="bert"
-adapter_layernorm_option="in"
+adapter_init_option="lora"
+adapter_layernorm_option="fixed_scalar"
 adapter_scalar=2
 max_grad_norm=1
 attn_gate="none"

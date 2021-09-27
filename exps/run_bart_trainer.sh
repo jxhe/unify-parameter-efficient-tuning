@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=xsum
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:A6000:1
+#SBATCH --gres=gpu:a100:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=2
 #SBATCH --time=0
@@ -38,7 +38,7 @@ layer_norm_in=1
 layer_norm_out=0
 
 preseqlen=1
-ffn_bn_len=1
+ffn_bn_len=30
 
 label_smoothing_factor=0.1
 weight_decay=0.01

@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=glue
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:v100:1
+#SBATCH --gres=gpu:3090:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
@@ -25,7 +25,7 @@ export WANDB_WATCH="false"
 
 DATE=`date +%Y%m%d`
 
-# declare -a seed_list=(42)
+# declare -a seed_list=(0)
 declare -a seed_list=(42 2 4 6 8)
 
 port=62221
