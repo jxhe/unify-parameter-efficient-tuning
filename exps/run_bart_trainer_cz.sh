@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=xsum.bert.init.learn
+#SBATCH --job-name=xsum.lora.init.4.comb
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:a100:1
 #SBATCH --mem=30g
@@ -42,15 +42,15 @@ preseqlen=30
 ffn_bn_len=512
 
 # ffn Hi adapter with learned scalar, bert init
-attn_mode="none"
-attn_option="none"
-ffn_mode="adapter"
-ffn_option="ffn_hi_input"
-preseqlen=1
-ffn_bn_len=512
-adapter_init_option="bert"
-adapter_layernorm_option="learnable_scalar"
-adapter_scalar=2
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#preseqlen=1
+#ffn_bn_len=512
+#adapter_init_option="bert"
+#adapter_layernorm_option="learnable_scalar"
+#adapter_scalar=2
 
 # ffn Hi adapter with fixed scalar, bert init
 #attn_mode="none"
@@ -73,8 +73,8 @@ adapter_scalar=2
 #adapter_init_option="lora"
 #adapter_layernorm_option="learnable_scalar"
 #adapter_scalar=2
-#
-## ffn Hi adapter with fixed scalar, lora init
+
+# ffn Hi adapter with fixed scalar, lora init
 #attn_mode="none"
 #attn_option="none"
 #ffn_mode="adapter"
@@ -83,7 +83,29 @@ adapter_scalar=2
 #ffn_bn_len=512
 #adapter_init_option="lora"
 #adapter_layernorm_option="fixed_scalar"
-#adapter_scalar=2
+#adapter_scalar=4
+
+# ffn Hi adapter with ln none, bert init: previous
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#preseqlen=1
+#ffn_bn_len=512
+#adapter_init_option="bert"
+#adapter_layernorm_option="none"
+#adapter_scalar=0
+
+# ffn Hi adapter with fixed scalar, lora init
+attn_mode="lisa"
+attn_option="concat"
+ffn_mode="adapter"
+ffn_option="ffn_hi_input"
+preseqlen=30
+ffn_bn_len=512
+adapter_init_option="lora"
+adapter_layernorm_option="fixed_scalar"
+adapter_scalar=4
 
 mh_reuse_proj="True"
 adapter_post_layernorm=0
@@ -195,5 +217,4 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --metric_for_best_model ${metric} \
     --greater_is_better "True" \
     --predict_with_generate \
-    --output_dir ${SAVE} ${extra_cmd} \
-        2>&1 | tee ${SAVE}/log.txt
+    --output_dir ${SAVE} ${extra_cmd} 2>&1 | tee ${SAVE}/log.txt
