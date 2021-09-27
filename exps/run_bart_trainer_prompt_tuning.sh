@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=xsum
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:RTX_8000:1
+#SBATCH --gres=gpu:a100:1
 #SBATCH --mem=25g
 #SBATCH --cpus-per-task=2
 #SBATCH --time=0
@@ -31,7 +31,7 @@ attn_mode="prompt_tuning"
 attn_option="none"
 ffn_mode="none"
 ffn_option="none"
-preseqlen=300
+preseqlen=30
 ffn_bn_len=1
 
 mh_reuse_proj="True"

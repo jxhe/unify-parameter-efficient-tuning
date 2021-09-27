@@ -18,7 +18,7 @@ export HF_METRICS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
 cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
 
 # wandb env variables
-export WANDB_PROJECT=xsum_tride
+export WANDB_PROJECT=gaogao
 export WANDB_WATCH="false"
 
 DATE=`date +%Y%m%d`
@@ -35,13 +35,22 @@ preseqlen=200
 ffn_bn_len=1
 lora_alpha=400
 
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="lora"
-#ffn_option="none"
-#preseqlen=1
-#ffn_bn_len=120
-#lora_alpha=240
+attn_mode="none"
+attn_option="none"
+ffn_mode="lora"
+ffn_option="none"
+preseqlen=1
+ffn_bn_len=102
+lora_alpha=408
+
+attn_mode="none"
+attn_option="none"
+ffn_mode="lora"
+ffn_option="none"
+preseqlen=1
+ffn_bn_len=102
+lora_alpha=102
+lora_init="bert"
 
 lora_dropout=0.1
 
@@ -93,7 +102,7 @@ fi
 
 #save_steps=200
 #report_to="none"
-exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.lora_alpha_dropout_${lora_alpha}_${lora_dropout}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.lora_alpha_dropout_${lora_alpha}_${lora_dropout}.lora_init${lora_init}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 rm ${HF_DATASETS_CACHE}/downloads/*.lock
@@ -105,6 +114,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --cache_dir ${cache_dir} \
     --lora_alpha ${lora_alpha} \
     --lora_dropout ${lora_dropout} \
+    --lora_init ${lora_init} \
     --adapter_layernorm_option ${adapter_layernorm_option} \
     --attn_mode ${attn_mode} \
     --attn_option ${attn_option} \
