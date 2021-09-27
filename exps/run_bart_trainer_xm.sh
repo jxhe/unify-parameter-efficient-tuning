@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=2.attn.adapter.houlsby.512
+#SBATCH --job-name=1.ffn.ho.200
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:v100:1
 #SBATCH --partition=gpu
@@ -45,17 +45,17 @@ label_smoothing_factor=0.1
 weight_decay=0.01
 
 # 2.attn.adapter.houlsby.512
-attn_mode="lisa"
-attn_option="houlsby"
-ffn_mode="none"
-ffn_option="none"
-preseqlen=512
-ffn_bn_len=0
-adapter_init_option="bert"
-adapter_layernorm_option="none"
-adapter_scalar=1
-label_smoothing_factor=0.1
-weight_decay=0.01
+#attn_mode="lisa"
+#attn_option="houlsby"
+#ffn_mode="none"
+#ffn_option="none"
+#preseqlen=512
+#ffn_bn_len=0
+#adapter_init_option="bert"
+#adapter_layernorm_option="none"
+#adapter_scalar=1
+#label_smoothing_factor=0.1
+#weight_decay=0.01
 
 # 3.attn.adapter.cross_attn_relu.30
 #attn_mode="lisa"
