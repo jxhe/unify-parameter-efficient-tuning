@@ -23,11 +23,11 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-attn_mode="none"
-attn_option="concat"
-adapter_layernorm_option="none"
+attn_mode="adapter"
+attn_option="houlsby"
+adapter_layernorm_option="in"
 
-ffn_mode="adapter"
+ffn_mode="none"
 ffn_option="ffn_ho_input"
 ffn_num_heads=16
 
@@ -43,7 +43,7 @@ ffn_bn_len=30
 label_smoothing_factor=0.1
 weight_decay=0.01
 max_grad_norm=1
-debug=0
+debug=1
 
 # adapter_option="attn_adapter"
 mh_reuse_proj="True"

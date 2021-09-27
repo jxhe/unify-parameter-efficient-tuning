@@ -658,7 +658,7 @@ class BartEncoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
         if 'adapter' in self.config.ffn_mode:
-            if self.config.ffn_option == 'ffn_ho_input' or self.config.ffn_option == 'houlsby'::
+            if self.config.ffn_option == 'ffn_ho_input' or self.config.ffn_option == 'houlsby':
                 hidden_states = self.ef_ffn_adapter(hidden_states, w_orig=w_orig, w_change=w_change)
             elif self.config.ffn_option == 'ffn_hi_input':
                 hidden_states = w_orig * hidden_states + w_change * adapter_change
