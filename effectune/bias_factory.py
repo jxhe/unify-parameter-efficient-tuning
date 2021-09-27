@@ -734,12 +734,14 @@ class Linear(nn.Linear, LoRALayer):
             fan_in_fan_out: bool = False,
             # Set this to True if the layer to replace stores weight like (fan_in, fan_out)
             merge_weights: bool = True,
+            lora_init: str="lora",
             **kwargs
     ):
         nn.Linear.__init__(self, in_features, out_features, **kwargs)
         LoRALayer.__init__(self, r=r, lora_alpha=lora_alpha, lora_dropout=lora_dropout,
                            merge_weights=merge_weights)
 
+        self.lora_init = lora_init
         self.fan_in_fan_out = fan_in_fan_out
         # Actual trainable parameters
         if r > 0:
@@ -755,9 +757,13 @@ class Linear(nn.Linear, LoRALayer):
     def reset_parameters(self):
         nn.Linear.reset_parameters(self)
         if hasattr(self, 'ef_lora_A'):
-            # initialize A the same way as the default for nn.Linear and B to zero
-            nn.init.kaiming_uniform_(self.ef_lora_A, a=math.sqrt(5))
-            nn.init.zeros_(self.ef_lora_B)
+            if self.lora_init == "bert":
+                nn.init.normal_(self.ef_lora_A, std=0.02)
+                nn.init.normal_(self.ef_lora_B, std=0.02)
+            elif self.lora_init == "lora":
+                # initialize A the same way as the default for nn.Linear and B to zero
+                nn.init.kaiming_uniform_(self.ef_lora_A, a=math.sqrt(5))
+                nn.init.zeros_(self.ef_lora_B)
 
     def train(self, mode: bool = True):
         def T(w):

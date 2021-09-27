@@ -289,6 +289,13 @@ class TuneArguments:
         },
     )
 
+    lora_init: Optional[str] = field(
+        default="lora",
+        metadata={
+            "choices": ["bert", "lora"],
+            "help": ""
+        },
+    )
 
 @dataclass
 class MBARTArguments:

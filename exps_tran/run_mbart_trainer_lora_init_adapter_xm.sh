@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=tran.lora.attn.1.4
+#SBATCH --job-name=tran.ffn.adapter.lora.init.512.4
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:v100:1
 #SBATCH --partition=gpu
@@ -10,7 +10,6 @@
 #SBATCH --time=2-00:00:00
 ##SBATCH --array=0
 
-port=15217
 source activate tride
 which python
 export TRANSFORMERS_CACHE=pretrain_models/huggingface
@@ -24,7 +23,7 @@ export TRANSFORMERS_OFFLINE=1
 export WANDB_MODE=offline
 
 # wandb env variables
-export WANDB_PROJECT=enro_translation
+export WANDB_PROJECT=gaogao
 export WANDB_WATCH="false"
 
 DATE=`date +%Y%m%d`
@@ -32,42 +31,35 @@ dataset="wmt16"
 
 attn_gate="none"
 ffn_gate="none"
-
-# tran.lora.attn.1.4
-attn_mode="lora"
-attn_option="none"
-ffn_mode="none"
-ffn_option="none"
-preseqlen=1
-ffn_bn_len=1
-lora_alpha=4
-
-# tran.lora.attn.30.4
-#attn_mode="lora"
-#attn_option="none"
-#ffn_mode="none"
-#ffn_option="none"
-#preseqlen=30
-#ffn_bn_len=1
-#lora_alpha=120
-
-# tran.lora.attn.400.4
-#attn_mode="lora"
-#attn_option="none"
-#ffn_mode="none"
-#ffn_option="none"
-#preseqlen=400
-#ffn_bn_len=1
-#lora_alpha=1600
-
-hi_lnbefore=0  # 1=old hi, 0=new hi
-adapter_layernorm_option="out"  # in=pre, out=post
-label_smoothing_factor=0.1
-lora_dropout=0.1
-
-max_tokens_per_batch=3196
-gradient_steps=5
+max_tokens_per_batch=4096
+gradient_steps=4
 bsz=10
+
+# tran.ffn.adapter.lora.init.512.4
+attn_mode="none"
+attn_option="none"
+ffn_mode="adapter"
+ffn_option="ffn_hi_input"
+preseqlen=1
+ffn_bn_len=512
+hi_lnbefore=1
+adapter_init_option="lora"
+adapter_layernorm_option="fixed_scalar"
+adapter_scalar=4
+label_smoothing_factor=0.1
+
+# tran.comb.pt.30.ffn.adapter.lora.init.512.4
+#attn_mode="lisa"
+#attn_option="concat"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#preseqlen=30
+#ffn_bn_len=512
+#hi_lnbefore=1
+#adapter_init_option="lora"
+#adapter_layernorm_option="fixed_scalar"
+#adapter_scalar=4
+#label_smoothing_factor=0.1
 
 layer_norm_in=1
 layer_norm_out=0
@@ -102,27 +94,25 @@ then
     max_grad_norm=1
     max_train_samples=4000
     max_eval_samples=150
-    bsz=10
+    max_tokens_per_batch=4096
     gradient_steps=8
-    num_train_epochs=16
+    bsz=10
+    num_train_epochs=100
     max_steps=-1
     eval_strategy='steps'
-    save_steps=100
+    save_steps=200
     report_to="none"
     logging_steps=10
     extra_cmd="--max_train_samples ${max_train_samples} --max_predict_samples 150"
     debug_str=".debug"
 fi
 
-#report_to="none"
-#save_steps=150
-exp_name=wmt16_roen_tride.am_${attn_mode}.${ao}_${attn_option}.fm_${ffn_mode}.abn${preseqlen}.fbn${ffn_bn_len}.lora_alpha_dropout_${lora_alpha}_${lora_dropout}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
+exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.ainit_${adapter_init_option}.alo_${adapter_layernorm_option}.as_${adapter_scalar}.hilnb_${hi_lnbefore}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 rm ${HF_DATASETS_CACHE}/downloads/*.lock
 rm ${HF_DATASETS_CACHE}/*.lock
 
-#python -u
 #python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port}
 python -u examples/pytorch/translation/run_translation.py \
     --dataset_name ${dataset}\
@@ -131,8 +121,6 @@ python -u examples/pytorch/translation/run_translation.py \
     --cache_dir ${cache_dir} \
     --source_lang en_XX \
     --target_lang ro_RO \
-    --lora_alpha ${lora_alpha} \
-    --lora_dropout ${lora_dropout} \
     --do_train \
     --do_eval \
     --do_predict \
@@ -143,8 +131,6 @@ python -u examples/pytorch/translation/run_translation.py \
     --adam_beta2 0.98 \
     --adam_epsilon 1e-6 \
     --dropout 0.1 \
-    --lora_alpha ${lora_alpha} \
-    --lora_dropout ${lora_dropout} \
     --attention_dropout 0.0 \
     --attn_mode ${attn_mode} \
     --attn_option ${attn_option} \
@@ -153,6 +139,8 @@ python -u examples/pytorch/translation/run_translation.py \
     --ffn_option ${ffn_option} \
     --ffn_gate ${ffn_gate} \
     --adapter_layernorm_option ${adapter_layernorm_option} \
+    --adapter_init_option ${adapter_init_option} \
+    --adapter_scalar ${adapter_scalar} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --layer_norm_before ${layer_norm_in} \
     --layer_norm_after ${layer_norm_out} \
@@ -199,4 +187,4 @@ python -u examples/pytorch/translation/run_translation.py \
     --predict_with_generate \
     --output_dir ${SAVE} ${extra_cmd} 2>&1 | tee ${SAVE}/log.txt
 
-bash ${SCRIPT_DIR}/rpxm.sh ${SAVE}/test_generated_predictions.txt ${SAVE}/test_gold_labels.txt | tee -a ${SAVE}/log.txt
+bash ${SCRIPT_DIR}/romanian_postprocess.sh ${SAVE}/test_generated_predictions.txt ${SAVE}/test_gold_labels.txt | tee -a ${SAVE}/log.txt

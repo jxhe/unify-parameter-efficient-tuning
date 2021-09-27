@@ -77,44 +77,14 @@ lora_alpha=102
 #lora_alpha=1600
 
 # xsum.lora.bert.ffn.102.1
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="lora"
-#ffn_option="none"
-#preseqlen=1
-#ffn_bn_len=102
-#lora_alpha=102
-#lora_init="bert"
-
-# xsum.lora.bert.ffn.102.2
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="lora"
-#ffn_option="none"
-#preseqlen=1
-#ffn_bn_len=102
-#lora_alpha=204
-#lora_init="bert"
-
-# xsum.lora.bert.ffn.102.4
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="lora"
-#ffn_option="none"
-#preseqlen=1
-#ffn_bn_len=102
-#lora_alpha=408
-#lora_init="bert"
-
-#
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="lora"
-#ffn_option="none"
-#preseqlen=30
-#ffn_bn_len=102
-#lora_alpha=408
-
+attn_mode="lisa"
+attn_option="concat"
+ffn_mode="lora"
+ffn_option="none"
+preseqlen=30
+ffn_bn_len=102
+lora_alpha=204
+lora_init="lora"
 lora_dropout=0.1
 
 mh_reuse_proj="True"
@@ -165,9 +135,8 @@ fi
 
 #save_steps=200
 #report_to="none"
-exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.lora_alpha_dropout_${lora_alpha}_${lora_dropout}.lorainit_${lora_init}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
-SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
-rm -rf ${SAVE}; mkdir -p ${SAVE}
+exp_name=xsum_tride.am_lisa.ao_concat.fm_lora.fo_none.abn30.fbn102.lora_alpha_dropout_204_0.1.unfreeze_ef_.ms100000.ls0.1.warm0.wd0.01
+SAVE=checkpoints/${dataset}/20210923/${exp_name}
 rm ${HF_DATASETS_CACHE}/downloads/*.lock
 rm ${HF_DATASETS_CACHE}/*.lock
 
@@ -175,6 +144,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
+    --load_path ${SAVE} \
     --lora_alpha ${lora_alpha} \
     --lora_dropout ${lora_dropout} \
     --lora_init ${lora_init} \
@@ -201,7 +171,6 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --max_length 60 \
     --min_length 10 \
     --no_repeat_ngram_size 3 \
-    --do_train \
     --do_eval \
     --do_predict \
     --per_device_train_batch_size ${bsz} \
@@ -223,12 +192,11 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --save_steps ${save_steps} \
     --eval_steps ${save_steps} \
     --load_best_model_at_end \
-    --report_to ${report_to} \
+    --report_to "none" \
     --run_name ${dataset}.${DATE}.${exp_name} \
-    --overwrite_output_dir "True" \
+    --overwrite_output_dir "False" \
     --disable_tqdm "True" \
     --metric_for_best_model ${metric} \
     --greater_is_better "True" \
     --predict_with_generate \
-    --output_dir ${SAVE} ${extra_cmd} \
-        2>&1 | tee ${SAVE}/log.txt
+    --output_dir ${SAVE} ${extra_cmd} | tee -a ${SAVE}/log.txt
