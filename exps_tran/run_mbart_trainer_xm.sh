@@ -1,11 +1,11 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=6.MAM:PT30.PA512
+#SBATCH --job-name=1.pfeiffer.adapter.600
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:v100:1
+#SBATCH --gres=gpu:a40:1
 #SBATCH --partition=gpu
-#SBATCH --mem=30g
+#SBATCH --mem=40g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=2-00:00:00
 #SBATCH --array=0-1
@@ -111,8 +111,8 @@ adapter_scalar=1
 #adapter_layernorm_option="fixed_scalar"
 #adapter_scalar=4
 
-max_tokens_per_batch=3196
-gradient_steps=5
+max_tokens_per_batch=4096
+gradient_steps=4
 bsz=10
 
 layer_norm_in=1
@@ -163,7 +163,7 @@ fi
 
 #report_to="none"
 #save_steps=150
-exp_name=wmt16_roen_tride.am_${attn_mode}.${ao}_${attn_option}.fm_${ffn_mode}.abn${preseqlen}.fbn${ffn_bn_len}.lora_alpha_dropout_${lora_alpha}_${lora_dropout}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
+exp_name=wmt16_roen_tride.am_${attn_mode}.${ao}_${attn_option}.fm_${ffn_mode}.abn${preseqlen}.fbn${ffn_bn_len}.lora_alpha_dropout_${lora_alpha}_${lora_dropout}.uf_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}.mt${max_tokens_per_batch}.seed${SEED}.${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 rm ${HF_DATASETS_CACHE}/downloads/*.lock

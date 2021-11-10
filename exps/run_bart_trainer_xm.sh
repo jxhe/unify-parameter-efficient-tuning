@@ -1,11 +1,11 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=1.pfeiffer.adapter.600
+#SBATCH --job-name=2.lora.ffn.102
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:v100:1
+#SBATCH --gres=gpu:a40:1
 #SBATCH --partition=gpu
-#SBATCH --mem=30g
+#SBATCH --mem=40g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=2-00:00:00
 #SBATCH --array=0-1
@@ -53,15 +53,15 @@ adapter_layernorm_option="none"
 adapter_scalar=1
 
 # 2.lora.ffn.102
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="lora"
-#ffn_option="none"
-#preseqlen=1
-#ffn_bn_len=102
-#lora_alpha=408
-#lora_init="lora"
-#lora_dropout=0.1
+attn_mode="none"
+attn_option="none"
+ffn_mode="lora"
+ffn_option="none"
+preseqlen=1
+ffn_bn_len=102
+lora_alpha=408
+lora_init="lora"
+lora_dropout=0.1
 
 # 3.PA.1024
 #attn_mode="none"
