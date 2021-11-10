@@ -156,6 +156,7 @@ SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 rm ${HF_DATASETS_CACHE}/downloads/*.lock
 rm ${HF_DATASETS_CACHE}/*.lock
+cp ${0} ${SAVE}/run.sh
 
 python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
