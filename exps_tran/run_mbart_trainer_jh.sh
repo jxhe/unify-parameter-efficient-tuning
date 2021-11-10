@@ -3,7 +3,7 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=tran
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:v100:1
+#SBATCH --gres=gpu:a100:2
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
@@ -25,14 +25,14 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="wmt16"
 
-port=62221
+port=62227
 # Hi adapter200
-attn_mode="none"
-attn_option="houlsby"
-ffn_mode="adapter"
-ffn_option="ffn_ho_input"
+attn_mode="lisa"
+attn_option="cross_attn_relu"
+ffn_mode="none"
+ffn_option="pfeiffer"
 preseqlen=200
-ffn_bn_len=30
+ffn_bn_len=1024
 hi_lnbefore=1
 adapter_layernorm_option="none"
 max_grad_norm=1
@@ -41,12 +41,12 @@ ffn_gate="none"
 
 debug=0
 
-# label_smoothing_factor=0
-# weight_decay=0
-label_smoothing_factor=0.1
-weight_decay=0.01
+label_smoothing_factor=0
+weight_decay=0
+# label_smoothing_factor=0.1
+# weight_decay=0.01
 max_steps=50000
-max_tokens_per_batch=4096
+max_tokens_per_batch=2048
 gradient_steps=4
 
 bsz=10
@@ -101,8 +101,8 @@ rm -rf ${SAVE}; mkdir -p ${SAVE}
 rm checkpoints/hf_model/downloads/*.lock
 rm checkpoints/hf_model/*.lock
 
-# python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port} examples/pytorch/translation/run_translation.py \
-python -u examples/pytorch/translation/run_translation.py \
+# python -u examples/pytorch/translation/run_translation.py \
+python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port} examples/pytorch/translation/run_translation.py \
     --dataset_name ${dataset}\
     --dataset_config_name ro-en \
     --model_name_or_path "facebook/mbart-large-cc25" \

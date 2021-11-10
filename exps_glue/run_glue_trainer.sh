@@ -27,7 +27,8 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 
 # declare -a seed_list=(42)
-declare -a seed_list=(42 2 4 6 8)
+# declare -a seed_list=(42 2 4 6 8)
+declare -a seed_list=(6 8)
 
 port=62221
 # Hi adapter200
@@ -101,7 +102,7 @@ fi
 
 for seed in "${seed_list[@]}"; do
 
-    exp_name=glue.${TASK_NAME}.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.adalo_${adapter_layernorm_option}.adainit_${adapter_init_option}.scale${adapter_scalar}.hilnb_${hi_lnbefore}.uf_${ft}.ne${num_train_epochs}.warm${warmup_ratio}.wd${weight_decay}.seed${seed}.${debug_str}
+    exp_name=glue.${TASK_NAME}.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.adalo_${adapter_layernorm_option}.adainit_${adapter_init_option}.scale${adapter_scalar}.hilnb_${hi_lnbefore}.uf_${ft}.ne${num_train_epochs}.warm${warmup_ratio}.wd${weight_decay}.seed${seed}.${debug_str}tmp
     SAVE=checkpoints/glue/${TASK_NAME}/${DATE}/${exp_name}
     rm -rf ${SAVE}; mkdir -p ${SAVE}
 

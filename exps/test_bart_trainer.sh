@@ -26,9 +26,9 @@ dataset="xsum"
 
 taskid=0
 
-declare -a model_list=("checkpoints/xsum/20210827/xsum_tride.prefix.ffn_adapters.ffn_hi_input.bn200.mh_reuse_proj_True.unfreeze_ef_.ms100000.ls0.1.warm0.wd0.01"
+declare -a model_list=("checkpoints/xsum/20210824/xsum_tride.prefix.adapter.attn_adapter_drop.mh_reuse_proj_True.unfreeze_ef_.ms100000.ls0.1.warm0.wd0.01"
     )
-declare -a arg_list=(1 30)
+declare -a arg_list=(200)
 
 # to tune length penalty
 # declare -a length_list=(1.0 1.5 2.0 2.5 3.0)
@@ -49,14 +49,18 @@ SAVE=${model_path}
 
 log="test_log${taskid}.txt"
 
-attn_mode="none"
-attn_option="concat"
+attn_mode="adapter"
+attn_option="attn_adapter"
 
-ffn_mode="adapter"
+ffn_mode="none"
 ffn_option="ffn_hi_input"
 
 attn_gate="none"
 ffn_gate="none"
+
+adapter_layernorm_option="none"
+adapter_init_option="bert"
+adapter_scalar=1
 
 layer_norm_in=1
 layer_norm_out=0
@@ -89,6 +93,9 @@ save_steps=3000
 
 extra_cmd=""
 debug_str=""
+
+rm checkpoints/hf_model/downloads/*.lock
+rm checkpoints/hf_model/*.lock
 
 python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
