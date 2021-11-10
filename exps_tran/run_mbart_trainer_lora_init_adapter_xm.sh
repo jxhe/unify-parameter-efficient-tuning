@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=tran.ffn.adapter.lora.init.512.4
+#SBATCH --job-name=tran.attn.adapter.houlsby.512
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:v100:1
 #SBATCH --partition=gpu
@@ -23,7 +23,7 @@ export TRANSFORMERS_OFFLINE=1
 export WANDB_MODE=offline
 
 # wandb env variables
-export WANDB_PROJECT=gaogao
+export WANDB_PROJECT=enro_translation
 export WANDB_WATCH="false"
 
 DATE=`date +%Y%m%d`
@@ -31,35 +31,22 @@ dataset="wmt16"
 
 attn_gate="none"
 ffn_gate="none"
-max_tokens_per_batch=4096
-gradient_steps=4
+max_tokens_per_batch=3096
+gradient_steps=5
 bsz=10
 
-# tran.ffn.adapter.lora.init.512.4
-attn_mode="none"
-attn_option="none"
-ffn_mode="adapter"
-ffn_option="ffn_hi_input"
-preseqlen=1
-ffn_bn_len=512
+# tran.attn.adapter.houlsby.512
+attn_mode="lisa"
+attn_option="houlsby"
+ffn_mode="none"
+ffn_option="none"
+preseqlen=512
+ffn_bn_len=0
 hi_lnbefore=1
-adapter_init_option="lora"
-adapter_layernorm_option="fixed_scalar"
-adapter_scalar=4
+adapter_init_option="bert"
+adapter_layernorm_option="none"
+adapter_scalar=1
 label_smoothing_factor=0.1
-
-# tran.comb.pt.30.ffn.adapter.lora.init.512.4
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=30
-#ffn_bn_len=512
-#hi_lnbefore=1
-#adapter_init_option="lora"
-#adapter_layernorm_option="fixed_scalar"
-#adapter_scalar=4
-#label_smoothing_factor=0.1
 
 layer_norm_in=1
 layer_norm_out=0
@@ -187,4 +174,4 @@ python -u examples/pytorch/translation/run_translation.py \
     --predict_with_generate \
     --output_dir ${SAVE} ${extra_cmd} 2>&1 | tee ${SAVE}/log.txt
 
-bash ${SCRIPT_DIR}/romanian_postprocess.sh ${SAVE}/test_generated_predictions.txt ${SAVE}/test_gold_labels.txt | tee -a ${SAVE}/log.txt
+bash ${SCRIPT_DIR}/romanian_postprocess.sh ${SAVE}/test_generated_predictions.txt ${SAVE}/test_gold_labels.txt | tee ${SAVE}/bleu

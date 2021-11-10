@@ -1,21 +1,28 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=xsum.adapter.hi.none.1024
+#SBATCH --job-name=1.pfeiffer.adapter.600
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:a100:1
+#SBATCH --gres=gpu:v100:1
+#SBATCH --partition=gpu
 #SBATCH --mem=30g
-#SBATCH --cpus-per-task=2
-#SBATCH --time=0
-##SBATCH --array=0
+#SBATCH --cpus-per-task=3
+#SBATCH --time=2-00:00:00
+#SBATCH --array=0-1
 
-source activate tride
+seeds=(15217 65537)
+SEED=${seeds[$SLURM_ARRAY_TASK_ID]}
+
+source activate iclr
 which python
 
-export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
-export HF_DATASETS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
-export HF_METRICS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
-cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
+export TRANSFORMERS_CACHE=pretrain_models/huggingface
+export HF_DATASETS_CACHE=pretrain_models/huggingface
+export HF_METRICS_CACHE=pretrain_models/huggingface
+cache_dir=pretrain_models/huggingface
+
+export TRANSFORMERS_OFFLINE=1
+export WANDB_MODE=offline
 
 # wandb env variables
 export WANDB_PROJECT=xsum_tride
@@ -24,158 +31,90 @@ export WANDB_WATCH="false"
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
+# placeholder arguments
+adapter_init_option="bert"
+adapter_layernorm_option="none"
+adapter_scalar=0
+lora_alpha=1
+lora_init="lora"
+lora_dropout=0.1
 attn_gate="none"
 ffn_gate="none"
 
-#attn_mode="adapter"
-#attn_option="attn_adapter"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=200
-#ffn_bn_len=200
-
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=30
-#ffn_bn_len=512
-
-# ffn Hi adapter with learned scalar, bert init
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=1
-#ffn_bn_len=512
-#adapter_init_option="bert"
-#adapter_layernorm_option="learnable_scalar"
-#adapter_scalar=2
-
-# ffn Hi adapter with fixed scalar, bert init
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=1
-#ffn_bn_len=512
-#adapter_init_option="bert"
-#adapter_layernorm_option="fixed_scalar"
-#adapter_scalar=2
-
-## ffn Hi adapter with learned scalar, lora init
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=1
-#ffn_bn_len=512
-#adapter_init_option="lora"
-#adapter_layernorm_option="learnable_scalar"
-#adapter_scalar=2
-
-# ffn Hi adapter with fixed scalar, lora init
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=1
-#ffn_bn_len=512
-#adapter_init_option="lora"
-#adapter_layernorm_option="fixed_scalar"
-#adapter_scalar=4
-
-# ffn Hi adapter with ln none, bert init: previous
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=1
-#ffn_bn_len=512
-#adapter_init_option="bert"
-#adapter_layernorm_option="none"
-#adapter_scalar=0
-
-# ffn Hi adapter with fixed scalar, lora init
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=30
-#ffn_bn_len=512
-#adapter_init_option="lora"
-#adapter_layernorm_option="fixed_scalar"
-#adapter_scalar=4
-#
-## 2.attn.adapter.houlsby.512
-attn_mode="adapter"
-attn_option="houlsby"
-ffn_mode="none"
-ffn_option="none"
-preseqlen=512
-ffn_bn_len=0
+# 1.pfeiffer.adapter.600
+attn_mode="none"
+attn_option="none"
+ffn_mode="adapter"
+ffn_option="pfeiffer"
+preseqlen=1
+ffn_bn_len=600
 adapter_init_option="bert"
 adapter_layernorm_option="none"
 adapter_scalar=1
 
-##################################################
-# adapter, Hi, 1024, ln None
+# 2.lora.ffn.102
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="lora"
+#ffn_option="none"
+#preseqlen=1
+#ffn_bn_len=102
+#lora_alpha=408
+#lora_init="lora"
+#lora_dropout=0.1
+
+# 3.PA.1024
 #attn_mode="none"
 #attn_option="none"
 #ffn_mode="adapter"
 #ffn_option="ffn_hi_input"
 #preseqlen=1
 #ffn_bn_len=1024
-#hi_lnbefore=1
 #adapter_init_option="bert"
 #adapter_layernorm_option="none"
 #adapter_scalar=1
 
-# adapter, Ho, 1024, ln None
-#attn_mode="none"
-#attn_option="none"
+# 4.PA30.PA512
+#attn_mode="adapter"
+#attn_option="attn_adapter"
 #ffn_mode="adapter"
-#ffn_option="ffn_ho_input"
-#preseqlen=1
-#ffn_bn_len=1024
-#hi_lnbefore=1
-#adapter_init_option="bert"
-#adapter_layernorm_option="none"
-#adapter_scalar=1
-
-# adapter, Ho, 512, ln None
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_ho_input"
-#preseqlen=1
+#ffn_option="ffn_hi_input"
+#preseqlen=30
 #ffn_bn_len=512
-#hi_lnbefore=1
 #adapter_init_option="bert"
 #adapter_layernorm_option="none"
 #adapter_scalar=1
 
-# all adapter
-attn_mode="adapter"
-attn_option="attn_adapter"
-ffn_mode="adapter"
-ffn_option="ffn_hi_input"
-preseqlen=30
-ffn_bn_len=512
-adapter_init_option="bert"
-adapter_layernorm_option="in"
-adapter_scalar=1
+# 5.PT30.LoRA102
+#attn_mode="lisa"
+#attn_option="concat"
+#ffn_mode="lora"
+#ffn_option="none"
+#preseqlen=30
+#ffn_bn_len=102
+#lora_alpha=204
+#lora_init="lora"
+#lora_dropout=0.1
+
+# 6.MAM:PT30.PA512
+#attn_mode="lisa"
+#attn_option="concat"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#preseqlen=30
+#ffn_bn_len=512
+#adapter_init_option="lora"
+#adapter_layernorm_option="none"
+#adapter_scalar=4
 
 mh_reuse_proj="True"
-adapter_post_layernorm=0
-
-max_steps=100000
+weight_decay=0.01
+max_steps=95000
 num_train_epochs=30
 warmup_updates=0
 lr=5e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=0.1
-weight_decay=0.01
 bsz=16
 gradient_steps=4
 metric=rouge2
@@ -212,7 +151,7 @@ then
     debug_str=".debug"
 fi
 
-exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ainit_${adapter_init_option}.alo_${adapter_layernorm_option}.as_${adapter_scalar}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ainit_${adapter_init_option}.alo_${adapter_layernorm_option}.as_${adapter_scalar}.lora_alpha_dropout_${lora_alpha}_${lora_dropout}.lorainit_${lora_init}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 rm ${HF_DATASETS_CACHE}/downloads/*.lock
@@ -222,6 +161,10 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
+    --seed ${SEED} \
+    --lora_alpha ${lora_alpha} \
+    --lora_dropout ${lora_dropout} \
+    --lora_init ${lora_init} \
     --attn_mode ${attn_mode} \
     --attn_option ${attn_option} \
     --ffn_mode ${ffn_mode} \

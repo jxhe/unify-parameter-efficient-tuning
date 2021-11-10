@@ -219,6 +219,7 @@ class TuneArguments:
         },
     )
 
+    # todo: remove this arg
     share_luna_params: Optional[int] = field(
         default=1,
         metadata={
@@ -233,6 +234,7 @@ class TuneArguments:
         },
     )
 
+    # todo: remove this arg
     layer_norm_before: Optional[int] = field(
         default=1,
         metadata={

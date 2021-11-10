@@ -1,9 +1,9 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=tran.ho.200.0.1
+#SBATCH --job-name=tran.comb.pt.30.ffn.adapter.lora.init.512.4
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:RTX_8000:1
+#SBATCH --gres=gpu:a100:1
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
@@ -35,27 +35,27 @@ gradient_steps=4
 bsz=10
 
 
-# Hi adapter
-attn_mode="none"
-attn_option="none"
-ffn_mode="adapter"
-ffn_option="ffn_ho_input"
-preseqlen=1
-ffn_bn_len=512
-hi_lnbefore=0  # 1=old hi, 0=new hi
-adapter_layernorm_option="out"  # in=pre, out=post
-label_smoothing_factor=0.2
-
-# Ho adapter
-attn_mode="none"
-attn_option="none"
-ffn_mode="adapter"
-ffn_option="ffn_ho_input"
-preseqlen=0
-ffn_bn_len=200
-hi_lnbefore=1
-adapter_layernorm_option="none"
-label_smoothing_factor=0.1
+## Hi adapter
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="adapter"
+#ffn_option="ffn_ho_input"
+#preseqlen=1
+#ffn_bn_len=512
+#hi_lnbefore=0  # 1=old hi, 0=new hi
+#adapter_layernorm_option="out"  # in=pre, out=post
+#label_smoothing_factor=0.2
+#
+## Ho adapter
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="adapter"
+#ffn_option="ffn_ho_input"
+#preseqlen=0
+#ffn_bn_len=200
+#hi_lnbefore=1
+#adapter_layernorm_option="none"
+#label_smoothing_factor=0.1
 
 # PT + Hi adapter
 #attn_mode="lisa"
@@ -131,44 +131,43 @@ label_smoothing_factor=0.1
 #label_smoothing_factor=0.1
 
 # ffn Hi adapter with learned scalar, bert init
-attn_mode="none"
-attn_option="none"
-ffn_mode="adapter"
-ffn_option="ffn_hi_input"
-preseqlen=1
-ffn_bn_len=512
-hi_lnbefore=1
-adapter_init_option="bert"
-adapter_layernorm_option="learnable_scalar"
-adapter_scalar=2
-label_smoothing_factor=0.1
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#preseqlen=1
+#ffn_bn_len=512
+#hi_lnbefore=1
+#adapter_init_option="bert"
+#adapter_layernorm_option="learnable_scalar"
+#adapter_scalar=2
+#label_smoothing_factor=0.1
 
-# ffn Hi adapter with fixed scalar, bert init
-attn_mode="none"
-attn_option="none"
-ffn_mode="adapter"
-ffn_option="ffn_hi_input"
-preseqlen=1
-ffn_bn_len=512
-hi_lnbefore=1
-adapter_init_option="bert"
-adapter_layernorm_option="fixed_scalar"
-adapter_scalar=2
-label_smoothing_factor=0.1
-
+## ffn Hi adapter with fixed scalar, bert init
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#preseqlen=1
+#ffn_bn_len=512
+#hi_lnbefore=1
+#adapter_init_option="bert"
+#adapter_layernorm_option="fixed_scalar"
+#adapter_scalar=2
+#label_smoothing_factor=0.1
 
 # ffn Hi adapter with learned scalar, lora init
-attn_mode="none"
-attn_option="none"
-ffn_mode="adapter"
-ffn_option="ffn_hi_input"
-preseqlen=1
-ffn_bn_len=512
-hi_lnbefore=1
-adapter_init_option="lora"
-adapter_layernorm_option="learnable_scalar"
-adapter_scalar=2
-label_smoothing_factor=0.1
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#preseqlen=1
+#ffn_bn_len=512
+#hi_lnbefore=1
+#adapter_init_option="lora"
+#adapter_layernorm_option="learnable_scalar"
+#adapter_scalar=2
+#label_smoothing_factor=0.1
 
 # ffn Hi adapter with fixed scalar, lora init
 #attn_mode="none"
@@ -182,6 +181,74 @@ label_smoothing_factor=0.1
 #adapter_layernorm_option="fixed_scalar"
 #adapter_scalar=2
 #label_smoothing_factor=0.1
+
+###########################################################
+# adapter, Hi, 1024, ln None
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#preseqlen=1
+#ffn_bn_len=1024
+#hi_lnbefore=1
+#adapter_init_option="bert"
+#adapter_layernorm_option="none"
+#adapter_scalar=1
+#label_smoothing_factor=0.1
+
+
+# adapter, Ho, 1024, ln None
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="adapter"
+#ffn_option="ffn_ho_input"
+#preseqlen=1
+#ffn_bn_len=1024
+#hi_lnbefore=1
+#adapter_init_option="bert"
+#adapter_layernorm_option="none"
+#adapter_scalar=1
+#label_smoothing_factor=0.1
+
+
+# adapter, Ho, 512, ln None
+#attn_mode="none"
+#attn_option="none"
+#ffn_mode="adapter"
+#ffn_option="ffn_ho_input"
+#preseqlen=1
+#ffn_bn_len=512
+#hi_lnbefore=1
+#adapter_init_option="bert"
+#adapter_layernorm_option="none"
+#adapter_scalar=1
+#label_smoothing_factor=0.1
+
+# tran.comb.pt.30.ffn.adapter.lora.init.512.4
+#attn_mode="lisa"
+#attn_option="concat"
+#ffn_mode="adapter"
+#ffn_option="ffn_hi_input"
+#preseqlen=30
+#ffn_bn_len=512
+#hi_lnbefore=1
+#adapter_init_option="lora"
+#adapter_layernorm_option="fixed_scalar"
+#adapter_scalar=4
+#label_smoothing_factor=0.1
+
+# tran.attn.adapter.houlsby.512
+attn_mode="adapter"
+attn_option="houlsby"
+ffn_mode="none"
+ffn_option="none"
+preseqlen=512
+ffn_bn_len=0
+hi_lnbefore=1
+adapter_init_option="bert"
+adapter_layernorm_option="none"
+adapter_scalar=1
+label_smoothing_factor=0.1
 
 layer_norm_in=1
 layer_norm_out=0
@@ -236,6 +303,7 @@ SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 rm ${HF_DATASETS_CACHE}/downloads/*.lock
 rm ${HF_DATASETS_CACHE}/*.lock
+cp ${0} ${SAVE}/run.sh
 
 #python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port}
 python -u examples/pytorch/translation/run_translation.py \
