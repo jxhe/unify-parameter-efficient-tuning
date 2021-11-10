@@ -1,120 +1,47 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=1.pfeiffer.adapter.600
+#SBATCH --job-name=xsum
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:v100:1
-#SBATCH --partition=gpu
+#SBATCH --gres=gpu:A6000:1
 #SBATCH --mem=30g
-#SBATCH --cpus-per-task=3
-#SBATCH --time=2-00:00:00
-#SBATCH --array=0-1
+#SBATCH --cpus-per-task=2
+#SBATCH --time=0
+##SBATCH --array=0
 
-seeds=(15217 65537)
-SEED=${seeds[$SLURM_ARRAY_TASK_ID]}
 
-source activate iclr
+source activate tride
 which python
-
-export TRANSFORMERS_CACHE=pretrain_models/huggingface
-export HF_DATASETS_CACHE=pretrain_models/huggingface
-export HF_METRICS_CACHE=pretrain_models/huggingface
-cache_dir=pretrain_models/huggingface
-
-export TRANSFORMERS_OFFLINE=1
-export WANDB_MODE=offline
+export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
+export HF_DATASETS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
+export HF_METRICS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
+cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
 
 # wandb env variables
-export WANDB_PROJECT=xsum_tride
+export WANDB_PROJECT=enro_translation
 export WANDB_WATCH="false"
 
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-# placeholder arguments
-adapter_init_option="bert"
-adapter_layernorm_option="none"
-adapter_scalar=0
-lora_alpha=1
-lora_init="lora"
-lora_dropout=0.1
-attn_gate="none"
-ffn_gate="none"
-
-# 1.pfeiffer.adapter.600
-attn_mode="none"
-attn_option="none"
+attn_mode="default_cross_attn_only"
+attn_option="concat"
 ffn_mode="adapter"
-ffn_option="pfeiffer"
-preseqlen=1
-ffn_bn_len=600
-adapter_init_option="bert"
-adapter_layernorm_option="none"
-adapter_scalar=1
-
-# 2.lora.ffn.102
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="lora"
-#ffn_option="none"
-#preseqlen=1
-#ffn_bn_len=102
-#lora_alpha=408
-#lora_init="lora"
-#lora_dropout=0.1
-
-# 3.PA.1024
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=1
-#ffn_bn_len=1024
-#adapter_init_option="bert"
-#adapter_layernorm_option="none"
-#adapter_scalar=1
-
-# 4.PA30.PA512
-#attn_mode="adapter"
-#attn_option="attn_adapter"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=30
-#ffn_bn_len=512
-#adapter_init_option="bert"
-#adapter_layernorm_option="none"
-#adapter_scalar=1
-
-# 5.PT30.LoRA102
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="lora"
-#ffn_option="none"
-#preseqlen=30
-#ffn_bn_len=102
-#lora_alpha=204
-#lora_init="lora"
-#lora_dropout=0.1
-
-# 6.MAM:PT30.PA512
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=30
-#ffn_bn_len=512
-#adapter_init_option="lora"
-#adapter_layernorm_option="none"
-#adapter_scalar=4
+ffn_option="ffn_hi_input"
+gate_option="none"
+preseqlen=30
+ffn_bn_len=512
 
 mh_reuse_proj="True"
-weight_decay=0.01
-max_steps=95000
+adapter_post_layernorm=0
+
+max_steps=100000
 num_train_epochs=30
 warmup_updates=0
 lr=5e-5
 lr_scheduler_type="polynomial"
 max_grad_norm=0.1
+weight_decay=0.01
 bsz=16
 gradient_steps=4
 metric=rouge2
@@ -131,7 +58,7 @@ report_to="wandb"
 
 debug=0
 extra_cmd=""
-debug_str=""
+debug_str="only_decoder"
 
 if [ "${debug}" = 1 ];
 then
@@ -151,29 +78,21 @@ then
     debug_str=".debug"
 fi
 
-exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ainit_${adapter_init_option}.alo_${adapter_layernorm_option}.as_${adapter_scalar}.lora_alpha_dropout_${lora_alpha}_${lora_dropout}.lorainit_${lora_init}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+
+exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.mh_reuse_proj_${mh_reuse_proj}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
-rm ${HF_DATASETS_CACHE}/downloads/*.lock
-rm ${HF_DATASETS_CACHE}/*.lock
 
 python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
-    --seed ${SEED} \
-    --lora_alpha ${lora_alpha} \
-    --lora_dropout ${lora_dropout} \
-    --lora_init ${lora_init} \
     --attn_mode ${attn_mode} \
+    --adapter_post_layernorm ${adapter_post_layernorm} \
     --attn_option ${attn_option} \
     --ffn_mode ${ffn_mode} \
     --ffn_option ${ffn_option} \
-    --attn_gate ${attn_gate} \
-    --ffn_gate ${ffn_gate} \
-    --adapter_layernorm_option ${adapter_layernorm_option} \
-    --adapter_init_option ${adapter_init_option} \
-    --adapter_scalar ${adapter_scalar} \
+    --gate_option ${gate_option} \
     --mh_reuse_proj ${mh_reuse_proj} \
     --mid_dim 800 \
     --preseqlen ${preseqlen} \
@@ -219,4 +138,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --metric_for_best_model ${metric} \
     --greater_is_better "True" \
     --predict_with_generate \
-    --output_dir ${SAVE} ${extra_cmd} 2>&1 | tee ${SAVE}/log.txt
+    --output_dir ${SAVE} ${extra_cmd} \
+        2>&1 | tee ${SAVE}/log.txt
+
+#rm -rf ${SAVE}/pytorch_model.bin

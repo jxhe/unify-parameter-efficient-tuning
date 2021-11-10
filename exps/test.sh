@@ -1,7 +1,7 @@
 #! /bin/bash
 #SBATCH --output=slurm_logs/slurm-%A-%a.out
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
-#SBATCH --job-name=xsum.adapter.hi.none.1024
+#SBATCH --job-name=xsum.lora.init.2.comb
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:a100:1
 #SBATCH --mem=30g
@@ -34,12 +34,12 @@ ffn_gate="none"
 #preseqlen=200
 #ffn_bn_len=200
 
-#attn_mode="lisa"
-#attn_option="concat"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=30
-#ffn_bn_len=512
+attn_mode="lisa"
+attn_option="concat"
+ffn_mode="adapter"
+ffn_option="ffn_hi_input"
+preseqlen=30
+ffn_bn_len=512
 
 # ffn Hi adapter with learned scalar, bert init
 #attn_mode="none"
@@ -75,26 +75,15 @@ ffn_gate="none"
 #adapter_scalar=2
 
 # ffn Hi adapter with fixed scalar, lora init
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=1
-#ffn_bn_len=512
-#adapter_init_option="lora"
-#adapter_layernorm_option="fixed_scalar"
-#adapter_scalar=4
-
-# ffn Hi adapter with ln none, bert init: previous
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=1
-#ffn_bn_len=512
-#adapter_init_option="bert"
-#adapter_layernorm_option="none"
-#adapter_scalar=0
+attn_mode="none"
+attn_option="none"
+ffn_mode="adapter"
+ffn_option="ffn_hi_input"
+preseqlen=1
+ffn_bn_len=512
+adapter_init_option="lora"
+adapter_layernorm_option="fixed_scalar"
+adapter_scalar=2
 
 # ffn Hi adapter with fixed scalar, lora init
 #attn_mode="lisa"
@@ -105,66 +94,7 @@ ffn_gate="none"
 #ffn_bn_len=512
 #adapter_init_option="lora"
 #adapter_layernorm_option="fixed_scalar"
-#adapter_scalar=4
-#
-## 2.attn.adapter.houlsby.512
-attn_mode="adapter"
-attn_option="houlsby"
-ffn_mode="none"
-ffn_option="none"
-preseqlen=512
-ffn_bn_len=0
-adapter_init_option="bert"
-adapter_layernorm_option="none"
-adapter_scalar=1
-
-##################################################
-# adapter, Hi, 1024, ln None
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_hi_input"
-#preseqlen=1
-#ffn_bn_len=1024
-#hi_lnbefore=1
-#adapter_init_option="bert"
-#adapter_layernorm_option="none"
-#adapter_scalar=1
-
-# adapter, Ho, 1024, ln None
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_ho_input"
-#preseqlen=1
-#ffn_bn_len=1024
-#hi_lnbefore=1
-#adapter_init_option="bert"
-#adapter_layernorm_option="none"
-#adapter_scalar=1
-
-# adapter, Ho, 512, ln None
-#attn_mode="none"
-#attn_option="none"
-#ffn_mode="adapter"
-#ffn_option="ffn_ho_input"
-#preseqlen=1
-#ffn_bn_len=512
-#hi_lnbefore=1
-#adapter_init_option="bert"
-#adapter_layernorm_option="none"
-#adapter_scalar=1
-
-# all adapter
-attn_mode="adapter"
-attn_option="attn_adapter"
-ffn_mode="adapter"
-ffn_option="ffn_hi_input"
-preseqlen=30
-ffn_bn_len=512
-adapter_init_option="bert"
-adapter_layernorm_option="in"
-adapter_scalar=1
+#adapter_scalar=2
 
 mh_reuse_proj="True"
 adapter_post_layernorm=0
@@ -214,13 +144,13 @@ fi
 
 exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ainit_${adapter_init_option}.alo_${adapter_layernorm_option}.as_${adapter_scalar}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
-rm -rf ${SAVE}; mkdir -p ${SAVE}
 rm ${HF_DATASETS_CACHE}/downloads/*.lock
 rm ${HF_DATASETS_CACHE}/*.lock
 
 python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
+    --load_path checkpoints/xsum/20210924/xsum_tride.am_none.ao_none.fm_adapter.fo_ffn_hi_input.abn1.fbn512.ainit_lora.alo_fixed_scalar.as_2.unfreeze_ef_.ms100000.ls0.1.warm0.wd0.01/checkpoint-99000 \
     --cache_dir ${cache_dir} \
     --attn_mode ${attn_mode} \
     --attn_option ${attn_option} \
@@ -247,7 +177,6 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --max_length 60 \
     --min_length 10 \
     --no_repeat_ngram_size 3 \
-    --do_train \
     --do_eval \
     --do_predict \
     --per_device_train_batch_size ${bsz} \
@@ -269,9 +198,9 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --save_steps ${save_steps} \
     --eval_steps ${save_steps} \
     --load_best_model_at_end \
-    --report_to ${report_to} \
+    --report_to "none" \
     --run_name ${dataset}.${DATE}.${exp_name} \
-    --overwrite_output_dir "True" \
+    --overwrite_output_dir "False" \
     --disable_tqdm "True" \
     --metric_for_best_model ${metric} \
     --greater_is_better "True" \
