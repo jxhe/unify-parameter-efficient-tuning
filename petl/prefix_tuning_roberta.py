@@ -23,19 +23,13 @@ class PrefixTuning(MBartPreTrainedModel):
             self.n_embd = config.d_model
         self.match_n_embd = self.n_embd // self.match_n_head
 
-        if "lisa" in args.attn_mode:
-            self.setup_lisa(args, config)
-        elif args.attn_mode == "learn_bias":
-            # self.setup_bias(args, config)
-            self.setup_bias_mlp(args, config)
+        if "prefix" in args.attn_mode:
+            self.setup_prefix(args, config)
         elif args.attn_mode == 'bitfit' or args.attn_mode == 'adapter':
             self.get_prompt = self.get_fake_prompt
         elif args.attn_mode == 'none':
             # includes only with ffn mode
             self.get_prompt = self.get_fake_prompt
-        elif args.attn_mode == "default_cross_attn_only":
-            self.prompt_model = PrefixCrossAttn(args, config)
-            self.get_prompt = self.get_standard_prompt
         elif args.attn_mode == "prompt_tuning":
             self.get_prompt = self.get_fake_prompt
         elif args.attn_mode == "lora":
@@ -83,8 +77,8 @@ class PrefixTuning(MBartPreTrainedModel):
     def get_standard_prompt(self, bsz, nsamples=1):
         return self.prompt_model(bsz, nsamples, self.device)
 
-    def setup_lisa(self, args, config):
-        if args.attn_mode == "lisa_nomlp":
+    def setup_prefix(self, args, config):
+        if args.attn_mode == "prefix_nomlp":
             self.prompt_model = PrefixDirectInit(args, config)
         else:
             self.prompt_model = Prefix(args, config)

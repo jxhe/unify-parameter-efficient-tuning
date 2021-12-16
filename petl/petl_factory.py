@@ -52,7 +52,7 @@ class Prefix(nn.Module):
             self.match_n_head = config.num_attention_heads
             self.n_embd = config.hidden_size
         else:
-            self.match_n_layer = args.num_bias_layers
+            self.match_n_layer = args.num_hidden_layers
             self.match_n_head = config.decoder_attention_heads
             self.n_embd = config.d_model
         self.match_n_embd = self.n_embd // self.match_n_head
@@ -146,7 +146,7 @@ class PrefixCrossAttn(nn.Module):
             self.match_n_head = config.num_attention_heads
             self.n_embd = config.hidden_size
         else:
-            self.match_n_layer = args.num_bias_layers
+            self.match_n_layer = args.num_hidden_layers
             self.match_n_head = config.decoder_attention_heads
             self.n_embd = config.d_model
         self.match_n_embd = self.n_embd // self.match_n_head
@@ -218,7 +218,7 @@ class PrefixDirectInit(nn.Module):
             self.match_n_head = config.num_attention_heads
             self.n_embd = config.hidden_size
         else:
-            self.match_n_layer = args.num_bias_layers
+            self.match_n_layer = args.num_hidden_layers
             self.match_n_head = config.decoder_attention_heads
             self.n_embd = config.d_model
         self.match_n_embd = self.n_embd // self.match_n_head
@@ -288,7 +288,7 @@ class MLP_Bias(nn.Module):
             self.match_n_head = config.num_attention_heads
             self.n_embd = config.hidden_size
         else:
-            self.match_n_layer = config.decoder_layers if args.num_bias_layers < 0 else args.num_bias_layers
+            self.match_n_layer = config.num_hidden_layers
             self.match_n_head = config.decoder_attention_heads
             self.n_embd = config.d_model
         self.match_n_embd = self.n_embd // self.match_n_head
@@ -357,7 +357,7 @@ class Bias(nn.Module):
     def __init__(self, args, config):
         super().__init__()
         self.args = args
-        self.match_n_layer = config.decoder_layers if args.num_bias_layers < 0 else args.num_bias_layers
+        self.match_n_layer = config.num_hidden_layers 
         self.n_embd = config.d_model
 
         # Option 1: a simple version, no transformations, each attention layer has its own bias parameters
@@ -507,7 +507,7 @@ class Adapter_Layer(nn.Module):
                  bottleneck=None,
                  dropout=0.0,
                  init_option="bert",
-                 adapter_scalar=None,
+                 adapter_scalar="1.0",
                  adapter_layernorm_option="in"):
         super().__init__()
         self.n_embd = config.d_model if d_model is None else d_model
@@ -520,10 +520,11 @@ class Adapter_Layer(nn.Module):
         self.adapter_layer_norm_before = None
         if adapter_layernorm_option == "in" or adapter_layernorm_option == "out":
             self.adapter_layer_norm_before = nn.LayerNorm(self.n_embd)
-        elif adapter_layernorm_option == "fixed_scalar":
-            self.scale = config.adapter_scalar if adapter_scalar is None else adapter_scalar
-        elif adapter_layernorm_option == "learnable_scalar":
+
+        if adapter_scalar == "learnable_scalar":
             self.scale = nn.Parameter(torch.ones(1))
+        else:
+            self.scale = float(adapter_scalar)
 
         self.down_proj = nn.Linear(self.n_embd, self.down_size)
         self.non_linear_func = nn.ReLU()
@@ -539,7 +540,7 @@ class Adapter_Layer(nn.Module):
                 nn.init.zeros_(self.down_proj.bias)
                 nn.init.zeros_(self.up_proj.bias)
 
-    def forward(self, x, add_residual=True, w_orig=1.0, w_change=1.0, residual=None):
+    def forward(self, x, add_residual=True, residual=None):
         residual = x if residual is None else residual
         if self.adapter_layernorm_option == 'in':
             x = self.adapter_layer_norm_before(x)
@@ -549,32 +550,17 @@ class Adapter_Layer(nn.Module):
         down = nn.functional.dropout(down, p=self.dropout, training=self.training)
         up = self.up_proj(down)
 
-        if "scalar" in self.adapter_layernorm_option:
-            up = up * self.scale
+        up = up * self.scale
+
         if self.adapter_layernorm_option == 'out':
             up = self.adapter_layer_norm_before(up)
 
         if add_residual:
-            output = w_change * up + w_orig * residual
+            output = up + residual
         else:
             output = up
 
         return output
-
-
-class Adapter(nn.Module):
-    def __init__(self, args, config):
-        super().__init__()
-        self.num_layers = args.num_bias_layers
-        self.encoder_adapters = nn.ModuleList([Adapter_Layer(config, config.dropout) for _ in range(args.num_bias_layers)])
-        self.decoder_adapters = nn.ModuleList([Adapter_Layer(config, config.dropout) for _ in range(args.num_bias_layers)])
-
-    def forward(self, bsz, nsamples=1, device="cuda"):
-        results = []
-        for ii in range(self.num_layers):
-            results.append({"encoder_ffn_adapters": self.encoder_adapters[ii],
-                            "decoder_ffn_adapters": self.decoder_adapters[ii]})
-        return results
 
 
 class Prefix_Adapter(nn.Module):
@@ -606,72 +592,6 @@ def softmax_gating(logits_1, logits_2):
 
     return w1.unsqueeze(-1), w2.unsqueeze(-1)
 
-
-class MLP_Adapter_Layers(nn.Module):
-    # parameter generator
-    def __init__(self, config, cache_key):
-        super().__init__()
-        # one particular adapter (fc1 / xattn) from all the layers share parameters
-        self.match_n_layer = config.num_bias_layers
-        self.n_embd = config.d_model
-
-        self.mid_dim = config.mid_dim
-
-        self.preseqlen = config.preseqlen if "ffn" not in cache_key else config.ffn_bn_len
-        self.prefix_dropout = config.prefix_dropout
-
-        self.dropout = nn.Dropout(self.prefix_dropout)
-
-        self.input_tokens = torch.arange(self.preseqlen).long()
-        self.wtes = nn.Embedding(self.preseqlen, self.n_embd)
-        self.control_trans = nn.Sequential(
-            nn.Linear(self.n_embd, self.mid_dim),
-            nn.Tanh(),
-            nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
-
-        self.adapter_layernorm_option = config.adapter_layernorm_option if "ffn" in cache_key else "in"
-        if self.adapter_layernorm_option != 'none':
-            self.adapter_layer_norm = nn.ModuleList([nn.LayerNorm(self.n_embd) for _ in range(self.match_n_layer)])
-        else:
-            self.adapter_layer_norm = None
-
-        self.cache_key = cache_key
-
-    def forward(self, device="gpu"):
-        temp_control = self.wtes(self.input_tokens.to(device))
-        down_up_weights = self.control_trans(temp_control)  # rank, layer*emb
-        rank, _ = down_up_weights.shape
-        down_up_weights = down_up_weights.view(rank, self.match_n_layer * 2, self.n_embd)
-        down_up_weights = self.dropout(down_up_weights)
-        down_up_weights = down_up_weights.permute([1, 0, 2]).split(2)  # [nlayers, L, d]
-        return down_up_weights, self.adapter_layer_norm
-
-
-class MLP_Adapter(nn.Module):
-    def __init__(self, config):
-        super().__init__()
-        self.n_layers = config.num_bias_layers
-        attn_mode = config.attn_mode
-        ffn_mode = config.ffn_mode
-
-        if attn_mode == "mlp_adapter" and ffn_mode != "mlp_adapter":
-            self.keys = ["encoder", "self", "encoder_decoder"]
-        elif attn_mode != "mlp_adapter" and ffn_mode == "mlp_adapter":
-            self.keys = ["encoder_ffn", "decoder_ffn"]
-        elif attn_mode == "mlp_adapter" and ffn_mode == "mlp_adapter":
-            self.keys = ["encoder", "self", "encoder_decoder", "encoder_ffn", "decoder_ffn"]
-
-        self.mlp_params = nn.ModuleList([MLP_Adapter_Layers(config, key) for key in self.keys])
-
-    def forward(self, bsz, nsamples=1, device="gpu"):
-        result = [{} for _ in range(self.n_layers)]
-        for mlp in self.mlp_params:
-            key, (down_up_weights, layer_norms) = mlp.cache_key, mlp(device)
-            for i, weights in enumerate(down_up_weights):
-                result[i][key] = {"down": weights[0].transpose(0, 1),
-                                  "up": weights[1],
-                                  "layernorm": layer_norms[i] if layer_norms is not None else None}
-        return result
 
 
 def adapter_func(x, down_w, up_w, layernorm, training, dropout=0.0, add_residual=True, layernorm_option="in"):

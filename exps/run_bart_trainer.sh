@@ -17,37 +17,32 @@ cache_dir=${TRANSFORMERS_CACHE}
 
 # conda activate adapter
 # wandb env variables
-export WANDB_PROJECT=xsum_tride
-export WANDB_WATCH="false"
+# export WANDB_PROJECT=xsum
+# export WANDB_WATCH="false"
 
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-attn_mode="adapter"
-attn_option="attn_adapter"
-adapter_layernorm_option="in"
+# MAM adapter
+attn_mode="prefix"
+attn_option="concat"
+attn_composition="add"
+attn_bn=30  # attn bottleneck dim
 
-ffn_mode="none"
-ffn_option="ffn_hi_input"
-ffn_num_heads=16
+ffn_mode="adapter"
+ffn_option="parallel"
+ffn_adapter_layernorm_option="none"
+ffn_adapter_init_option="bert"
+ffn_adapter_scalar="1"
 
-attn_gate="none"
-ffn_gate="none"
+ffn_bn=200 # ffn bottleneck dim
 
-layer_norm_in=1
-layer_norm_out=0
 
-preseqlen=512
-ffn_bn_len=200
+debug=0
 
 label_smoothing_factor=0.1
 weight_decay=0.01
 max_grad_norm=1
-debug=0
-
-# adapter_option="attn_adapter"
-mh_reuse_proj="True"
-
 max_steps=100000
 num_train_epochs=30
 warmup_updates=0
@@ -55,19 +50,16 @@ lr=5e-5
 lr_scheduler_type="polynomial"
 bsz=16
 gradient_steps=4
-metric=rouge2
-ft='ef_'
-top_layers=12
-max_eval_samples=1600
-max_train_samples=2000
-logging_steps=100
 
+metric=rouge2
+unfreeze='ef_'
+max_eval_samples=1600
+logging_steps=100
 eval_strategy="steps"
 # eval_strategy="steps"
 save_steps=3000
-report_to="wandb"
+report_to="none"
 
-vis_analysis=1
 extra_cmd=""
 debug_str=""
 
@@ -90,19 +82,16 @@ then
 fi
 
 
-exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.fnh${ffn_num_heads}.ag_${attn_gate}.fg_${ffn_gate}.adalo_${adapter_layernorm_option}.unfrz_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name="xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}\
+        .fo_${ffn_option}.abn${attn_bn}.fbn${ffn_bn}.ac_${attn_composition}\
+        .fl_${ffn_adapter_layernorm_option}.fs_${ffn_adapter_scalar}\
+        .unfrz_${unfreeze}.ms${max_steps}.ls${label_smoothing_factor}\
+        .warm${warmup_updates}.wd${weight_decay}${debug_str}"
+
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
-if [ "${vis_analysis}" = 1 ];
-then
-    max_train_samples=2000
-    num_train_epochs=10
-    analysis_opt=${SAVE}/analysis_opt
-    mkdir -p ${analysis_opt}
-    extra_cmd="${extra_cmd} --analysis_opt ${analysis_opt}"
-fi
 
 rm checkpoints/hf_model/downloads/*.lock
 
@@ -112,21 +101,15 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --cache_dir ${cache_dir} \
     --attn_mode ${attn_mode} \
     --attn_option ${attn_option} \
-    --attn_gate ${attn_gate} \
+    --attn_composition ${attn_composition} \
     --ffn_mode ${ffn_mode} \
-    --ffn_gate ${ffn_gate} \
-    --adapter_layernorm_option ${adapter_layernorm_option} \
     --ffn_option ${ffn_option} \
-    --ffn_num_heads ${ffn_num_heads} \
-    --mh_reuse_proj ${mh_reuse_proj} \
-    --layer_norm_before ${layer_norm_in} \
-    --layer_norm_after ${layer_norm_out} \
+    --ffn_adapter_layernorm_option ${adapter_layernorm_option} \
+    --ffn_adapter_scalar ${ffn_adapter_scalar} \
     --mid_dim 800 \
-    --preseqlen ${preseqlen} \
-    --ffn_bn_len ${ffn_bn_len} \
-    --init_with_bert 1 \
-    --unfreeze_params ${ft} \
-    --num_bias_layers ${top_layers} \
+    --attn_bn ${attn_bn} \
+    --ffn_bn ${ffn_bn} \
+    --unfreeze_params ${unfreeze} \
     --preprocessing_num_workers 2 \
     --max_source_length 512 \
     --max_target_length 128 \
