@@ -17,8 +17,8 @@ cache_dir=${TRANSFORMERS_CACHE}
 
 # conda activate adapter
 # wandb env variables
-# export WANDB_PROJECT=xsum
-# export WANDB_WATCH="false"
+export WANDB_PROJECT=xsum
+export WANDB_WATCH="false"
 
 DATE=`date +%Y%m%d`
 dataset="xsum"
@@ -32,13 +32,17 @@ attn_bn=30  # attn bottleneck dim
 ffn_mode="adapter"
 ffn_option="parallel"
 ffn_adapter_layernorm_option="none"
-ffn_adapter_init_option="bert"
-ffn_adapter_scalar="1"
+ffn_adapter_init_option="lora"
+ffn_adapter_scalar="4"
+ffn_bn=512 # ffn bottleneck dim
 
-ffn_bn=200 # ffn bottleneck dim
 
+# set to 1 for debug mode which only
+# uses 1600 training examples
+debug=0
 
-debug=1
+# set to "wandb" to use weights & bias
+report_to="wandb"
 
 label_smoothing_factor=0.1
 weight_decay=0.01
@@ -58,7 +62,6 @@ logging_steps=100
 eval_strategy="steps"
 # eval_strategy="steps"
 save_steps=3000
-report_to="none"
 
 extra_cmd=""
 debug_str=""
