@@ -52,31 +52,31 @@ class Prefix(nn.Module):
             self.match_n_head = config.num_attention_heads
             self.n_embd = config.hidden_size
         else:
-            self.match_n_layer = args.num_hidden_layers
+            self.match_n_layer = config.num_hidden_layers
             self.match_n_head = config.decoder_attention_heads
             self.n_embd = config.d_model
         self.match_n_embd = self.n_embd // self.match_n_head
 
         self.mid_dim = args.mid_dim
-        self.preseqlen = args.preseqlen
+        self.attn_bn = args.attn_bn
         self.prefix_dropout = args.prefix_dropout
 
         self.dropout = nn.Dropout(self.prefix_dropout)
 
-        self.input_tokens = torch.arange(self.preseqlen).long()
-        self.wte = nn.Embedding(self.preseqlen, self.n_embd)
+        self.input_tokens = torch.arange(self.attn_bn).long()
+        self.wte = nn.Embedding(self.attn_bn, self.n_embd)
         self.control_trans = nn.Sequential(
             nn.Linear(self.n_embd, self.mid_dim),
             nn.Tanh(),
             nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
 
-        self.wte_enc = nn.Embedding(self.preseqlen, self.n_embd)
+        self.wte_enc = nn.Embedding(self.attn_bn, self.n_embd)
         self.control_trans_enc = nn.Sequential(
             nn.Linear(self.n_embd, self.mid_dim),
             nn.Tanh(),
             nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
 
-        self.wte2 = nn.Embedding(self.preseqlen, self.n_embd)
+        self.wte2 = nn.Embedding(self.attn_bn, self.n_embd)
         self.control_trans2 = nn.Sequential(
             nn.Linear(self.n_embd, self.mid_dim),
             nn.Tanh(),
@@ -117,7 +117,7 @@ class Prefix(nn.Module):
         for i, key_val in enumerate(past_key_values):
             temp_dict = {'self': {"prev_key": key_val[0].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
                                   "prev_value": key_val[1].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
-                                  "prev_key_padding_mask": torch.zeros(bsz, seqlen).to(key_val.device) #bsz, preseqlen
+                                  "prev_key_padding_mask": torch.zeros(bsz, seqlen).to(key_val.device) #bsz, attn_bn
                                   },
                          }
 
@@ -146,25 +146,25 @@ class PrefixCrossAttn(nn.Module):
             self.match_n_head = config.num_attention_heads
             self.n_embd = config.hidden_size
         else:
-            self.match_n_layer = args.num_hidden_layers
+            self.match_n_layer = config.num_hidden_layers
             self.match_n_head = config.decoder_attention_heads
             self.n_embd = config.d_model
         self.match_n_embd = self.n_embd // self.match_n_head
 
         self.mid_dim = args.mid_dim
-        self.preseqlen = args.preseqlen
+        self.attn_bn = args.attn_bn
         self.prefix_dropout = args.prefix_dropout
 
         self.dropout = nn.Dropout(self.prefix_dropout)
 
-        self.input_tokens = torch.arange(self.preseqlen).long()
-        self.wte = nn.Embedding(self.preseqlen, self.n_embd)
+        self.input_tokens = torch.arange(self.attn_bn).long()
+        self.wte = nn.Embedding(self.attn_bn, self.n_embd)
         self.control_trans = nn.Sequential(
             nn.Linear(self.n_embd, self.mid_dim),
             nn.Tanh(),
             nn.Linear(self.mid_dim, self.match_n_layer * 2 * self.n_embd))
 
-        self.wte2 = nn.Embedding(self.preseqlen, self.n_embd)
+        self.wte2 = nn.Embedding(self.attn_bn, self.n_embd)
         self.control_trans2 = nn.Sequential(
             nn.Linear(self.n_embd, self.mid_dim),
             nn.Tanh(),
@@ -196,7 +196,7 @@ class PrefixCrossAttn(nn.Module):
         for i, key_val in enumerate(past_key_values):
             temp_dict = {'encoder_decoder': {"prev_key": key_val[0].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
                                   "prev_value": key_val[1].contiguous().view(bsz*self.match_n_head, -1, self.match_n_embd),
-                                  "prev_key_padding_mask": torch.zeros(bsz, seqlen).to(key_val.device) #bsz, preseqlen
+                                  "prev_key_padding_mask": torch.zeros(bsz, seqlen).to(key_val.device) #bsz, attn_bn
                                   },
                          }
             key_val2 = past_key_values2[i]
@@ -218,36 +218,36 @@ class PrefixDirectInit(nn.Module):
             self.match_n_head = config.num_attention_heads
             self.n_embd = config.hidden_size
         else:
-            self.match_n_layer = args.num_hidden_layers
+            self.match_n_layer = config.num_hidden_layers
             self.match_n_head = config.decoder_attention_heads
             self.n_embd = config.d_model
         self.match_n_embd = self.n_embd // self.match_n_head
 
         self.mid_dim = args.mid_dim
-        self.preseqlen = args.preseqlen
+        self.attn_bn = args.attn_bn
         self.prefix_dropout = args.prefix_dropout
 
         self.dropout = nn.Dropout(self.prefix_dropout)
-        self.input_tokens = torch.arange(self.preseqlen).long()
-        self.encoder_attn_key = nn.ModuleList([nn.Embedding(self.preseqlen, self.n_embd)
+        self.input_tokens = torch.arange(self.attn_bn).long()
+        self.encoder_attn_key = nn.ModuleList([nn.Embedding(self.attn_bn, self.n_embd)
                                                 for _ in range(self.match_n_layer)])
-        self.encoder_attn_value = nn.ModuleList([nn.Embedding(self.preseqlen, self.n_embd)
+        self.encoder_attn_value = nn.ModuleList([nn.Embedding(self.attn_bn, self.n_embd)
                                                for _ in range(self.match_n_layer)])
-        self.decoder_self_attn_key = nn.ModuleList([nn.Embedding(self.preseqlen, self.n_embd)
+        self.decoder_self_attn_key = nn.ModuleList([nn.Embedding(self.attn_bn, self.n_embd)
                                                      for _ in range(self.match_n_layer)])
-        self.decoder_self_attn_value = nn.ModuleList([nn.Embedding(self.preseqlen, self.n_embd)
+        self.decoder_self_attn_value = nn.ModuleList([nn.Embedding(self.attn_bn, self.n_embd)
                                                     for _ in range(self.match_n_layer)])
 
-        self.decoder_cross_attn_key = nn.ModuleList([nn.Embedding(self.preseqlen, self.n_embd)
+        self.decoder_cross_attn_key = nn.ModuleList([nn.Embedding(self.attn_bn, self.n_embd)
                                                       for _ in range(self.match_n_layer)])
-        self.decoder_cross_attn_value = nn.ModuleList([nn.Embedding(self.preseqlen, self.n_embd)
+        self.decoder_cross_attn_value = nn.ModuleList([nn.Embedding(self.attn_bn, self.n_embd)
                                                      for _ in range(self.match_n_layer)])
 
         # fixme: choose a favorable init method
         self.apply(init_bert_weights)
 
     def _shape(self, x, bsz):
-        y = x.view(bsz, self.preseqlen, self.match_n_head, self.match_n_embd)
+        y = x.view(bsz, self.attn_bn, self.match_n_head, self.match_n_embd)
         y = y.permute([0, 2, 1, 3])
         y = y.contiguous().view(bsz * self.match_n_head, -1, self.match_n_embd)
         return y
@@ -264,15 +264,15 @@ class PrefixDirectInit(nn.Module):
                               self.decoder_self_attn_value, self.decoder_cross_attn_key, self.decoder_cross_attn_value)):
             temp_dict = {'self': {"prev_key": self._shape(dec_self_attn_k(input_tokens), bsz),
                                   "prev_value": self._shape(dec_self_attn_v(input_tokens), bsz),
-                                  "prev_key_padding_mask": torch.zeros(bsz, self.preseqlen).to(device) #bsz, preseqlen
+                                  "prev_key_padding_mask": torch.zeros(bsz, self.attn_bn).to(device) #bsz, attn_bn
                                   },
                          'encoder_decoder': {"prev_key": self._shape(dec_xattn_k(input_tokens), bsz),
                                   "prev_value": self._shape(dec_xattn_v(input_tokens), bsz),
-                                  "prev_key_padding_mask": torch.zeros(bsz, self.preseqlen).to(device)  #bsz, preseqlen
+                                  "prev_key_padding_mask": torch.zeros(bsz, self.attn_bn).to(device)  #bsz, attn_bn
                                   },
                          'encoder': {"prev_key": self._shape(enc_attn_k(input_tokens_enc), old_bsz),
                                   "prev_value": self._shape(enc_attn_v(input_tokens_enc), old_bsz),
-                                  "prev_key_padding_mask": torch.zeros(old_bsz, self.preseqlen).to(device) #bsz, preseqlen
+                                  "prev_key_padding_mask": torch.zeros(old_bsz, self.attn_bn).to(device) #bsz, attn_bn
                                   },
                         }
             result.append(temp_dict)
@@ -294,7 +294,7 @@ class MLP_Bias(nn.Module):
         self.match_n_embd = self.n_embd // self.match_n_head
 
         self.mid_dim = args.mid_dim
-        self.preseqlen = args.preseqlen
+        self.attn_bn = args.attn_bn
         self.prefix_dropout = args.prefix_dropout
 
         self.dropout = nn.Dropout(self.prefix_dropout)
@@ -357,7 +357,7 @@ class Bias(nn.Module):
     def __init__(self, args, config):
         super().__init__()
         self.args = args
-        self.match_n_layer = config.num_hidden_layers 
+        self.match_n_layer = config.num_hidden_layers
         self.n_embd = config.d_model
 
         # Option 1: a simple version, no transformations, each attention layer has its own bias parameters
@@ -511,7 +511,7 @@ class Adapter_Layer(nn.Module):
                  adapter_layernorm_option="in"):
         super().__init__()
         self.n_embd = config.d_model if d_model is None else d_model
-        self.down_size = config.preseqlen if bottleneck is None else bottleneck
+        self.down_size = config.attn_bn if bottleneck is None else bottleneck
         # self.non_linearity = args.non_linearity  # use ReLU by default
 
         #_before

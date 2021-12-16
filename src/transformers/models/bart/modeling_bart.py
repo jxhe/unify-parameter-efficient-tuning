@@ -173,7 +173,7 @@ class BartAttention(nn.Module):
         if 'prefix' in self.attn_mode:
             # "cross_attn" is prefix tuning with vanilla add composation
             # "cross_attn_relu" is multi-head adapter
-            if self.config.attn_option == 'cross_attn' or self.config.attn_option == 'cross_attn_relu' \
+            if self.config.attn_option == 'cross_attn' or self.config.attn_option == 'cross_attn_relu':
                 self.ef_transform_layer_norm = nn.LayerNorm(embed_dim)
 
         elif self.attn_mode == 'adapter':
@@ -181,12 +181,9 @@ class BartAttention(nn.Module):
                                                  dropout=self.dropout,
                                                  bottleneck=self.config.attn_bn,
                                                  adapter_layernorm_option="in",
-                                                 )   
-            else:
-                raise ValueError("adapter option not supported")
-
-        if self.config.layer_norm_after:
-            self.ef_transform_layer_norm_out = nn.LayerNorm(embed_dim)
+                                                 )
+        else:
+            raise ValueError("att_mode not supported")
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
@@ -296,16 +293,11 @@ class BartAttention(nn.Module):
                     cross_attn_output = cross_attn_output.transpose(1, 2)
                     cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
-                    if self.config.layer_norm_after:
-                        cross_attn_output = self.ef_transform_layer_norm_out(cross_attn_output)
-
             else:
                 raise ValueError(f"attn_option '{self.config.attn_option}' is invalid")
 
         if self.config.attn_mode == 'adapter' and self.config.attn_option == "parallel":
                 cross_attn_output = self.ef_attn_adapter(hidden_states, add_residual=False)
-                if self.config.layer_norm_after:
-                    cross_attn_output = self.ef_transform_layer_norm_out(cross_attn_output)
 
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
@@ -416,8 +408,8 @@ class BartEncoderLayer(nn.Module):
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.ffn_mode == 'adapter':
-            self.ef_ffn_adapter = Adapter_Layer(self.config, 
-                                                dropout=self.dropout, 
+            self.ef_ffn_adapter = Adapter_Layer(self.config,
+                                                dropout=self.dropout,
                                                 bottleneck=config.ffn_bn,
                                                 init_option=config.ffn_adapter_init_option,
                                                 adapter_scalar=config.ffn_adapter_scalar,
@@ -458,9 +450,6 @@ class BartEncoderLayer(nn.Module):
             prefix_state=prefix_state,
         )
 
-        if prefix_state is not None and isinstance(prefix_state, luna_attention_enc_dec) and self.config.luna_option == "full_before":
-            p_prime, e_prime = prefix_state.forward_encoder(residual, unexpanded_attention_mask, p_prime, encoder_layer_idx)
-            hidden_states = hidden_states + e_prime
 
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
@@ -542,8 +531,8 @@ class BartDecoderLayer(nn.Module):
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.ffn_mode == 'adapter':
-            self.ef_ffn_adapter = Adapter_Layer(self.config, 
-                                                dropout=self.dropout, 
+            self.ef_ffn_adapter = Adapter_Layer(self.config,
+                                                dropout=self.dropout,
                                                 bottleneck=config.ffn_bn,
                                                 init_option=config.ffn_adapter_init_option,
                                                 adapter_scalar=config.ffn_adapter_scalar,
@@ -596,10 +585,6 @@ class BartDecoderLayer(nn.Module):
             output_attentions=output_attentions,
             prefix_state=prefix_state
         )
-        # todo: first try add change here
-        if prefix_state is not None and self.config.attn_mode == 'luna' and self.config.luna_option == "self_attn":
-            bias = prefix_state.forward_dp(hidden_states, p_prime, decoder_layer_idx)
-            hidden_states = hidden_states + bias
 
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
         hidden_states = residual + hidden_states
@@ -626,10 +611,6 @@ class BartDecoderLayer(nn.Module):
                 output_attentions=output_attentions,
                 prefix_state=prefix_state,
             )
-
-            if prefix_state is not None and isinstance(prefix_state, luna_attention_enc_dec) and self.config.luna_option == "full_before":
-                d_prime = prefix_state.forward_dp(residual, p_prime, decoder_layer_idx)
-                hidden_states = hidden_states + d_prime
 
             hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
             hidden_states = residual + hidden_states
@@ -1463,8 +1444,6 @@ class BartModel(BartPretrainedModel):
                 return_dict=return_dict,
                 prefix_state=prefix_state,
             )
-            if prefix_state is not None and self.config.attn_mode == 'luna':
-                p_prime = prefix_state.forward_pe(encoder_outputs[0], attention_mask)
 
         # If the user passed a tuple for encoder_outputs, we wrap it in a BaseModelOutput when return_dict=True
         elif return_dict and not isinstance(encoder_outputs, BaseModelOutput):
@@ -1647,10 +1626,7 @@ class BartForConditionalGeneration(BartPretrainedModel):
         if past is not None:
             decoder_input_ids = decoder_input_ids[:, -1:]
 
-        if "prefix_state" in kwargs and self.config.attn_mode == 'luna':
-            p_prime = kwargs["prefix_state"].forward_pe(encoder_outputs[0], attention_mask)
-        else:
-            p_prime = None
+        p_prime = None
 
         assert attention_mask is not None
         if self.config.attn_mode == "prompt_tuning":

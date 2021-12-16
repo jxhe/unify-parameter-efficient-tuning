@@ -52,7 +52,7 @@ from .configuration_roberta import RobertaConfig
 import sys
 sys.path.insert(2, "./")
 
-from effectune.bias_factory import Adapter_Layer, softmax_gating, Linear, MHAdapter_Layer
+from petl.petl_factory import Adapter_Layer, softmax_gating, Linear
 logger = logging.get_logger(__name__)
 
 _CHECKPOINT_FOR_DOC = "roberta-base"

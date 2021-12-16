@@ -2,7 +2,7 @@ import torch
 from transformers import MBartPreTrainedModel, RobertaConfig
 import torch.nn as nn
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
-from effectune.bias_factory import Prefix, MLP_Bias, Bias, PrefixDirectInit, PrefixCrossAttn
+from petl.petl_factory import Prefix, MLP_Bias, Bias, PrefixDirectInit, PrefixCrossAttn
 from transformers.utils import logging
 logger = logging.get_logger(__name__)
 

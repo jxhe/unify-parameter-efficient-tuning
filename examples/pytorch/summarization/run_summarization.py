@@ -52,7 +52,7 @@ from petl.options import (
     GenerationArguments,
     TuneArguments,
 )
-from petl.prefix_tuning_roberta import PrefixTuning
+from petl.prefix_tuning import PrefixTuning
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.

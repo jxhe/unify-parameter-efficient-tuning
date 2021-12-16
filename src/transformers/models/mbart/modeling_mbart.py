@@ -47,7 +47,7 @@ from .configuration_mbart import MBartConfig
 import sys
 sys.path.insert(2, "./")
 
-from effectune.bias_factory import Adapter_Layer, softmax_gating, Linear, MHAdapter_Layer, adapter_func
+from petl.petl_factory import Adapter_Layer, softmax_gating, Linear, adapter_func
 
 logger = logging.get_logger(__name__)
 

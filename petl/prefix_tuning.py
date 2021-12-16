@@ -1,14 +1,13 @@
 import torch
-from transformers import BartPretrainedModel
+from transformers import PreTrainedModel
 import torch.nn as nn
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
-from effectune.luna_attention import luna_attention, luna_attention_enc_dec, SimpleAttnBias
-from effectune.bias_factory import Prefix, MLP_Bias, Bias, PrefixDirectInit, PrefixCrossAttn, MLP_Adapter
+from petl.petl_factory import Prefix, MLP_Bias, Bias, PrefixDirectInit, PrefixCrossAttn
 from transformers.utils import logging
 logger = logging.get_logger(__name__)
 
 
-class PrefixTuning(BartPretrainedModel):
+class PrefixTuning(PreTrainedModel):
     def __init__(self, config, args, pretrained_model, **kwargs):
         super().__init__(config)
         self.args = args
@@ -19,29 +18,16 @@ class PrefixTuning(BartPretrainedModel):
         self.n_embd = config.d_model
         self.match_n_embd = self.n_embd // self.match_n_head
 
-        if "lisa" in args.attn_mode:
-            self.setup_lisa(args, config)
-        elif args.attn_mode == "learn_bias":
-            # self.setup_bias(args, config)
-            self.setup_bias_mlp(args, config)
-        elif args.attn_mode == 'luna':
-            self.setup_luna(args)
-        elif args.attn_mode == 'dlisa':
-            self.setup_dependent_lisa(args, config)
+        if "prefix" in args.attn_mode:
+            self.setup_prefix(args, config)
         elif args.attn_mode == 'bitfit' or args.attn_mode == 'adapter':
             self.get_prompt = self.get_fake_prompt
-        elif args.attn_mode == "default_cross_attn_only":
-            self.prompt_model = PrefixCrossAttn(args, config)
-            self.get_prompt = self.get_standard_prompt
+        elif args.attn_mode == 'none':
+            # includes only with ffn mode
+            self.get_prompt = self.get_fake_prompt
         elif args.attn_mode == "prompt_tuning":
             self.get_prompt = self.get_fake_prompt
         elif args.attn_mode == "lora":
-            self.get_prompt = self.get_fake_prompt
-        elif args.attn_mode == "mlp_adapter" or args.ffn_mode == "mlp_adapter":
-            self.prompt_model = MLP_Adapter(config)
-            self.get_prompt = self.get_standard_prompt
-        elif args.attn_mode == 'none':
-            # includes only with ffn mode
             self.get_prompt = self.get_fake_prompt
         else:
             raise ValueError
@@ -92,8 +78,8 @@ class PrefixTuning(BartPretrainedModel):
         # return self.lisa_model(bsz, nsamples, self.device)
         return self.prompt_model(bsz, nsamples, self.device)
 
-    def setup_lisa(self, args, config):
-        if args.attn_mode == "lisa_nomlp":
+    def setup_prefix(self, args, config):
+        if args.attn_mode == "prefix_nomlp":
             self.prompt_model = PrefixDirectInit(args, config)
             # self.lisa_model = PrefixDirectInit(args, config)
         else:

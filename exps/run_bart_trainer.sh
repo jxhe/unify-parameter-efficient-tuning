@@ -38,7 +38,7 @@ ffn_adapter_scalar="1"
 ffn_bn=200 # ffn bottleneck dim
 
 
-debug=0
+debug=1
 
 label_smoothing_factor=0.1
 weight_decay=0.01
@@ -104,7 +104,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --attn_composition ${attn_composition} \
     --ffn_mode ${ffn_mode} \
     --ffn_option ${ffn_option} \
-    --ffn_adapter_layernorm_option ${adapter_layernorm_option} \
+    --ffn_adapter_layernorm_option ${ffn_adapter_layernorm_option} \
     --ffn_adapter_scalar ${ffn_adapter_scalar} \
     --mid_dim 800 \
     --attn_bn ${attn_bn} \
