@@ -82,11 +82,11 @@ then
 fi
 
 
-exp_name="xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}\
-        .fo_${ffn_option}.abn${attn_bn}.fbn${ffn_bn}.ac_${attn_composition}\
-        .fl_${ffn_adapter_layernorm_option}.fs_${ffn_adapter_scalar}\
-        .unfrz_${unfreeze}.ms${max_steps}.ls${label_smoothing_factor}\
-        .warm${warmup_updates}.wd${weight_decay}${debug_str}"
+exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}
+exp_name+=.fo_${ffn_option}.abn${attn_bn}.fbn${ffn_bn}.ac_${attn_composition}
+exp_name+=.fl_${ffn_adapter_layernorm_option}.fs_${ffn_adapter_scalar}
+exp_name+=.unfrz_${unfreeze}.ms${max_steps}.ls${label_smoothing_factor}
+exp_name+=.warm${warmup_updates}.wd${weight_decay}${debug_str}
 
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
