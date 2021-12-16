@@ -52,7 +52,7 @@ from petl.options import (
     GenerationArguments,
     TuneArguments,
 )
-from petl.prefix_tuning import PrefixTuning
+from petl.petl_encdec_model import PETLEncDecModel
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -526,9 +526,9 @@ def main():
     # added by Chunting: prepare the finetuning model
     if tune_args.attn_mode != "none" or tune_args.ffn_mode != "none":
         if tune_args.load_path == "":
-            model = PrefixTuning(config, tune_args, model)
+            model = PETLEncDecModel(config, tune_args, model)
         else:
-            model = PrefixTuning.from_pretrained(
+            model = PETLEncDecModel.from_pretrained(
                     tune_args.load_path,
                     from_tf=bool(".ckpt" in model_args.model_name_or_path),
                     config=config,

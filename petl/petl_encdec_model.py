@@ -7,11 +7,11 @@ from transformers.utils import logging
 logger = logging.get_logger(__name__)
 
 
-class PrefixTuning(PreTrainedModel):
+class PETLEncDecModel(PreTrainedModel):
     def __init__(self, config, args, pretrained_model, **kwargs):
         super().__init__(config)
         self.args = args
-        self.seq2seq_model = pretrained_model
+        self.pretrained_model = pretrained_model
 
         self.match_n_layer = config.decoder_layers
         self.match_n_head = config.decoder_attention_heads
@@ -53,7 +53,7 @@ class PrefixTuning(PreTrainedModel):
             # freeze the random mapping matrix
             freeze_set = ['freeze_q_proj']
 
-        for n, p in self.seq2seq_model.named_parameters():
+        for n, p in self.pretrained_model.named_parameters():
             if len(not_freeze_set) > 0 and self.check_params(n, not_freeze_set, all_match=all_match):
                 print("tune "+ n)
                 p.requires_grad = True
@@ -96,23 +96,6 @@ class PrefixTuning(PreTrainedModel):
         self.prompt_model = MLP_Bias(args, config)
         self.get_prompt = self.get_standard_prompt
 
-    def setup_luna(self, args):
-        if args.luna_option == "full_before" or args.luna_option == "full_after":
-            self.luna_attn = luna_attention_enc_dec(args, self.config, self.n_embd, self.match_n_head, share_params=args.share_luna_params)
-        else:
-            self.luna_attn = luna_attention(args, self.config, self.n_embd, self.match_n_head, args.num_bias_layers)
-        self.get_prompt = self.get_prompt_luna_bias
-
-    def get_prompt_luna_bias(self, bsz, nsamples=-1):
-        return self.luna_attn
-
-    def setup_dependent_lisa(self, args, config):
-        self.bias_model = SimpleAttnBias(args, config, self.n_embd, self.match_n_head)
-        self.get_prompt = self.get_prompt_dependent_lisa
-
-    def get_prompt_dependent_lisa(self, bsz, nsamples=-1):
-        return self.bias_model
-
     def get_fake_prompt(self, bsz, nsamples=-1):
         return None
 
@@ -138,7 +121,7 @@ class PrefixTuning(PreTrainedModel):
         bsz = input_ids.shape[0]
         prefix_state = self.get_prompt(bsz=bsz)
 
-        output = self.seq2seq_model(input_ids=input_ids,
+        output = self.pretrained_model(input_ids=input_ids,
                                     attention_mask=attention_mask,
                                     decoder_input_ids=decoder_input_ids,
                                     decoder_attention_mask=decoder_attention_mask,
@@ -197,7 +180,7 @@ class PrefixTuning(PreTrainedModel):
             **model_kwargs,
     ):
         prefix_state = self.get_prompt(input_ids.size(0), num_beams)
-        generated_tokens = self.seq2seq_model.generate(input_ids=input_ids,
+        generated_tokens = self.pretrained_model.generate(input_ids=input_ids,
                                                        max_length=max_length,
                                                        min_length=min_length,
                                                        do_sample=do_sample,
