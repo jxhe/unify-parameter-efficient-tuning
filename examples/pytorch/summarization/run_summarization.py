@@ -48,11 +48,11 @@ from transformers.utils.versions import require_version
 import sys
 sys.path.insert(2, "./")
 
-from effectune.options import (
+from petl.options import (
     GenerationArguments,
     TuneArguments,
 )
-from effectune.prefix_tuning import PrefixTuning
+from petl.prefix_tuning_roberta import PrefixTuning
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
