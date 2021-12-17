@@ -201,6 +201,7 @@ class BartAttention(nn.Module):
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
 
+        # import pdb; pdb.set_trace()
         # if key_value_states are provided this layer is used as a cross-attention layer
         # for the decoder
         is_cross_attention = key_value_states is not None
@@ -408,6 +409,7 @@ class BartEncoderLayer(nn.Module):
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.ffn_mode == 'adapter':
+            # import pdb; pdb.set_trace()
             self.ef_ffn_adapter = Adapter_Layer(self.config,
                                                 dropout=self.dropout,
                                                 bottleneck=config.ffn_bn,
@@ -531,6 +533,7 @@ class BartDecoderLayer(nn.Module):
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.ffn_mode == 'adapter':
+            # import pdb; pdb.set_trace()
             self.ef_ffn_adapter = Adapter_Layer(self.config,
                                                 dropout=self.dropout,
                                                 bottleneck=config.ffn_bn,
@@ -620,6 +623,7 @@ class BartDecoderLayer(nn.Module):
             present_key_value = present_key_value + cross_attn_present_key_value
 
         if 'adapter' in self.config.ffn_mode and self.config.ffn_option == 'parallel':
+            # import pdb; pdb.set_trace()
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
 
@@ -997,6 +1001,7 @@ class BartEncoder(BartPretrainedModel):
             p_prime = None
 
         hidden_states = self.layernorm_embedding(hidden_states)
+        # import pdb; pdb.set_trace()
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
         # expand attention_mask

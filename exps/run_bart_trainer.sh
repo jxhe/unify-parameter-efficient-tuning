@@ -24,10 +24,10 @@ DATE=`date +%Y%m%d`
 dataset="xsum"
 
 # MAM adapter
-attn_mode="none"
+attn_mode="prefix"
 attn_option="concat"
 attn_composition="add"
-attn_bn=200  # attn bottleneck dim
+attn_bn=30  # attn bottleneck dim
 
 ffn_mode="adapter"
 ffn_option="parallel"
@@ -46,7 +46,7 @@ report_to="none"
 
 label_smoothing_factor=0.1
 weight_decay=0.01
-max_grad_norm=1
+max_grad_norm=0.1
 max_steps=100000
 num_train_epochs=30
 warmup_updates=0
@@ -87,7 +87,7 @@ fi
 
 exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}
 exp_name+=.fo_${ffn_option}.abn${attn_bn}.fbn${ffn_bn}.ac_${attn_composition}
-exp_name+=.fl_${ffn_adapter_layernorm_option}.fs_${ffn_adapter_scalar}
+exp_name+=.fl_${ffn_adapter_layernorm_option}.finit_${ffn_adapter_init_option}.fs_${ffn_adapter_scalar}
 exp_name+=.unfrz_${unfreeze}.ms${max_steps}.ls${label_smoothing_factor}
 exp_name+=.warm${warmup_updates}.wd${weight_decay}${debug_str}
 
@@ -109,6 +109,7 @@ python -u examples/pytorch/summarization/run_summarization.py \
     --ffn_option ${ffn_option} \
     --ffn_adapter_layernorm_option ${ffn_adapter_layernorm_option} \
     --ffn_adapter_scalar ${ffn_adapter_scalar} \
+    --ffn_adapter_init_option ${ffn_adapter_init_option} \
     --mid_dim 800 \
     --attn_bn ${attn_bn} \
     --ffn_bn ${ffn_bn} \
