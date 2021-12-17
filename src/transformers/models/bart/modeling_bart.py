@@ -182,7 +182,7 @@ class BartAttention(nn.Module):
                                                  bottleneck=self.config.attn_bn,
                                                  adapter_layernorm_option="in",
                                                  )
-        else:
+        elif self.attn_mode != 'none':
             raise ValueError("att_mode not supported")
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):

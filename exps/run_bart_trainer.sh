@@ -24,10 +24,10 @@ DATE=`date +%Y%m%d`
 dataset="xsum"
 
 # MAM adapter
-attn_mode="prefix"
+attn_mode="none"
 attn_option="concat"
 attn_composition="add"
-attn_bn=30  # attn bottleneck dim
+attn_bn=200  # attn bottleneck dim
 
 ffn_mode="adapter"
 ffn_option="parallel"
@@ -42,7 +42,7 @@ ffn_bn=512 # ffn bottleneck dim
 debug=0
 
 # set to "wandb" to use weights & bias
-report_to="wandb"
+report_to="none"
 
 label_smoothing_factor=0.1
 weight_decay=0.01
