@@ -44,12 +44,12 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
-from effectune.options import (
+from petl.options import (
     GenerationArguments,
     TuneArguments,
 )
-from effectune.prefix_tuning_roberta import PrefixTuning
-from effectune.dynamic_batching import DynamicBatchingDataset
+from petl.prefix_enc_model import PETLEncModel
+from petl.dynamic_batching import DynamicBatchingDataset
 
 
 
@@ -412,9 +412,9 @@ def main():
 
     if tune_args.attn_mode != "none" or tune_args.ffn_mode != "none":
         if tune_args.load_path == "":
-            model = PrefixTuning(config, tune_args, model)
+            model = PETLEncModel(config, tune_args, model)
         else:
-            model = PrefixTuning.from_pretrained(
+            model = PETLEncModel.from_pretrained(
                 tune_args.load_path,
                 from_tf=bool(".ckpt" in model_args.model_name_or_path),
                 config=config,

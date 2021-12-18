@@ -175,9 +175,9 @@ class RobertaSelfAttention(nn.Module):
         self.all_head_size = self.num_attention_heads * self.attention_head_size
 
         if config.attn_mode == "lora":
-            self.query = Linear(config.hidden_size, self.all_head_size, r=config.preseqlen, lora_alpha=config.lora_alpha,
+            self.query = Linear(config.hidden_size, self.all_head_size, r=config.attn_bn, lora_alpha=config.lora_alpha,
                                  lora_dropout=config.lora_dropout)
-            self.value = Linear(config.hidden_size, self.all_head_size, r=config.preseqlen, lora_alpha=config.lora_alpha,
+            self.value = Linear(config.hidden_size, self.all_head_size, r=config.attn_bn, lora_alpha=config.lora_alpha,
                                  lora_dropout=config.lora_dropout)
         else:
             self.query = nn.Linear(config.hidden_size, self.all_head_size)
@@ -198,34 +198,18 @@ class RobertaSelfAttention(nn.Module):
         self.config = config
         self.cache_key = cache_key
 
-        if 'lisa' in self.attn_mode:
-            if self.config.attn_option == 'cross_attn':
+        if 'prefix' in self.attn_mode:
+            if self.config.attn_option == 'cross_attn' or self.config.attn_option == 'cross_attn_relu':
                 self.ef_transform_layer_norm = nn.LayerNorm(embed_dim)
 
         elif self.attn_mode == 'adapter':
-            if "attn_adapter" in self.config.attn_option:
-                self.ef_attn_adapter = Adapter_Layer(d_model=config.hidden_size,
-                                                     dropout=config.attention_probs_dropout_prob,
-                                                     bottleneck=self.config.preseqlen,
-                                                     init_option=config.adapter_init_option,
-                                                     adapter_layernorm_option="in")
-            elif self.config.attn_option == "houlsby":
-                self.ef_attn_adapter = Adapter_Layer(d_model=config.hidden_size,
-                                                     dropout=config.attention_probs_dropout_prob,
-                                                     bottleneck=self.config.preseqlen,
-                                                     init_option=config.adapter_init_option,
-                                                     adapter_layernorm_option="in",
-                                                     )
-            elif self.config.attn_option == "mh_adapter":
-                self.ef_attn_adapter = MHAdapter_Layer(d_model=config.hidden_size,
-                                                       bottleneck=self.config.preseqlen,
-                                                       num_heads=self.num_attention_heads,
-                                                       dropout=config.attention_probs_dropout_prob,
-                                                       init_with_bert=True,
-                                                       adapter_layernorm_option=self.config.adapter_layernorm_option,
-                                                       )
-            else:
-                raise ValueError("adapter option not supported")
+            self.ef_attn_adapter = Adapter_Layer(self.config,
+                                                 dropout=self.dropout,
+                                                 bottleneck=self.config.attn_bn,
+                                                 adapter_layernorm_option="in",
+                                                 )
+        elif self.attn_mode != 'none'::
+                raise ValueError("att_mode not supported")
 
         if self.config.layer_norm_after:
             self.ef_transform_layer_norm_out = nn.LayerNorm(embed_dim)
@@ -287,13 +271,13 @@ class RobertaSelfAttention(nn.Module):
             past_key_value = (key_layer, value_layer)
 
         cross_attn_output = None
-        if prefix_state is not None and 'lisa' in self.attn_mode:
+        if prefix_state is not None and 'prefix' in self.attn_mode:
             # legacy
-            prefix_key = prefix_state.get(self.cache_key)['prev_key']  # bsz x nhead, preseqlen, head_dim
+            prefix_key = prefix_state.get(self.cache_key)['prev_key']  # bsz x nhead, attn_bn, head_dim
             prefix_value = prefix_state.get(self.cache_key)['prev_value']
-            prefix_mask = prefix_state.get(self.cache_key)['prev_key_padding_mask']  # bsz, preseqlen: zeros
+            prefix_mask = prefix_state.get(self.cache_key)['prev_key_padding_mask']  # bsz, attn_bn: zeros
 
-            # (bsz, nhead, preseqlen, head_im)
+            # (bsz, nhead, attn_bn, head_im)
             prefix_key = prefix_key.view(bsz, self.num_attention_heads, *prefix_key.size()[-2:])
             prefix_value = prefix_value.view(bsz, self.num_attention_heads, *prefix_value.size()[-2:])
 
@@ -344,7 +328,7 @@ class RobertaSelfAttention(nn.Module):
 
 
                 # when not mimicing the same gating behaviour of prefix tuning
-                if self.config.attn_gate != "auto":
+                if self.config.attn_composition != "gate_add":
                     # (bsz, seq_len, nhead, head_dim) -> (bsz, seq_len, nembed)
                     cross_attn_output = cross_attn_output.permute(0, 2, 1, 3).contiguous()
                     new_shape = cross_attn_output.size()[:-2] + (self.all_head_size,)
@@ -353,27 +337,23 @@ class RobertaSelfAttention(nn.Module):
                     if self.config.layer_norm_after:
                         cross_attn_output = self.ef_transform_layer_norm_out(cross_attn_output)
 
-        if self.config.attn_mode == 'adapter':
-            if "attn_adapter" in self.config.attn_option:
-                cross_attn_output = self.ef_attn_adapter(hidden_states, add_residual=False)
-            elif self.config.attn_option == "mh_adapter":
-                cross_attn_output = self.ef_attn_adapter(hidden_states, add_residual=False, q_proj=self.q_proj)
+        if self.config.attn_mode == 'adapter' and self.config.attn_option == "parallel":
+            cross_attn_output = self.ef_attn_adapter(hidden_states, add_residual=False)
+
 
         # Take the dot product between "query" and "key" to get the raw attention scores.
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
 
         if self.config.attn_mode != "none":
-            if self.config.attn_gate == "none":
+            if self.config.attn_composition == "add":
                 w_prefix = w_attn = 1.0
-            elif self.config.attn_gate == "auto":
+            elif self.config.attn_composition == "gate_add":
                 if attention_mask is not None:
                     attention_scores_local = attention_scores.view(bsz, self.num_attention_heads, tgt_len, src_len) + attention_mask
                     attention_scores_local = attention_scores_local.view(bsz * self.num_attention_heads, tgt_len, src_len)
                 w_prefix, w_attn = softmax_gating(cross_attn_logits, attention_scores_local)  # bsz, num_heads, tgt_len, 1
-            elif self.config.attn_gate >= 0:
-                # distinguish training and
-                w_attn = self.config.attn_gate
-                w_prefix = 1.0 - w_attn
+            else:
+                raise ValueError
 
         # import pdb; pdb.set_trace()
         if self.position_embedding_type == "relative_key" or self.position_embedding_type == "relative_key_query":
@@ -410,7 +390,7 @@ class RobertaSelfAttention(nn.Module):
 
         context_layer = torch.matmul(attention_probs, value_layer)
 
-        if self.config.attn_mode != "none" and self.config.attn_gate == "auto":
+        if self.config.attn_mode != "none" and self.config.attn_composition == "gate_add":
             attn_output = context_layer * w_attn + cross_attn_output * w_prefix
             cross_attn_output = None
 
@@ -438,18 +418,16 @@ class RobertaSelfOutput(nn.Module):
 
         self.config = config
 
-        if config.attn_mode == "adapter" and config.attn_option == "houlsby":
-            self.ef_attn_adapter = Adapter_Layer(d_model=config.hidden_size,
-                                                 dropout=config.hidden_dropout_prob,
-                                                 bottleneck=config.preseqlen,
-                                                 init_option=config.adapter_init_option,
+        if config.attn_mode == "adapter" and config.attn_option == "sequential":
+            self.ef_attn_adapter = Adapter_Layer(self.config,
+                                                 dropout=self.dropout,
+                                                 bottleneck=self.config.attn_bn,
                                                  adapter_layernorm_option="in",
-                                                 adapter_scalar=config.adapter_scalar,
                                                  )
 
     def forward(self, hidden_states, input_tensor):
         hidden_states = self.dense(hidden_states)
-        if self.config.attn_mode == "adapter" and self.config.attn_option == "houlsby":
+        if self.config.attn_mode == "adapter" and self.config.attn_option == "sequential":
             hidden_states = self.ef_attn_adapter(hidden_states, add_residual=True)
 
         hidden_states = self.dropout(hidden_states)
@@ -514,7 +492,7 @@ class RobertaIntermediate(nn.Module):
     def __init__(self, config):
         super().__init__()
         if config.ffn_mode == 'lora':
-            self.dense = Linear(config.hidden_size, config.intermediate_size, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+            self.dense = Linear(config.hidden_size, config.intermediate_size, r=config.ffn_bn, lora_alpha=config.lora_alpha,
                               lora_dropout=config.lora_dropout)
         else:
             self.dense = nn.Linear(config.hidden_size, config.intermediate_size)
@@ -534,7 +512,7 @@ class RobertaOutput(nn.Module):
     def __init__(self, config):
         super().__init__()
         if config.ffn_mode == 'lora':
-            self.dense = Linear(config.intermediate_size, config.hidden_size, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+            self.dense = Linear(config.intermediate_size, config.hidden_size, r=config.ffn_bn, lora_alpha=config.lora_alpha,
                               lora_dropout=config.lora_dropout)
         else:
             self.dense = nn.Linear(config.intermediate_size, config.hidden_size)
@@ -544,22 +522,21 @@ class RobertaOutput(nn.Module):
         self.config = config
 
         if config.ffn_mode == 'adapter':
-            if config.ffn_option == 'ffn_ho_input' or config.ffn_option == 'pfeiffer' or config.ffn_option == 'houlsby':
-                self.ef_ffn_adapter = Adapter_Layer(d_model=config.hidden_size,
-                                                    dropout=config.hidden_dropout_prob,
-                                                    bottleneck=config.ffn_bn_len,
-                                                    init_option=config.adapter_init_option,
-                                                    adapter_layernorm_option=config.adapter_layernorm_option,
-                                                    adapter_scalar=config.adapter_scalar,
-                                                    )
+            self.ef_ffn_adapter = Adapter_Layer(d_model=config.hidden_size,
+                                                dropout=config.hidden_dropout_prob,
+                                                bottleneck=config.ffn_bn,
+                                                init_option=config.ffn_adapter_init_option,
+                                                adapter_layernorm_option=config.ffn_adapter_layernorm_option,
+                                                adapter_scalar=config.ffn_adapter_scalar,
+                                                )
 
     def forward(self, hidden_states, input_tensor, adapter_change=None):
         hidden_states = self.dense(hidden_states)
         hidden_states = self.dropout(hidden_states)
         if self.config.ffn_mode == 'adapter':
-            if self.config.ffn_option == 'ffn_ho_input' or self.config.ffn_option == 'houlsby':
+            if self.config.ffn_option == 'sequential':
                 hidden_states = self.ef_ffn_adapter(hidden_states)
-            elif self.config.ffn_option == 'ffn_hi_input' and adapter_change is not None:
+            elif self.config.ffn_option == 'parallel' and adapter_change is not None:
                 hidden_states =  hidden_states + adapter_change
 
         if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'pfeiffer':
@@ -590,13 +567,13 @@ class RobertaLayer(nn.Module):
 
         self.config = config
 
-        if config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
+        if config.ffn_mode == 'adapter' and self.config.ffn_option == 'parallel':
             self.ef_ffn_adapter = Adapter_Layer(d_model=config.hidden_size,
                                                 dropout=config.hidden_dropout_prob,
-                                                bottleneck=config.ffn_bn_len,
-                                                init_option=config.adapter_init_option,
-                                                adapter_layernorm_option=config.adapter_layernorm_option,
-                                                adapter_scalar=config.adapter_scalar
+                                                bottleneck=config.ffn_bn,
+                                                init_option=config.ffn_adapter_init_option,
+                                                adapter_layernorm_option=config.ffn_adapter_layernorm_option,
+                                                adapter_scalar=config.ffn_adapter_scalar
                                                 )
 
     def forward(
@@ -665,7 +642,7 @@ class RobertaLayer(nn.Module):
         return outputs
 
     def feed_forward_chunk(self, attention_output):
-        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input':
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'parallel':
             adapter_change = self.ef_ffn_adapter(attention_output, add_residual=False)
         else:
             adapter_change = None

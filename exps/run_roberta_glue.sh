@@ -26,8 +26,8 @@ export WANDB_WATCH="false"
 
 DATE=`date +%Y%m%d`
 
-declare -a root_seed_list=(42 2 4 6 8)
-seed=${root_seed_list[$SLURM_ARRAY_TASK_ID]}
+# declare -a root_seed_list=(42 2 4 6 8)
+# seed=${root_seed_list[$SLURM_ARRAY_TASK_ID]}
 
 # seed=42
 
@@ -37,30 +37,32 @@ seed=${root_seed_list[$SLURM_ARRAY_TASK_ID]}
 # declare -a seed_list=(6 8)
 # declare -a seed_list=(${root_seed})
 
-port=62221
-# Hi adapter200
-attn_mode="lisa"
+# MAM adapter
+attn_mode="prefix"
 attn_option="concat"
-ffn_mode="adapter"
-ffn_option="ffn_hi_input"
-preseqlen=16
-ffn_bn_len=48
-hi_lnbefore=1
-adapter_init_option="lora"
-adapter_layernorm_option="fixed_scalar"
-adapter_scalar=2
-max_grad_norm=1
-attn_gate="none"
-ffn_gate="none"
+attn_composition="add"
+attn_bn=16  # attn bottleneck dim
 
+ffn_mode="adapter"
+ffn_option="parallel"
+ffn_adapter_layernorm_option="none"
+ffn_adapter_init_option="lora"
+ffn_adapter_scalar="2"
+ffn_bn=16 # ffn bottleneck dim
+
+# set to 1 for debug mode which only
+# uses 1600 training examples
 debug=0
-report_to="wandb"
+
+# set to "wandb" to use weights & bias
+report_to="none"
 
 bsz=32
 gradient_steps=1
 
 # lr=5e-5
 lr=1e-4
+max_grad_norm=1
 # lr=1e-5
 # weight_decay=0
 weight_decay=0.1
@@ -71,12 +73,9 @@ num_train_epochs=10
 max_tokens_per_batch=0
 max_seq_length=512
 
-layer_norm_in=1
-layer_norm_out=0
-mh_reuse_proj="True"
 lr_scheduler_type="polynomial"
 #metric=bleu
-ft='ef_'
+unfreeze='ef_'
 top_layers=12
 max_eval_samples=1600
 logging_steps=50
@@ -108,7 +107,11 @@ fi
 
 # for seed in "${seed_list[@]}"; do
 
-exp_name=glue.${TASK_NAME}.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ag_${attn_gate}.fg_${ffn_gate}.adalo_${adapter_layernorm_option}.adainit_${adapter_init_option}.scale${adapter_scalar}.hilnb_${hi_lnbefore}.uf_${ft}.ne${num_train_epochs}.warm${warmup_ratio}.wd${weight_decay}.seed${seed}.${debug_str}tmp
+exp_name=glue.${TASK_NAME}.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}
+exp_name+=.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ac_${attn_composition}
+exp_name+=.fl_${ffn_adapter_layernorm_option}.finit_${ffn_adapter_init_option}
+exp_name+=.fs_${ffn_adapter_scalar}.unfrz_${unfreeze}.ne${num_train_epochs}
+exp_name+=.warm${warmup_ratio}.wd${weight_decay}.seed${seed}.${debug_str}
 SAVE=checkpoints/glue/${TASK_NAME}/${DATE}/${exp_name}
 echo "${SAVE}"
 rm -rf ${SAVE}; mkdir -p ${SAVE}
@@ -133,23 +136,17 @@ python -u examples/pytorch/text-classification/run_glue.py \
     --adam_epsilon 1e-6 \
     --attn_mode ${attn_mode} \
     --attn_option ${attn_option} \
-    --attn_gate ${attn_gate} \
+    --attn_composition ${attn_composition} \
     --ffn_mode ${ffn_mode} \
     --ffn_option ${ffn_option} \
-    --ffn_gate ${ffn_gate} \
-    --adapter_layernorm_option ${adapter_layernorm_option} \
-    --adapter_init_option ${adapter_init_option} \
-    --adapter_scalar ${adapter_scalar} \
-    --mh_reuse_proj ${mh_reuse_proj} \
-    --layer_norm_before ${layer_norm_in} \
-    --layer_norm_after ${layer_norm_out} \
-    --hi_lnbefore ${hi_lnbefore} \
+    --ffn_adapter_layernorm_option ${ffn_adapter_layernorm_option} \
+    --ffn_adapter_scalar ${ffn_adapter_scalar} \
+    --ffn_adapter_init_option ${ffn_adapter_init_option} \
     --mid_dim 800 \
-    --preseqlen ${preseqlen} \
-    --ffn_bn_len ${ffn_bn_len} \
-    --init_with_bert 1 \
+    --attn_bn ${attn_bn} \
+    --ffn_bn ${ffn_bn} \
     --seed ${seed} \
-    --unfreeze_params ${ft} \
+    --unfreeze_params ${unfreeze} \
     --num_bias_layers ${top_layers} \
     --max_eval_samples ${max_eval_samples} \
     --gradient_accumulation_steps ${gradient_steps} \

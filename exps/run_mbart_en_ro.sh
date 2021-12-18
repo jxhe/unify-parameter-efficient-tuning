@@ -66,7 +66,7 @@ lr=5e-5
 lr_scheduler_type="polynomial"
 #metric=bleu
 metric=loss
-ft='ef_'
+unfreeze='ef_'
 max_eval_samples=1600
 logging_steps=100
 
@@ -137,7 +137,7 @@ python -u examples/pytorch/translation/run_translation.py \
     --mid_dim 800 \
     --attn_bn ${attn_bn} \
     --ffn_bn ${ffn_bn} \
-    --unfreeze_params ${ft} \
+    --unfreeze_params ${unfreeze} \
     --preprocessing_num_workers 2 \
     --max_source_length 150 \
     --max_target_length 150 \
