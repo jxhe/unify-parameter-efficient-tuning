@@ -185,7 +185,7 @@ class MBartAttention(nn.Module):
                                                  bottleneck=self.config.attn_bn,
                                                  adapter_layernorm_option="in",
                                                  )
-        self.attn_mode != 'none':
+        elif self.attn_mode != 'none':
                 raise ValueError("att_mode not supported")
 
 
@@ -1029,8 +1029,7 @@ class MBartEncoder(MBartPreTrainedModel):
                         (head_mask[idx] if head_mask is not None else None),
                     )
                 else:
-                    if prefix_state is not None and idx + self.config.num_bias_layers >= self.config.encoder_layers:
-                        idx = idx - (self.config.encoder_layers - self.config.num_bias_layers)
+                    if prefix_state is not None:
                         pass_prefix_state = prefix_state[idx] if isinstance(prefix_state, list) else prefix_state
                     else:
                         pass_prefix_state = None
@@ -1291,8 +1290,7 @@ class MBartDecoder(MBartPreTrainedModel):
                 )
             else:
 
-                if prefix_state is not None and idx + self.config.num_bias_layers >= self.config.encoder_layers:
-                    idx = idx - (self.config.encoder_layers - self.config.num_bias_layers)
+                if prefix_state is not None:
                     pass_prefix_state = prefix_state[idx] if isinstance(prefix_state, list) else prefix_state
                 else:
                     pass_prefix_state = None

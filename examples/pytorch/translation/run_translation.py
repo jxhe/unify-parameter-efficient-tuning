@@ -55,7 +55,7 @@ from petl.options import (
     TuneArguments,
     MBARTArguments,
 )
-from petl.prefix_encdec_model import PETLEncDecModel
+from petl.petl_encdec_model import PETLEncDecModel
 from petl.dynamic_batching import DynamicBatchingDataset
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
