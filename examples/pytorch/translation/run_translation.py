@@ -50,13 +50,13 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version
 from transformers.utils.versions import require_version
 
-from effectune.options import (
+from petl.options import (
     GenerationArguments,
     TuneArguments,
     MBARTArguments,
 )
-from effectune.prefix_tuning_MBART import PrefixTuning
-from effectune.dynamic_batching import DynamicBatchingDataset
+from petl.prefix_encdec_model import PETLEncDecModel
+from petl.dynamic_batching import DynamicBatchingDataset
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.9.0.dev0")
@@ -526,9 +526,9 @@ def main():
 
     if tune_args.attn_mode != "none" or tune_args.ffn_mode != "none":
         if tune_args.load_path == "":
-            model = PrefixTuning(config, tune_args, model)
+            model = PETLEncDecModel(config, tune_args, model)
         else:
-            model = PrefixTuning.from_pretrained(
+            model = PETLEncDecModel.from_pretrained(
                 tune_args.load_path,
                 from_tf=bool(".ckpt" in model_args.model_name_or_path),
                 config=config,

@@ -159,9 +159,9 @@ class MBartAttention(nn.Module):
         self.is_decoder = is_decoder
 
         if config.attn_mode == "lora":
-            self.q_proj = Linear(embed_dim, embed_dim, r=config.preseqlen, lora_alpha=config.lora_alpha,
+            self.q_proj = Linear(embed_dim, embed_dim, r=config.attn_bn, lora_alpha=config.lora_alpha,
                                  lora_dropout=config.lora_dropout)
-            self.v_proj = Linear(embed_dim, embed_dim, r=config.preseqlen, lora_alpha=config.lora_alpha,
+            self.v_proj = Linear(embed_dim, embed_dim, r=config.attn_bn, lora_alpha=config.lora_alpha,
                                  lora_dropout=config.lora_dropout)
         else:
             self.q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
@@ -175,32 +175,19 @@ class MBartAttention(nn.Module):
         self.config = config
         self.cache_key = cache_key
 
-        if 'lisa' in self.attn_mode:
-            if self.config.attn_option == 'cross_attn':
+        if 'prefix' in self.attn_mode:
+            if self.config.attn_option == 'cross_attn' or self.config.attn_option == 'cross_attn_relu':
                 self.ef_transform_layer_norm = nn.LayerNorm(embed_dim)
 
         elif self.attn_mode == 'adapter':
-            if "attn_adapter" in self.config.attn_option:
-                self.ef_attn_adapter = Adapter_Layer(self.config, dropout=self.dropout, bottleneck=self.config.preseqlen)
-            elif self.config.attn_option == "houlsby":
-                self.ef_attn_adapter = Adapter_Layer(self.config,
-                                                     dropout=self.dropout,
-                                                     bottleneck=self.config.preseqlen,
-                                                     adapter_layernorm_option="in",
-                                                     )
-            elif self.config.attn_option == "mh_adapter":
-                self.ef_attn_adapter = MHAdapter_Layer(d_model=self.embed_dim,
-                                                       bottleneck=self.config.preseqlen,
-                                                       num_heads=self.num_heads,
-                                                       dropout=self.dropout,
-                                                       init_with_bert=True,
-                                                       adapter_layernorm_option=self.config.adapter_layernorm_option,
-                                                       )
-            else:
-                raise ValueError("adapter option not supported")
+            self.ef_attn_adapter = Adapter_Layer(self.config,
+                                                 dropout=self.dropout,
+                                                 bottleneck=self.config.attn_bn,
+                                                 adapter_layernorm_option="in",
+                                                 )
+        self.attn_mode != 'none':
+                raise ValueError("att_mode not supported")
 
-        if self.config.layer_norm_after:
-            self.ef_transform_layer_norm_out = nn.LayerNorm(embed_dim)
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
@@ -262,11 +249,11 @@ class MBartAttention(nn.Module):
         value_states = value_states.view(*proj_shape)
 
         cross_attn_output = None
-        if prefix_state is not None and 'lisa' in self.attn_mode:
+        if prefix_state is not None and 'prefix' in self.attn_mode:
             # legacy
-            prefix_key = prefix_state.get(self.cache_key)['prev_key']  # bsz x nhead, preseqlen, head_dim
+            prefix_key = prefix_state.get(self.cache_key)['prev_key']  # bsz x nhead, attn_bn, head_dim
             prefix_value = prefix_state.get(self.cache_key)['prev_value']
-            prefix_mask = prefix_state.get(self.cache_key)['prev_key_padding_mask']  # bsz, preseqlen: zeros
+            prefix_mask = prefix_state.get(self.cache_key)['prev_key_padding_mask']  # bsz, attn_bn: zeros
 
             # import pdb; pdb.set_trace()
             if self.config.attn_option == 'concat':
@@ -310,44 +297,31 @@ class MBartAttention(nn.Module):
                 cross_attn_output = torch.bmm(cross_attn_probs, prefix_value)
 
                 # when not mimicing the same gating behaviour of prefix tuning
-                if self.config.attn_gate != "auto":
+                if self.config.attn_composition != "gate_add":
                     cross_attn_output = cross_attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)
                     cross_attn_output = cross_attn_output.transpose(1, 2)
                     cross_attn_output = cross_attn_output.reshape(bsz, tgt_len, embed_dim)
 
-                    if self.config.layer_norm_after:
-                        cross_attn_output = self.ef_transform_layer_norm_out(cross_attn_output)
+            else:
+                raise ValueError(f"attn_option '{self.config.attn_option}' is invalid")
 
-        if self.config.attn_mode == 'adapter':
-            if "attn_adapter" in self.config.attn_option:
-                cross_attn_output = self.ef_attn_adapter(hidden_states, add_residual=False)
-            elif self.config.attn_option == "mh_adapter":
-                cross_attn_output = self.ef_attn_adapter(hidden_states, add_residual=False, q_proj=self.q_proj)
-            # if self.config.layer_norm_after:
-            #     cross_attn_output = self.ef_transform_layer_norm_out(cross_attn_output)
+        if self.config.attn_mode == 'adapter' and self.config.attn_option == "parallel":
+            cross_attn_output = self.ef_attn_adapter(hidden_states, add_residual=False)
 
-        if self.config.attn_mode == "mlp_adapter":
-            params = prefix_state.get(self.cache_key)
-            down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
-            cross_attn_output = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout, add_residual=False)
-            if self.config.layer_norm_after:
-                cross_attn_output = self.ef_transform_layer_norm_out(cross_attn_output)
 
         src_len = key_states.size(1)
         attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
 
         if self.config.attn_mode != "none":
-            if self.config.attn_gate == "none":
+            if self.config.attn_composition == "add":
                 w_prefix = w_attn = 1.0
-            elif self.config.attn_gate == "auto":
+            elif self.config.attn_composition == "gate_add":
                 if attention_mask is not None:
                     attn_weights_local = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
                     attn_weights_local = attn_weights_local.view(bsz * self.num_heads, tgt_len, src_len)
                 w_prefix, w_attn = softmax_gating(cross_attn_logits, attn_weights_local)  # bsz x num_heads, tgt_len, 1
-            elif self.config.attn_gate >= 0:
-                # distinguish training and
-                w_attn = self.config.attn_gate
-                w_prefix = 1.0 - w_attn
+            else:
+                raise ValueError
 
         if attn_weights.size() != (bsz * self.num_heads, tgt_len, src_len):
             raise ValueError(
@@ -390,7 +364,7 @@ class MBartAttention(nn.Module):
                 f"`attn_output` should be of size {(bsz, self.num_heads, tgt_len, self.head_dim)}, but is {attn_output.size()}"
             )
 
-        if self.config.attn_mode != "none" and self.config.attn_gate == "auto":
+        if self.config.attn_mode != "none" and self.config.attn_composition == "gate_add":
             attn_output = attn_output * w_attn + cross_attn_output * w_prefix
             cross_attn_output = None
 
@@ -404,7 +378,7 @@ class MBartAttention(nn.Module):
         attn_output = self.out_proj(attn_output)
 
         # the Houlsby config
-        if self.config.attn_mode == "adapter" and self.config.attn_option == "houlsby":
+        if self.config.attn_mode == "adapter" and self.config.attn_option == "sequential":
             attn_output = self.ef_attn_adapter(attn_output, add_residual=True)
 
         return attn_output, attn_weights_reshaped, past_key_value
@@ -429,9 +403,9 @@ class MBartEncoderLayer(nn.Module):
         self.activation_dropout = config.activation_dropout
 
         if config.ffn_mode == 'lora':
-            self.fc1 = Linear(self.embed_dim, config.encoder_ffn_dim, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+            self.fc1 = Linear(self.embed_dim, config.encoder_ffn_dim, r=config.ffn_bn, lora_alpha=config.lora_alpha,
                               lora_dropout=config.lora_dropout)
-            self.fc2 = Linear(config.encoder_ffn_dim, self.embed_dim, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+            self.fc2 = Linear(config.encoder_ffn_dim, self.embed_dim, r=config.ffn_bn, lora_alpha=config.lora_alpha,
                               lora_dropout=config.lora_dropout)
         else:
             self.fc1 = nn.Linear(self.embed_dim, config.encoder_ffn_dim)
@@ -439,10 +413,13 @@ class MBartEncoderLayer(nn.Module):
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.ffn_mode == 'adapter':
-            self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
-                                                bottleneck=config.ffn_bn_len,
-                                                init_option=config.adapter_init_option,
-                                                adapter_layernorm_option=config.adapter_layernorm_option,)
+            self.ef_ffn_adapter = Adapter_Layer(self.config,
+                                                dropout=self.dropout,
+                                                bottleneck=config.ffn_bn,
+                                                init_option=config.ffn_adapter_init_option,
+                                                adapter_scalar=config.ffn_adapter_scalar,
+                                                adapter_layernorm_option=config.ffn_adapter_layernorm_option,
+                                                )
         self.fc_key = "encoder_ffn"
 
     def forward(
@@ -477,31 +454,12 @@ class MBartEncoderLayer(nn.Module):
         hidden_states = residual + hidden_states
 
         # this corresponds to old Hi, and this is final
-        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input' \
-            and self.config.hi_lnbefore == 1:
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'parallel':
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
 
-        # todo: not working well, remove
-        if self.config.ffn_mode == "mlp_adapter" and self.config.ffn_option == 'ffn_hi_input' \
-                and self.config.hi_lnbefore == 1:
-            params = prefix_state.get(self.fc_key)
-            down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
-            adapter_change = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
-                                          add_residual=False, layernorm_option=self.config.adapter_layernorm_option)
 
         residual = hidden_states
         hidden_states = self.final_layer_norm(hidden_states)
-
-        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input' \
-            and self.config.hi_lnbefore == 0:
-            adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
-
-        if self.config.ffn_mode == "mlp_adapter" and self.config.ffn_option == 'ffn_hi_input' \
-                and self.config.hi_lnbefore == 0:
-            params = prefix_state.get(self.fc_key)
-            down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
-            adapter_change = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
-                                          add_residual=False, layernorm_option=self.config.adapter_layernorm_option)
 
         hidden_states = self.activation_fn(self.fc1(hidden_states))
         hidden_states = nn.functional.dropout(hidden_states, p=self.activation_dropout, training=self.training)
@@ -509,9 +467,9 @@ class MBartEncoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
         if self.config.ffn_mode == 'adapter':
-            if self.config.ffn_option == 'ffn_ho_input' or self.config.ffn_option == 'houlsby':
+            if self.config.ffn_option == 'sequential':
                 hidden_states = self.ef_ffn_adapter(hidden_states)
-            elif self.config.ffn_option == 'ffn_hi_input':
+            elif self.config.ffn_option == 'parallel':
                 hidden_states = hidden_states + adapter_change
             # else:
             #     raise ValueError
@@ -519,16 +477,6 @@ class MBartEncoderLayer(nn.Module):
         if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'pfeiffer':
             h_before_residual = hidden_states
 
-        if self.config.ffn_mode == "mlp_adapter":
-            if self.config.ffn_option == 'ffn_ho_input':
-                params = prefix_state.get(self.fc_key)
-                down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
-                hidden_states = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
-                                             layernorm_option=self.config.adapter_layernorm_option)
-            elif self.config.ffn_option == 'ffn_hi_input':
-                hidden_states = hidden_states + adapter_change
-            else:
-                raise ValueError
 
         hidden_states = residual + hidden_states
 
@@ -579,9 +527,9 @@ class MBartDecoderLayer(nn.Module):
         )
         self.encoder_attn_layer_norm = nn.LayerNorm(self.embed_dim)
         if config.ffn_mode == 'lora':
-            self.fc1 = Linear(self.embed_dim, config.decoder_ffn_dim, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+            self.fc1 = Linear(self.embed_dim, config.decoder_ffn_dim, r=config.ffn_bn, lora_alpha=config.lora_alpha,
                               lora_dropout=config.lora_dropout)
-            self.fc2 = Linear(config.decoder_ffn_dim, self.embed_dim, r=config.ffn_bn_len, lora_alpha=config.lora_alpha,
+            self.fc2 = Linear(config.decoder_ffn_dim, self.embed_dim, r=config.ffn_bn, lora_alpha=config.lora_alpha,
                               lora_dropout=config.lora_dropout)
         else:
             self.fc1 = nn.Linear(self.embed_dim, config.decoder_ffn_dim)
@@ -589,10 +537,13 @@ class MBartDecoderLayer(nn.Module):
         self.final_layer_norm = nn.LayerNorm(self.embed_dim)
 
         if config.ffn_mode == 'adapter':
-            self.ef_ffn_adapter = Adapter_Layer(self.config, dropout=self.dropout,
-                                                bottleneck=config.ffn_bn_len,
-                                                init_option=config.adapter_init_option,
-                                                adapter_layernorm_option=config.adapter_layernorm_option,)
+            self.ef_ffn_adapter = Adapter_Layer(self.config,
+                                                dropout=self.dropout,
+                                                bottleneck=config.ffn_bn,
+                                                init_option=config.ffn_adapter_init_option,
+                                                adapter_scalar=config.ffn_adapter_scalar,
+                                                adapter_layernorm_option=config.ffn_adapter_layernorm_option,
+                                                )
 
         self.fc_key = "decoder_ffn"
 
@@ -674,31 +625,12 @@ class MBartDecoderLayer(nn.Module):
             # add cross-attn to positions 3,4 of present_key_value tuple
             present_key_value = present_key_value + cross_attn_present_key_value
 
-        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input' \
-            and self.config.hi_lnbefore == 1:
+        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'parallel':
             adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
-
-        if self.config.ffn_mode == "mlp_adapter" and self.config.ffn_option == 'ffn_hi_input' \
-                and self.config.hi_lnbefore == 1:
-            params = prefix_state.get(self.fc_key)
-            down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
-            adapter_change = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
-                                          add_residual=False, layernorm_option=self.config.adapter_layernorm_option)
 
         # Fully Connected
         residual = hidden_states
         hidden_states = self.final_layer_norm(hidden_states)
-
-        if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'ffn_hi_input' \
-            and self.config.hi_lnbefore == 0:
-            adapter_change = self.ef_ffn_adapter(hidden_states, add_residual=False)
-
-        if self.config.ffn_mode == "mlp_adapter"  and self.config.ffn_option == 'ffn_hi_input' \
-                and self.config.hi_lnbefore == 0:
-            params = prefix_state.get(self.fc_key)
-            down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
-            adapter_change = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
-                                          add_residual=False, layernorm_option=self.config.adapter_layernorm_option)
 
         hidden_states = self.activation_fn(self.fc1(hidden_states))
         hidden_states = nn.functional.dropout(hidden_states, p=self.activation_dropout, training=self.training)
@@ -706,9 +638,9 @@ class MBartDecoderLayer(nn.Module):
         hidden_states = nn.functional.dropout(hidden_states, p=self.dropout, training=self.training)
 
         if self.config.ffn_mode == 'adapter':
-            if self.config.ffn_option == 'ffn_ho_input' or self.config.ffn_option == 'houlsby':
+            if self.config.ffn_option == 'sequential':
                 hidden_states = self.ef_ffn_adapter(hidden_states)
-            elif self.config.ffn_option == 'ffn_hi_input':
+            elif self.config.ffn_option == 'parallel':
                 hidden_states = hidden_states + adapter_change
             # else:
             #     raise ValueError
@@ -716,16 +648,6 @@ class MBartDecoderLayer(nn.Module):
         if self.config.ffn_mode == 'adapter' and self.config.ffn_option == 'pfeiffer':
             h_before_residual = hidden_states
 
-        if self.config.ffn_mode == "mlp_adapter":
-            if self.config.ffn_option == 'ffn_ho_input':
-                params = prefix_state.get(self.fc_key)
-                down_w, up_w, layer_norm = params["down"], params["up"], params["layernorm"]
-                hidden_states = adapter_func(hidden_states, down_w, up_w, layer_norm, self.training, self.dropout,
-                                             layernorm_option=self.config.adapter_layernorm_option)
-            elif self.config.ffn_option == 'ffn_hi_input':
-                hidden_states = hidden_states + adapter_change
-            else:
-                raise ValueError
 
         hidden_states = residual + hidden_states
 
@@ -979,9 +901,9 @@ class MBartEncoder(MBartPreTrainedModel):
         self.layer_norm = nn.LayerNorm(config.d_model)
 
         if config.attn_mode == "prompt_tuning":
-            self.ef_prefix_emb = nn.Embedding(config.preseqlen, embed_dim)
+            self.ef_prefix_emb = nn.Embedding(config.attn_bn, embed_dim)
             self.ef_prefix_emb.weight.data.normal_(mean=0.0, std=0.02)
-            self.ef_prefix_input_tokens = torch.arange(config.preseqlen).long()
+            self.ef_prefix_input_tokens = torch.arange(config.attn_bn).long()
 
         self.init_weights()
 
@@ -1065,7 +987,7 @@ class MBartEncoder(MBartPreTrainedModel):
             if not self.training and attention_mask.size(1) == input_ids.size(1):
                 # generation time
                 attention_mask = torch.cat(
-                    [torch.ones(bsz, self.config.preseqlen).to(input_ids.device),
+                    [torch.ones(bsz, self.config.attn_bn).to(input_ids.device),
                      attention_mask], dim=1)
 
         hidden_states = self.layernorm_embedding(hidden_states)
@@ -1499,7 +1421,7 @@ class MBartModel(MBartPreTrainedModel):
         assert attention_mask is not None
         if self.config.attn_mode == "prompt_tuning" and encoder_outputs is None:
             # training time
-            attention_mask = torch.cat([torch.ones(decoder_input_ids.size(0), self.config.preseqlen).to(decoder_input_ids.device), attention_mask], dim=1)
+            attention_mask = torch.cat([torch.ones(decoder_input_ids.size(0), self.config.attn_bn).to(decoder_input_ids.device), attention_mask], dim=1)
 
         if encoder_outputs is None:
             encoder_outputs = self.encoder(
@@ -1697,7 +1619,7 @@ class MBartForConditionalGeneration(MBartPreTrainedModel):
         assert attention_mask is not None
         if self.config.attn_mode == "prompt_tuning":
             attention_mask = torch.cat(
-                [torch.ones(decoder_input_ids.size(0), self.config.preseqlen).to(decoder_input_ids.device), attention_mask], dim=1)
+                [torch.ones(decoder_input_ids.size(0), self.config.attn_bn).to(decoder_input_ids.device), attention_mask], dim=1)
 
         return {
             "input_ids": None,  # encoder_outputs is defined. input_ids not needed

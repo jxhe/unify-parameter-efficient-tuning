@@ -3,63 +3,76 @@
 #SBATCH --error=slurm_logs/slurm-%A-%a.err
 #SBATCH --job-name=tran
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:A6000:2
+#SBATCH --gres=gpu:a100:2
 #SBATCH --mem=30g
 #SBATCH --cpus-per-task=3
 #SBATCH --time=0
 ##SBATCH --array=0
 
-source activate tride
-which python
-export TRANSFORMERS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
-export HF_DATASETS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
-export HF_METRICS_CACHE=/home/chuntinz/tir5/pretrain_models/huggingface
-cache_dir=/home/chuntinz/tir5/pretrain_models/huggingface
+export TRANSFORMERS_CACHE=checkpoints/hf_model
+export HF_DATASETS_CACHE=checkpoints/hf_model
+export HF_METRICS_CACHE=checkpoints/hf_model
+
+cache_dir=${TRANSFORMERS_CACHE}
+
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 echo ${SCRIPT_DIR}
 
 # wandb env variables
-export WANDB_PROJECT=enro_translation
-export WANDB_WATCH="false"
-export OMP_NUM_THREADS=1
+# export WANDB_PROJECT=enro_translation
+# export WANDB_WATCH="false"
 
 DATE=`date +%Y%m%d`
 dataset="wmt16"
 
-attn_mode="none"
-attn_option="none"
-ffn_mode="none"
-ffn_option="none"
-gate_option="none"
-preseqlen=1
-ffn_bn_len=1
+# MAM adapter
+attn_mode="prefix"
+attn_option="concat"
+attn_composition="add"
+attn_bn=30  # attn bottleneck dim
 
-layer_norm_in=1
-layer_norm_out=0
-mh_reuse_proj="True"
+ffn_mode="adapter"
+ffn_option="parallel"
+ffn_adapter_layernorm_option="none"
+ffn_adapter_init_option="lora"
+ffn_adapter_scalar="4"
+ffn_bn=512 # ffn bottleneck dim
 
-max_steps=30000
+# set to 1 for debug mode which only
+# uses 1600 training examples
+debug=0
+
+# set to "wandb" to use weights & bias
+report_to="none"
+
+label_smoothing_factor=0.1
+weight_decay=0.01
+
+# the prefix tuning baseline prefers the 
+# commented hyperparam
+# label_smoothing_factor=0
+# weight_decay=0
+
+max_steps=50000
+max_tokens_per_batch=4096
+gradient_steps=4
+
+bsz=10
+
 num_train_epochs=30
-warmup_updates=2500
-lr=3e-5
+warmup_updates=0
+max_grad_norm=1
+lr=5e-5
 lr_scheduler_type="polynomial"
-max_grad_norm=1000 # fixme: fairseq sets no grad_norm
-weight_decay=0.0
-bsz=24
-gradient_steps=10
 #metric=bleu
 metric=loss
 ft='ef_'
-top_layers=12
 max_eval_samples=1600
 logging_steps=100
-label_smoothing_factor=0.2
 
 eval_strategy="steps"
 save_steps=5000
-report_to="wandb"
 
-debug=0
 extra_cmd=""
 debug_str=""
 
@@ -67,12 +80,12 @@ if [ "${debug}" = 1 ];
 then
     label_smoothing_factor=0
     weight_decay=0
-    max_grad_norm=100
+    max_grad_norm=1
     max_train_samples=4000
     max_eval_samples=150
     bsz=10
-    gradient_steps=8
-    num_train_epochs=13
+    gradient_steps=4
+    num_train_epochs=30
     max_steps=-1
     eval_strategy='steps'
     save_steps=100
@@ -82,11 +95,20 @@ then
     debug_str=".debug"
 fi
 
-exp_name=wmt16_roen_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}.fo_${ffn_option}.go_${gate_option}.abn${preseqlen}.fbn${ffn_bn_len}.lni${layer_norm_in}.lno${layer_norm_out}.unfreeze_${ft}.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}.wd${weight_decay}${debug_str}
+exp_name=wmt16_roen.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}
+exp_name+=.fo_${ffn_option}.abn${preseqlen}.fbn${ffn_bn_len}.ac_${attn_composition}
+exp_name+=.fl_${ffn_adapter_layernorm_option}.finit_${ffn_adapter_init_option}
+exp_name+=.fs_${ffn_adapter_scalar}.unfrz_${unfreeze}
+exp_name+=.ms${max_steps}.ls${label_smoothing_factor}.warm${warmup_updates}
+exp_name+=.wd${weight_decay}.mt${max_tokens_per_batch}.${debug_str}
 SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
-python -m torch.distributed.launch --nproc_per_node 2 --master_port=15213 examples/pytorch/translation/run_translation.py \
+rm checkpoints/hf_model/downloads/*.lock
+rm checkpoints/hf_model/*.lock
+
+# python -m torch.distributed.launch --nproc_per_node 2 --master_port=${port} examples/pytorch/translation/run_translation.py \
+python -u examples/pytorch/translation/run_translation.py \
     --dataset_name ${dataset}\
     --dataset_config_name ro-en \
     --model_name_or_path "facebook/mbart-large-cc25" \
@@ -98,25 +120,24 @@ python -m torch.distributed.launch --nproc_per_node 2 --master_port=15213 exampl
     --do_predict \
     --per_device_train_batch_size ${bsz} \
     --per_device_eval_batch_size ${bsz} \
+    --max_tokens_per_batch ${max_tokens_per_batch} \
     --adam_beta1 0.9 \
     --adam_beta2 0.98 \
     --adam_epsilon 1e-6 \
-    --dropout 0.3 \
-    --attention_dropout 0.1 \
+    --dropout 0.1 \
+    --attention_dropout 0.0 \
     --attn_mode ${attn_mode} \
     --attn_option ${attn_option} \
+    --attn_composition ${attn_composition} \
     --ffn_mode ${ffn_mode} \
     --ffn_option ${ffn_option} \
-    --gate_option ${gate_option} \
-    --mh_reuse_proj ${mh_reuse_proj} \
-    --layer_norm_before ${layer_norm_in} \
-    --layer_norm_after ${layer_norm_out} \
+    --ffn_adapter_layernorm_option ${ffn_adapter_layernorm_option} \
+    --ffn_adapter_scalar ${ffn_adapter_scalar} \
+    --ffn_adapter_init_option ${ffn_adapter_init_option} \
     --mid_dim 800 \
-    --preseqlen ${preseqlen} \
-    --ffn_bn_len ${ffn_bn_len} \
-    --init_with_bert 1 \
+    --attn_bn ${attn_bn} \
+    --ffn_bn ${ffn_bn} \
     --unfreeze_params ${ft} \
-    --num_bias_layers ${top_layers} \
     --preprocessing_num_workers 2 \
     --max_source_length 150 \
     --max_target_length 150 \
@@ -151,8 +172,7 @@ python -m torch.distributed.launch --nproc_per_node 2 --master_port=15213 exampl
     --greater_is_better "False" \
     --ddp_find_unused_parameter "False" \
     --predict_with_generate \
-    --output_dir ${SAVE} ${extra_cmd} \
-        2>&1 | tee ${SAVE}/log.txt
+    --output_dir ${SAVE} ${extra_cmd} 2>&1 | tee ${SAVE}/log.txt
 
-cd ${SAVE}
-bash ${SCRIPT_DIR}/romanian_postprocess.sh test_generated_predictions.txt test_gold_labels.txt | tee -a log.txt
+# cd ${SAVE}
+bash exps_tran/romanian_postprocess.sh ${SAVE}/test_generated_predictions.txt ${SAVE}/test_gold_labels.txt | tee -a ${SAVE}/log.txt

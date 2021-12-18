@@ -17,8 +17,8 @@ cache_dir=${TRANSFORMERS_CACHE}
 
 # conda activate adapter
 # wandb env variables
-export WANDB_PROJECT=xsum
-export WANDB_WATCH="false"
+# export WANDB_PROJECT=xsum
+# export WANDB_WATCH="false"
 
 DATE=`date +%Y%m%d`
 dataset="xsum"
@@ -85,7 +85,7 @@ then
 fi
 
 
-exp_name=xsum_tride.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}
+exp_name=xsum.am_${attn_mode}.ao_${attn_option}.fm_${ffn_mode}
 exp_name+=.fo_${ffn_option}.abn${attn_bn}.fbn${ffn_bn}.ac_${attn_composition}
 exp_name+=.fl_${ffn_adapter_layernorm_option}.finit_${ffn_adapter_init_option}.fs_${ffn_adapter_scalar}
 exp_name+=.unfrz_${unfreeze}.ms${max_steps}.ls${label_smoothing_factor}

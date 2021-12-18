@@ -117,14 +117,6 @@ class TuneArguments:
         },
     )
 
-    hi_lnbefore: Optional[int] = field(
-        default=0,
-        metadata={
-            "help": "specific ffn Hi, this only influences pre-norm arch like mbart; \
-                0: Hi is after the pre-norm; \
-                1: Hi is before the pre-norm"
-        },
-    )
 
     ffn_adapter_layernorm_option: Optional[str] = field(
         default="in",
