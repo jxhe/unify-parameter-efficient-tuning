@@ -539,12 +539,10 @@ def main():
                     pretrained_model=model,
                     )
 
-    print(model)
+    # print(model)
 
-    # import pdb; pdb.set_trace()
-
-    for n, p in model.named_parameters():
-        print(n, p.requires_grad)
+    # for n, p in model.named_parameters():
+    #     print(n, p.requires_grad)
 
     # Metric
     metric = load_metric("rouge")

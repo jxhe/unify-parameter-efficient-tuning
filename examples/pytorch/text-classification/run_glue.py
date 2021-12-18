@@ -425,9 +425,9 @@ def main():
                 pretrained_model=model,
             )
 
-    print(model)
-    for n, p in model.named_parameters():
-        print(n, p.requires_grad)
+    # print(model)
+    # for n, p in model.named_parameters():
+    #     print(n, p.requires_grad)
 
     def preprocess_function(examples):
         # Tokenize the texts
