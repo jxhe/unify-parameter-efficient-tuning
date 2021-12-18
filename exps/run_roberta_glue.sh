@@ -29,7 +29,7 @@ DATE=`date +%Y%m%d`
 # declare -a root_seed_list=(42 2 4 6 8)
 # seed=${root_seed_list[$SLURM_ARRAY_TASK_ID]}
 
-# seed=42
+seed=42
 
 # declare -a seed_list=(42)
 # declare -a seed_list=(42 2 4)
@@ -76,7 +76,6 @@ max_seq_length=512
 lr_scheduler_type="polynomial"
 #metric=bleu
 unfreeze='ef_'
-top_layers=12
 max_eval_samples=1600
 logging_steps=50
 
@@ -147,7 +146,6 @@ python -u examples/pytorch/text-classification/run_glue.py \
     --ffn_bn ${ffn_bn} \
     --seed ${seed} \
     --unfreeze_params ${unfreeze} \
-    --num_bias_layers ${top_layers} \
     --max_eval_samples ${max_eval_samples} \
     --gradient_accumulation_steps ${gradient_steps} \
     --max_steps ${max_steps} \

@@ -48,7 +48,7 @@ from petl.options import (
     GenerationArguments,
     TuneArguments,
 )
-from petl.prefix_enc_model import PETLEncModel
+from petl.petl_enc_model import PETLEncModel
 from petl.dynamic_batching import DynamicBatchingDataset
 
 

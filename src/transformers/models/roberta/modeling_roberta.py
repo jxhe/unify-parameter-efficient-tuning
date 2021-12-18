@@ -208,11 +208,8 @@ class RobertaSelfAttention(nn.Module):
                                                  bottleneck=self.config.attn_bn,
                                                  adapter_layernorm_option="in",
                                                  )
-        elif self.attn_mode != 'none'::
+        elif self.attn_mode != 'none':
                 raise ValueError("att_mode not supported")
-
-        if self.config.layer_norm_after:
-            self.ef_transform_layer_norm_out = nn.LayerNorm(embed_dim)
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
