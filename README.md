@@ -9,6 +9,8 @@ Preprint 2021
 
 Parameter-efficient transfer learning (PETL) methods only tune a small number of (extra) parameters to adapt large pretrained models into downstream tasks. This paper reveals the connection among existing PETL methods such as adapters, prefix tuning, and LoRA, and proposes a unified framework to interpret their designs. This unified framework is able to instantiate existing approaches by varying values along several defined design dimensions, which also provides principled guidance to design new PETL methods. In this repo as well as in the paper, we include examples of how we easily derive new state-of-the-art PETL methods from the unified framework.
 
+![intro](img/intro.png)
+
 ## Dependencies
 
 This repo is a fork of the [huggingface transformers](https://github.com/huggingface/transformers) repo (forked on June 23, 2021), and the code is tested on [PyTorch](https://pytorch.org) 1.9.0. Please follow the instructions below to install dependencies after you set up PyTorch:
@@ -99,7 +101,7 @@ ffn_bn=512 # ffn bottleneck dim
 # ffn_bn=512 # ffn bottleneck dim
 ```
 
-There are more variations than what is shown above. Please see a complete explanation of these arguments [here]() in `petl/options.py`. The results of all the variants reported in the paper could be reproduced by changing these values in the scripts.
+There are more variations than what is shown above. Please see a complete explanation of these arguments [here](https://github.com/jxhe/unified-parameter-efficient-tuning/blob/0d9e3c238c9844b8b48085b4a65fe66a8b985506/petl/options.py?_pjax=%23js-repo-pjax-container%2C%20div%5Bitemtype%3D%22http%3A%2F%2Fschema.org%2FSoftwareSourceCode%22%5D%20main%2C%20%5Bdata-pjax-container%5D#L45) in `petl/options.py`. The results of all the variants reported in the paper could be reproduced by changing these values in the scripts.
 
 
 
