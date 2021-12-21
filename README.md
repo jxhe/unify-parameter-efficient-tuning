@@ -101,7 +101,7 @@ ffn_bn=512 # ffn bottleneck dim
 # ffn_bn=512 # ffn bottleneck dim
 ```
 
-There are more variations than what is shown above. Please see a complete explanation of these arguments [here](https://github.com/jxhe/unified-parameter-efficient-tuning/blob/0d9e3c238c9844b8b48085b4a65fe66a8b985506/petl/options.py?_pjax=%23js-repo-pjax-container%2C%20div%5Bitemtype%3D%22http%3A%2F%2Fschema.org%2FSoftwareSourceCode%22%5D%20main%2C%20%5Bdata-pjax-container%5D#L45) in `petl/options.py`. The results of all the variants reported in the paper could be reproduced by changing these values in the scripts.
+There are more variations than what is shown above. Please see a complete explanation of these arguments [here](https://github.com/jxhe/unified-parameter-efficient-tuning/blob/25b44ac0e6f70e116af15cb866faa9ddc13b6c77/petl/options.py#L45) in `petl/options.py`. The results of all the variants reported in the paper could be reproduced by changing these values in the scripts.
 
 
 
