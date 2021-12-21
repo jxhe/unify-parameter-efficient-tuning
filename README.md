@@ -21,7 +21,10 @@ cd MAM-adapter
 pip install -e .
 
 # install other requirements
-pip install -r requirements.txt
+pip install datasets==1.11.0
+
+# used to compute BLEU score for en-ro translation
+git clone git@github.com:moses-smt/mosesdecoder.git
 ```
 
 
