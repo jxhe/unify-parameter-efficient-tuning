@@ -25,7 +25,7 @@ echo ${SCRIPT_DIR}
 DATE=`date +%Y%m%d`
 dataset="wmt16"
 
-# MAM adapter
+# ----- MAM adapter -----
 attn_mode="prefix"
 attn_option="concat"
 attn_composition="add"
@@ -53,11 +53,13 @@ weight_decay=0.01
 # label_smoothing_factor=0
 # weight_decay=0
 
+# note that the bsz argument is only effective at evaluation but
+# does not influence the training -- it is overridden by 
+# max_tokens_per_batch
+bsz=10
 max_steps=50000
 max_tokens_per_batch=4096
 gradient_steps=4
-
-bsz=10
 
 num_train_epochs=30
 warmup_updates=0

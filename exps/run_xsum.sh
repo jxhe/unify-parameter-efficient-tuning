@@ -23,7 +23,7 @@ cache_dir=${TRANSFORMERS_CACHE}
 DATE=`date +%Y%m%d`
 dataset="xsum"
 
-# MAM adapter
+# ----- MAM adapter -----
 attn_mode="prefix"
 attn_option="concat"
 attn_composition="add"
@@ -35,6 +35,46 @@ ffn_adapter_layernorm_option="none"
 ffn_adapter_init_option="lora"
 ffn_adapter_scalar="4"
 ffn_bn=512 # ffn bottleneck dim
+
+# ----- prefix tuning baseline ----- 
+# attn_mode="prefix"
+# attn_option="concat"
+# attn_composition="add"
+# attn_bn=200  # attn bottleneck dim
+
+# ffn_mode="none"
+# ffn_option="parallel"
+# ffn_adapter_layernorm_option="none"
+# ffn_adapter_init_option="lora"
+# ffn_adapter_scalar="4"
+# ffn_bn=512 # ffn bottleneck dim
+
+# ----- Houlsby Adapter ----- 
+# attn_mode="adapter"
+# attn_option="sequential"
+# attn_composition="add"
+# attn_bn=200  # attn bottleneck dim
+
+# ffn_mode="adapter"
+# ffn_option="sequential"
+# ffn_adapter_layernorm_option="none"
+# ffn_adapter_init_option="bert"
+# ffn_adapter_scalar="1"
+# ffn_bn=200 # ffn bottleneck dim
+
+
+# ----- FFN Scaled Parallel Adapter ----- 
+# attn_mode="None"
+# attn_option="parallel"
+# attn_composition="add"
+# attn_bn=200  # attn bottleneck dim
+
+# ffn_mode="adapter"
+# ffn_option="parallel"
+# ffn_adapter_layernorm_option="none"
+# ffn_adapter_init_option="lora"
+# ffn_adapter_scalar="4"
+# ffn_bn=512 # ffn bottleneck dim
 
 
 # set to 1 for debug mode which only

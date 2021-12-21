@@ -37,7 +37,7 @@ seed=42
 # declare -a seed_list=(6 8)
 # declare -a seed_list=(${root_seed})
 
-# MAM adapter
+# ----- MAM adapter -----
 attn_mode="prefix"
 attn_option="concat"
 attn_composition="add"
