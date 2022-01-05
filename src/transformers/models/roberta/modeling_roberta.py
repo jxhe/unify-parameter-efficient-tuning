@@ -200,7 +200,7 @@ class RobertaSelfAttention(nn.Module):
 
         if 'prefix' in self.attn_mode:
             if self.config.attn_option == 'cross_attn' or self.config.attn_option == 'cross_attn_relu':
-                self.ef_transform_layer_norm = nn.LayerNorm(embed_dim)
+                self.ef_transform_layer_norm = nn.LayerNorm(config.hidden_size)
 
         elif self.attn_mode == 'adapter':
             self.ef_attn_adapter = Adapter_Layer(self.config,
@@ -338,6 +338,7 @@ class RobertaSelfAttention(nn.Module):
             cross_attn_output = self.ef_attn_adapter(hidden_states, add_residual=False)
 
 
+        src_len = key_layer.size(1)
         # Take the dot product between "query" and "key" to get the raw attention scores.
         attention_scores = torch.matmul(query_layer, key_layer.transpose(-1, -2))
 
