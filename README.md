@@ -4,7 +4,7 @@ This is the official implementation of the [paper](https://arxiv.org/abs/2110.04
 ```
 Towards a Unified View of Parameter-Efficient Transfer Learning
 Junxian He*, Chunting Zhou*, Xuezhe Ma, Taylor Berg-Kirkpatrick, Graham Neubig
-Preprint 2021
+ICLR 2022 (spotlight)
 ```
 
 Parameter-efficient transfer learning (PETL) methods only tune a small number of (extra) parameters to adapt large pretrained models into downstream tasks. This paper reveals the connection among existing PETL methods such as adapters, prefix tuning, and LoRA, and proposes a unified framework to interpret their designs. This unified framework is able to instantiate existing approaches by varying values along several defined design dimensions, which also provides principled guidance to design new PETL methods. In this repo as well as in the paper, we include examples of how we easily derive new state-of-the-art PETL methods from the unified framework.
@@ -109,11 +109,12 @@ There are more variations than what is shown above. Please see a complete explan
 ## Citation
 
 ```
-@article{he2021towards,
-  title={Towards a Unified View of Parameter-Efficient Transfer Learning},
-  author={He, Junxian and Zhou, Chunting and Ma, Xuezhe and Berg-Kirkpatrick, Taylor and Neubig, Graham},
-  journal={arXiv preprint arXiv:2110.04366},
-  year={2021}
+@inproceedings{he2022towards,
+title={Towards a Unified View of Parameter-Efficient Transfer Learning},
+author={Junxian He and Chunting Zhou and Xuezhe Ma and Taylor Berg-Kirkpatrick and Graham Neubig},
+booktitle={International Conference on Learning Representations},
+year={2022},
+url={https://openreview.net/forum?id=0RDcd5Axok}
 }
 ```
 
