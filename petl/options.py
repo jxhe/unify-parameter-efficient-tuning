@@ -75,9 +75,10 @@ class TuneArguments:
 
             "help": "specific attn configs; \
                 concat: concat prefix to self, this is prefix tuning baseline; \
-                cross_attn_noln: prefix tuning with vanilla add composition (instead of gated add) \
+                cross_attn_noln: prefix tuning with vanilla add composition (instead of gated add), \
+                    need to be used together with 'attn_composition=add'; \
                 cross_attn: cross_attn_noln plus a layernorm layer \
-                cross_attn_relu: basically multi-head adapter; \
+                cross_attn_relu: basically multi-head adapter, need to be used under 'prefix' mode; \
                 parallel: parallel insertion form; need to be used under 'adapter' mode; \
                 sequential: sequential insertion form; need to be used under 'adapter' mode;",
 

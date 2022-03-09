@@ -64,12 +64,38 @@ ffn_bn=512 # ffn bottleneck dim
 
 
 # ----- FFN Scaled Parallel Adapter ----- 
-# attn_mode="None"
+# attn_mode="none"
 # attn_option="parallel"
 # attn_composition="add"
 # attn_bn=200  # attn bottleneck dim
 
 # ffn_mode="adapter"
+# ffn_option="parallel"
+# ffn_adapter_layernorm_option="none"
+# ffn_adapter_init_option="lora"
+# ffn_adapter_scalar="4"
+# ffn_bn=512 # ffn bottleneck dim
+
+# ----- Prompt Tuning ----- 
+# attn_mode="prompt_tuning"
+# attn_option="parallel"
+# attn_composition="add"
+# attn_bn=200  # attn bottleneck dim
+
+# ffn_mode="none"
+# ffn_option="parallel"
+# ffn_adapter_layernorm_option="none"
+# ffn_adapter_init_option="lora"
+# ffn_adapter_scalar="4"
+# ffn_bn=512 # ffn bottleneck dim
+
+# ----- bitfit ----- 
+# attn_mode="bitfit"
+# attn_option="parallel"
+# attn_composition="add"
+# attn_bn=200  # attn bottleneck dim
+
+# ffn_mode="none"
 # ffn_option="parallel"
 # ffn_adapter_layernorm_option="none"
 # ffn_adapter_init_option="lora"
