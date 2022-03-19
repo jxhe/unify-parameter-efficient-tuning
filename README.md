@@ -16,8 +16,8 @@ Parameter-efficient transfer learning (PETL) methods only tune a small number of
 This repo is a fork of the [huggingface transformers](https://github.com/huggingface/transformers) repo (forked on June 23, 2021), and the code is tested on [PyTorch](https://pytorch.org) 1.9.0. Please follow the instructions below to install dependencies after you set up PyTorch:
 
 ```bash
-git clone git@github.com:jxhe/MAM-adapter.git
-cd MAM-adapter
+git clone git@github.com:jxhe/unify-parameter-efficient-tuning.git
+cd unify-parameter-efficient-tuning
 
 # install transformers from this repo
 pip install -e .
