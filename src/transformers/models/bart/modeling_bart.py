@@ -153,9 +153,9 @@ class BartAttention(nn.Module):
 
         if config.attn_mode == "lora":
             self.q_proj = Linear(embed_dim, embed_dim, r=config.attn_bn, lora_alpha=config.lora_alpha,
-                                 lora_dropout=config.lora_dropout)
+                                 lora_dropout=config.lora_dropout, lora_init=config.lora_init)
             self.v_proj = Linear(embed_dim, embed_dim, r=config.attn_bn, lora_alpha=config.lora_alpha,
-                                 lora_dropout=config.lora_dropout)
+                                 lora_dropout=config.lora_dropout, lora_init=config.lora_init)
         else:
             self.q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
             self.v_proj = nn.Linear(embed_dim, embed_dim, bias=bias)

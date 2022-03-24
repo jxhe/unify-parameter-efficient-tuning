@@ -160,9 +160,9 @@ class MBartAttention(nn.Module):
 
         if config.attn_mode == "lora":
             self.q_proj = Linear(embed_dim, embed_dim, r=config.attn_bn, lora_alpha=config.lora_alpha,
-                                 lora_dropout=config.lora_dropout)
+                                 lora_dropout=config.lora_dropout, lora_init=config.lora_init)
             self.v_proj = Linear(embed_dim, embed_dim, r=config.attn_bn, lora_alpha=config.lora_alpha,
-                                 lora_dropout=config.lora_dropout)
+                                 lora_dropout=config.lora_dropout, lora_init=config.lora_init)
         else:
             self.q_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
             self.v_proj = nn.Linear(embed_dim, embed_dim, bias=bias)
@@ -404,9 +404,9 @@ class MBartEncoderLayer(nn.Module):
 
         if config.ffn_mode == 'lora':
             self.fc1 = Linear(self.embed_dim, config.encoder_ffn_dim, r=config.ffn_bn, lora_alpha=config.lora_alpha,
-                              lora_dropout=config.lora_dropout)
+                              lora_dropout=config.lora_dropout, lora_init=config.lora_init)
             self.fc2 = Linear(config.encoder_ffn_dim, self.embed_dim, r=config.ffn_bn, lora_alpha=config.lora_alpha,
-                              lora_dropout=config.lora_dropout)
+                              lora_dropout=config.lora_dropout, lora_init=config.lora_init)
         else:
             self.fc1 = nn.Linear(self.embed_dim, config.encoder_ffn_dim)
             self.fc2 = nn.Linear(config.encoder_ffn_dim, self.embed_dim)
@@ -528,9 +528,9 @@ class MBartDecoderLayer(nn.Module):
         self.encoder_attn_layer_norm = nn.LayerNorm(self.embed_dim)
         if config.ffn_mode == 'lora':
             self.fc1 = Linear(self.embed_dim, config.decoder_ffn_dim, r=config.ffn_bn, lora_alpha=config.lora_alpha,
-                              lora_dropout=config.lora_dropout)
+                              lora_dropout=config.lora_dropout, lora_init=config.lora_init)
             self.fc2 = Linear(config.decoder_ffn_dim, self.embed_dim, r=config.ffn_bn, lora_alpha=config.lora_alpha,
-                              lora_dropout=config.lora_dropout)
+                              lora_dropout=config.lora_dropout, lora_init=config.lora_init)
         else:
             self.fc1 = nn.Linear(self.embed_dim, config.decoder_ffn_dim)
             self.fc2 = nn.Linear(config.decoder_ffn_dim, self.embed_dim)

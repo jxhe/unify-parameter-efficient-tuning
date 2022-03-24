@@ -38,6 +38,15 @@ ffn_adapter_init_option="lora"
 ffn_adapter_scalar="4"
 ffn_bn=512 # ffn bottleneck dim
 
+
+# lora params are not set
+if [ -z ${lora_alpha+x} ];
+then
+    lora_alpha=0
+    lora_init="lora"
+    lora_dropout=0
+fi
+
 # set to 1 for debug mode which only
 # uses 1600 training examples
 debug=0
@@ -48,13 +57,13 @@ report_to="none"
 label_smoothing_factor=0.1
 weight_decay=0.01
 
-# the prefix tuning baseline prefers the 
+# the prefix tuning baseline prefers the
 # commented hyperparam
 # label_smoothing_factor=0
 # weight_decay=0
 
 # note that the bsz argument is only effective at evaluation but
-# does not influence the training -- it is overridden by 
+# does not influence the training -- it is overridden by
 # max_tokens_per_batch
 bsz=10
 max_steps=50000
@@ -128,6 +137,9 @@ python -u examples/pytorch/translation/run_translation.py \
     --adam_epsilon 1e-6 \
     --dropout 0.1 \
     --attention_dropout 0.0 \
+    --lora_alpha ${lora_alpha} \
+    --lora_dropout ${lora_dropout} \
+    --lora_init ${lora_init} \
     --attn_mode ${attn_mode} \
     --attn_option ${attn_option} \
     --attn_composition ${attn_composition} \

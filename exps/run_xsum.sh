@@ -36,7 +36,7 @@ ffn_adapter_init_option="lora"
 ffn_adapter_scalar="4"
 ffn_bn=512 # ffn bottleneck dim
 
-# ----- prefix tuning baseline ----- 
+# ----- prefix tuning baseline -----
 # attn_mode="prefix"
 # attn_option="concat"
 # attn_composition="add"
@@ -49,7 +49,7 @@ ffn_bn=512 # ffn bottleneck dim
 # ffn_adapter_scalar="4"
 # ffn_bn=512 # ffn bottleneck dim
 
-# ----- Houlsby Adapter ----- 
+# ----- Houlsby Adapter -----
 # attn_mode="adapter"
 # attn_option="sequential"
 # attn_composition="add"
@@ -63,7 +63,7 @@ ffn_bn=512 # ffn bottleneck dim
 # ffn_bn=200 # ffn bottleneck dim
 
 
-# ----- FFN Scaled Parallel Adapter ----- 
+# ----- FFN Scaled Parallel Adapter -----
 # attn_mode="none"
 # attn_option="parallel"
 # attn_composition="add"
@@ -76,7 +76,7 @@ ffn_bn=512 # ffn bottleneck dim
 # ffn_adapter_scalar="4"
 # ffn_bn=512 # ffn bottleneck dim
 
-# ----- Prompt Tuning ----- 
+# ----- Prompt Tuning -----
 # attn_mode="prompt_tuning"
 # attn_option="parallel"
 # attn_composition="add"
@@ -89,7 +89,7 @@ ffn_bn=512 # ffn bottleneck dim
 # ffn_adapter_scalar="4"
 # ffn_bn=512 # ffn bottleneck dim
 
-# ----- bitfit ----- 
+# ----- bitfit -----
 # attn_mode="bitfit"
 # attn_option="parallel"
 # attn_composition="add"
@@ -101,6 +101,35 @@ ffn_bn=512 # ffn bottleneck dim
 # ffn_adapter_init_option="lora"
 # ffn_adapter_scalar="4"
 # ffn_bn=512 # ffn bottleneck dim
+
+# ----- lora -----
+# attn_mode="lora"
+# attn_option="none"
+# attn_composition="add"
+# attn_bn=16
+
+# # set ffn_mode to be 'lora' to use
+# # lora at ffn as well
+
+# ffn_mode="none"
+# ffn_option="none"
+# ffn_adapter_layernorm_option="none"
+# ffn_adapter_init_option="bert"
+# ffn_adapter_scalar="1"
+# ffn_bn=16
+
+# lora_alpha=32
+# lora_dropout=0.1
+# lora_init="lora"
+
+
+# lora params are not set
+if [ -z ${lora_alpha+x} ];
+then
+    lora_alpha=0
+    lora_init="lora"
+    lora_dropout=0
+fi
 
 
 # set to 1 for debug mode which only
@@ -161,13 +190,16 @@ SAVE=checkpoints/${dataset}/${DATE}/${exp_name}
 
 rm -rf ${SAVE}; mkdir -p ${SAVE}
 
-
 rm checkpoints/hf_model/downloads/*.lock
+rm checkpoints/hf_model/*.lock
 
 python -u examples/pytorch/summarization/run_summarization.py \
     --dataset_name 'xsum' \
     --model_name_or_path 'facebook/bart-large' \
     --cache_dir ${cache_dir} \
+    --lora_alpha ${lora_alpha} \
+    --lora_dropout ${lora_dropout} \
+    --lora_init ${lora_init} \
     --attn_mode ${attn_mode} \
     --attn_option ${attn_option} \
     --attn_composition ${attn_composition} \

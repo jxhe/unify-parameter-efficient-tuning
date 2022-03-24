@@ -176,9 +176,9 @@ class RobertaSelfAttention(nn.Module):
 
         if config.attn_mode == "lora":
             self.query = Linear(config.hidden_size, self.all_head_size, r=config.attn_bn, lora_alpha=config.lora_alpha,
-                                 lora_dropout=config.lora_dropout)
+                                 lora_dropout=config.lora_dropout, lora_init=config.lora_init)
             self.value = Linear(config.hidden_size, self.all_head_size, r=config.attn_bn, lora_alpha=config.lora_alpha,
-                                 lora_dropout=config.lora_dropout)
+                                 lora_dropout=config.lora_dropout, lora_init=config.lora_init)
         else:
             self.query = nn.Linear(config.hidden_size, self.all_head_size)
             self.value = nn.Linear(config.hidden_size, self.all_head_size)
@@ -202,14 +202,14 @@ class RobertaSelfAttention(nn.Module):
             if self.config.attn_option == 'cross_attn' or self.config.attn_option == 'cross_attn_relu':
                 self.ef_transform_layer_norm = nn.LayerNorm(config.hidden_size)
 
-        elif self.attn_mode == 'adapter':
-            self.ef_attn_adapter = Adapter_Layer(self.config,
-                                                 dropout=self.dropout,
+        elif self.attn_mode == 'adapter' and self.config.attn_option == 'parallel':
+            self.ef_attn_adapter = Adapter_Layer(d_model=config.hidden_size,
+                                                 dropout=config.attention_probs_dropout_prob,
                                                  bottleneck=self.config.attn_bn,
                                                  adapter_layernorm_option="in",
                                                  )
-        elif self.attn_mode != 'none':
-                raise ValueError("att_mode not supported")
+        # elif self.attn_mode != 'none':
+        #         raise ValueError("att_mode not supported")
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
@@ -417,8 +417,8 @@ class RobertaSelfOutput(nn.Module):
         self.config = config
 
         if config.attn_mode == "adapter" and config.attn_option == "sequential":
-            self.ef_attn_adapter = Adapter_Layer(self.config,
-                                                 dropout=self.dropout,
+            self.ef_attn_adapter = Adapter_Layer(d_model=config.hidden_size,
+                                                 dropout=config.attention_probs_dropout_prob,
                                                  bottleneck=self.config.attn_bn,
                                                  adapter_layernorm_option="in",
                                                  )
@@ -491,7 +491,7 @@ class RobertaIntermediate(nn.Module):
         super().__init__()
         if config.ffn_mode == 'lora':
             self.dense = Linear(config.hidden_size, config.intermediate_size, r=config.ffn_bn, lora_alpha=config.lora_alpha,
-                              lora_dropout=config.lora_dropout)
+                              lora_dropout=config.lora_dropout, lora_init=config.lora_init)
         else:
             self.dense = nn.Linear(config.hidden_size, config.intermediate_size)
         if isinstance(config.hidden_act, str):
@@ -511,7 +511,7 @@ class RobertaOutput(nn.Module):
         super().__init__()
         if config.ffn_mode == 'lora':
             self.dense = Linear(config.intermediate_size, config.hidden_size, r=config.ffn_bn, lora_alpha=config.lora_alpha,
-                              lora_dropout=config.lora_dropout)
+                              lora_dropout=config.lora_dropout, lora_init=config.lora_init)
         else:
             self.dense = nn.Linear(config.intermediate_size, config.hidden_size)
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
