@@ -11,6 +11,19 @@ Parameter-efficient transfer learning (PETL) methods only tune a small number of
 
 ![intro](img/intro.png)
 
+## Updates
+
+**Mar 24, 2022**
+
+Our MAM adapter and parallel adapter are integrated into the [adapter-transformers](https://github.com/Adapter-Hub/adapter-transformers) package (thanks to their developers!), please check their [release blog](https://adapterhub.ml/blog/2022/03/adapter-transformers-v3-unifying-efficient-fine-tuning/) on the details. With adapter-transformers, you may apply MAM adapter or parallel adapter to a wide variety of tasks and pretrained models easily, for example, the code below sets up a MAM adapter based on a pretrained model:
+```python
+# this is a usage case based on the adapter-transformer package, not this repo
+from transformers.adapters import MAMConfig
+
+config = MAMConfig()
+model.add_adapter("mam_adapter", config=config)
+```
+
 ## Dependencies
 
 This repo is a fork of the [huggingface transformers](https://github.com/huggingface/transformers) repo (forked on June 23, 2021), and the code is tested on [PyTorch](https://pytorch.org) 1.9.0. Please follow the instructions below to install dependencies after you set up PyTorch:
@@ -61,7 +74,7 @@ ffn_adapter_init_option="lora"
 ffn_adapter_scalar="4"
 ffn_bn=512 # ffn bottleneck dim
 
-# ----- prefix tuning baseline ----- 
+# ----- prefix tuning baseline -----
 # attn_mode="prefix"
 # attn_option="concat"
 # attn_composition="add"
@@ -74,7 +87,7 @@ ffn_bn=512 # ffn bottleneck dim
 # ffn_adapter_scalar="4"
 # ffn_bn=512 # ffn bottleneck dim
 
-# ----- Houlsby Adapter ----- 
+# ----- Houlsby Adapter -----
 # attn_mode="adapter"
 # attn_option="sequential"
 # attn_composition="add"
@@ -87,7 +100,8 @@ ffn_bn=512 # ffn bottleneck dim
 # ffn_adapter_scalar="1"
 # ffn_bn=200 # ffn bottleneck dim
 
-# ----- FFN Scaled Parallel Adapter ----- 
+
+# ----- FFN Scaled Parallel Adapter -----
 # attn_mode="none"
 # attn_option="parallel"
 # attn_composition="add"
@@ -100,7 +114,7 @@ ffn_bn=512 # ffn bottleneck dim
 # ffn_adapter_scalar="4"
 # ffn_bn=512 # ffn bottleneck dim
 
-# ----- Prompt Tuning ----- 
+# ----- Prompt Tuning -----
 # attn_mode="prompt_tuning"
 # attn_option="parallel"
 # attn_composition="add"
@@ -113,7 +127,7 @@ ffn_bn=512 # ffn bottleneck dim
 # ffn_adapter_scalar="4"
 # ffn_bn=512 # ffn bottleneck dim
 
-# ----- bitfit ----- 
+# ----- bitfit -----
 # attn_mode="bitfit"
 # attn_option="parallel"
 # attn_composition="add"
@@ -125,6 +139,26 @@ ffn_bn=512 # ffn bottleneck dim
 # ffn_adapter_init_option="lora"
 # ffn_adapter_scalar="4"
 # ffn_bn=512 # ffn bottleneck dim
+
+# ----- lora -----
+# attn_mode="lora"
+# attn_option="none"
+# attn_composition="add"
+# attn_bn=16
+
+# # set ffn_mode to be 'lora' to use
+# # lora at ffn as well
+
+# ffn_mode="none"
+# ffn_option="none"
+# ffn_adapter_layernorm_option="none"
+# ffn_adapter_init_option="bert"
+# ffn_adapter_scalar="1"
+# ffn_bn=16
+
+# lora_alpha=32
+# lora_dropout=0.1
+# lora_init="lora"
 ```
 
 There are more variations than what is shown above. Please see a complete explanation of these arguments [here](https://github.com/jxhe/unified-parameter-efficient-tuning/blob/25b44ac0e6f70e116af15cb866faa9ddc13b6c77/petl/options.py#L45) in `petl/options.py`. The results of all the variants reported in the paper could be reproduced by changing these values in the scripts.
